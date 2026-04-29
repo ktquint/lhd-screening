@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Validation script outputs
+output/
+
+# Hydrography data — too large for GitHub (4.5 GB total).
+# These files must be hosted separately and fetched at runtime.
+frontend/hydrography/*.gpkg
+
+# OS
+.DS_Store
