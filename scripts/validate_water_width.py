@@ -252,11 +252,42 @@ def validate(database_path: Path, results_dir: Path, strm_dir: Path,
             if w_arc is not None:
                 width_arc = w_arc[0]
 
+        # Median of widths at the 4 nearest upstream cells on the same reach.
+        # Each cell's WSE = its own DEM_Elev (own lidar water surface). The
+        # COMID filter prevents jumping onto a tributary at a confluence.
+        width_4cell_median = float("nan")
+        n_used_for_median = 0
+        snap_comid = snap_vdt.get("COMID")
+        if pd.notna(snap_comid):
+            upstream = vdt_df[
+                (vdt_df["COMID"] == snap_comid)
+                & (vdt_df["DEM_Elev"] > float(dem_elev))
+                & vdt_df["DEM_Elev"].notna()
+            ].copy()
+            if not upstream.empty:
+                dr = (upstream["Row"].astype(float).values - snap_row) * px_y
+                dc = (upstream["Col"].astype(float).values - snap_col) * px_x
+                upstream["_d_m"] = np.hypot(dr, dc)
+                nearest = upstream.nsmallest(4, "_d_m")
+                widths_4 = []
+                for _, urow in nearest.iterrows():
+                    w = width_at_cell(urow, xs_df, float(urow["DEM_Elev"]))
+                    if w is not None and w[0] > 0:
+                        widths_4.append(w[0])
+                if widths_4:
+                    width_4cell_median = float(np.median(widths_4))
+                    n_used_for_median = len(widths_4)
+
         ratio = width_dem / float(true_L)
+        ratio_4cell = (width_4cell_median / float(true_L)
+                       if np.isfinite(width_4cell_median) else float("nan"))
         rows.append({
             "site_id": dam_id,
             "weir_length_known": float(true_L),
             "width_dem_wse": width_dem,
+            "width_4cell_median": width_4cell_median,
+            "ratio_4cell_median": ratio_4cell,
+            "n_cells_used_for_median": n_used_for_median,
             "width_arc_wse": width_arc,
             "ratio_measured_over_known": ratio,
             "dam_to_snap_m": snap_dist_m,
@@ -282,9 +313,17 @@ def validate(database_path: Path, results_dir: Path, strm_dir: Path,
 
     print(f"\nWrote {out_csv}")
     print(f"  N            = {len(df)}")
+    print(f"  -- at-dam-pixel (existing) --")
     print(f"  median ratio = {df['ratio_measured_over_known'].median():.2f}")
     print(f"  mean ratio   = {df['ratio_measured_over_known'].mean():.2f}")
     print(f"  std ratio    = {df['ratio_measured_over_known'].std():.2f}")
+    if "ratio_4cell_median" in df.columns:
+        sub = df["ratio_4cell_median"].dropna()
+        print(f"  -- median of 4 nearest upstream cells (new) --")
+        print(f"  N (with >=1 upstream cell) = {len(sub)}")
+        print(f"  median ratio = {sub.median():.2f}")
+        print(f"  mean ratio   = {sub.mean():.2f}")
+        print(f"  std ratio    = {sub.std():.2f}")
     print(f"  median dam->snap dist = {df['dam_to_snap_m'].median():.1f} m")
 
     fig, ax = plt.subplots(figsize=(8, 8))

@@ -13,5 +13,8 @@ output/
 # These files must be hosted separately and fetched at runtime.
 frontend/hydrography/*.gpkg
 
+# Claude Code internal (worktrees, session state)
+.claude/
+
 # OS
 .DS_Store
