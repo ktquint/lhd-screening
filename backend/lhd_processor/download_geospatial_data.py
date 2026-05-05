@@ -1,12 +1,9 @@
 import os
-import s3fs
-import laspy
 import requests
 import tempfile
 import rasterio
 import numpy as np
 import pandas as pd
-import laspy.errors
 import pynhd as nhd
 from pynhd import NLDI
 import geopandas as gpd
@@ -341,6 +338,7 @@ def download_tdx_flowline(latitude: float, longitude: float, flowline_dir: str, 
     
     if not os.path.exists(flowline_vpu):
         try:
+            import s3fs
             fs = s3fs.S3FileSystem(anon=True)
             s3_path = f"geoglows-v2/hydrography/vpu={vpu_code}/streams_{vpu_code}.gpkg"
             with fs.open(s3_path, 'rb') as f_in, open(flowline_vpu, 'wb') as f_out:
@@ -378,6 +376,88 @@ def download_tdx_flowline(latitude: float, longitude: float, flowline_dir: str, 
 # =================================================================
 # 2. DEM FUNCTIONS (3DEP & METADATA)
 # =================================================================
+
+def query_dem_tiles(lhd_id, flowline_gdf, buffer_deg: float = 0.002) -> List[dict]:
+    """
+    Queries the USGS TNM API for DEM tiles covering the flowline bounding box.
+    Tries 1-m tiles first, then 1/9 arc-second, then 1/3 arc-second.
+    Returns a list of dicts: {url, filename, dataset, resolution_m}.
+    """
+    if flowline_gdf is None or flowline_gdf.empty:
+        return []
+
+    if flowline_gdf.crs and flowline_gdf.crs.to_epsg() != 4326:
+        flowline_gdf = flowline_gdf.to_crs(epsg=4326)
+
+    b = flowline_gdf.total_bounds
+    bbox = (
+        float(b[0] - buffer_deg), float(b[1] - buffer_deg),
+        float(b[2] + buffer_deg), float(b[3] + buffer_deg),
+    )
+
+    tnm_url = "https://tnmaccess.nationalmap.gov/api/v1/products"
+    priority = [
+        ("Digital Elevation Model (DEM) 1 meter", 1),
+        ("National Elevation Dataset (NED) 1/9 arc-second", 3),
+        ("National Elevation Dataset (NED) 1/3 arc-second Current", 10),
+    ]
+
+    for dataset_name, res_m in priority:
+        params = {
+            "datasets": dataset_name,
+            "bbox": f"{bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]}",
+            "outputFormat": "JSON",
+        }
+        try:
+            r = requests.get(tnm_url, params=params, timeout=30)
+            r.raise_for_status()
+            items = r.json().get("items", [])
+        except Exception as e:
+            print(f"Dam {lhd_id}: TNM query failed for '{dataset_name}': {e}")
+            continue
+
+        tiles = [
+            {
+                "url": item["downloadURL"],
+                "filename": sanitize_filename(os.path.basename(item["downloadURL"])),
+                "dataset": dataset_name,
+                "resolution_m": res_m,
+            }
+            for item in items
+            if item.get("downloadURL")
+        ]
+        if tiles:
+            return tiles
+
+    print(f"Dam {lhd_id}: No DEM tiles found in TNM API.")
+    return []
+
+
+def download_raw_tile(tile_url: str, raw_dem_dir: str) -> Union[str, None]:
+    """
+    Downloads a single DEM tile to raw_dem_dir if not already present.
+    Returns the local file path on success, None on failure.
+    """
+    filename = sanitize_filename(os.path.basename(tile_url))
+    local_path = os.path.join(raw_dem_dir, filename)
+
+    if os.path.exists(local_path):
+        return local_path
+
+    os.makedirs(raw_dem_dir, exist_ok=True)
+    try:
+        r = requests.get(tile_url, stream=True, timeout=120)
+        r.raise_for_status()
+        with open(local_path, "wb") as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                f.write(chunk)
+        return local_path
+    except Exception as e:
+        print(f"Error downloading {tile_url}: {e}")
+        if os.path.exists(local_path):
+            os.remove(local_path)
+        return None
+
 
 def download_dem(lhd_id, flowline_gdf, dem_dir, resolution=None):
     """
@@ -545,6 +625,7 @@ def find_water_gpstime(lat, lon):
             las_path = os.path.join(tmp, "data.las")
             with open(las_path, 'wb') as f: f.write(las_data)
 
+            import laspy
             las = laspy.read(las_path)
             # Standard conversion from GPS seconds to Date
             gps_time = las.gps_time[0] + 1_000_000_000

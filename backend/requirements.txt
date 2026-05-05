@@ -1,0 +1,27 @@
+# Core geospatial
+geopandas
+shapely
+pyproj
+rasterio
+GDAL
+
+# NHD / hydrology
+pynhd
+requests
+
+# Data
+numpy
+pandas
+
+# --- used by non-staging paths only (install if running full pipeline) ---
+# TDX-Hydro S3 downloads
+s3fs
+# GEOGLOWS streamflow
+geoglows
+# LiDAR GPS-time extraction
+laspy
+# NWM retrospective (zarr)
+xarray
+zarr
+# Land cover alignment (ESA WorldCover)
+# (rasterio already covers this)
