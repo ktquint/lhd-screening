@@ -110,7 +110,7 @@ class ArcDam:
         # ARC defaults (kept the same as upstream lhd_processor)
         self.create_reach_average_curve_file = 'False'
         self.bathy_use_banks = 'False'
-        self.find_banks_based_on_landcover = 'True'
+        self.find_banks_based_on_landcover = 'False'  # constant land raster has no water pixels; use DEM-based bank detection
 
         # File paths set by run_arc()
         self.arc_input = None

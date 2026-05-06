@@ -6,7 +6,7 @@ Excel database, or a precomputed reanalysis CSV.
 End-to-end flow:
     1. Download TDX-Hydro flowlines around the dam point.
     2. Download a DEM that covers the flowline bbox.
-    3. Download / align ESA WorldCover for that DEM.
+    3. Generate a constant-value land cover raster + Manning_n.txt (n=0.035).
     4. Generate the cleaned stream raster ARC needs.
     5. Build a per-request streamflow table (q_ep_50 + rp100 from GEOGLOWS).
     6. Run ARC.
@@ -16,8 +16,7 @@ End-to-end flow:
     9. Run the hydraulic analysis (lhd_processor.analysis_classes.Dam).
 
 Configuration — set as env vars or override in the call:
-    LHD_VPU_MAP        path to TDX-Hydro VPU boundary file (.gpkg or .geojson)
-    LHD_MANNING_N_TXT  path to ARC Manning's n config (LU_Manning_n)
+    LHD_VPU_MAP   path to TDX-Hydro VPU boundary file (.gpkg or .geojson)
 """
 from __future__ import annotations
 
@@ -36,10 +35,12 @@ _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
 
+import numpy as np
+import rasterio
+
 from lhd_processor.download_geospatial_data import (
     download_tdx_flowline,
     download_dem,
-    download_land_raster,
 )
 from lhd_processor.prep_classes import create_arc_strm_raster, clean_strm_raster
 from lhd_processor.lhd_arc import ArcDam
@@ -61,10 +62,8 @@ DEFAULT_VPU_MAP = os.environ.get(
     "LHD_VPU_MAP",
     str(_BACKEND_DIR / "data" / "vpu-boundaries.gpkg"),
 )
-DEFAULT_MANNING_N_TXT = os.environ.get(
-    "LHD_MANNING_N_TXT",
-    "/Volumes/KenDrive/lhd_testing/LAND/Manning_n.txt",
-)
+
+_MANNING_N = 0.035  # uniform roughness used for all dams
 
 
 # ----------------------------------------------------------------------------
@@ -75,12 +74,43 @@ def _new_site_id() -> int:
     return int(time.time() * 1000)
 
 
+def _make_constant_land_raster(
+    dem_path: str,
+    land_dir: Path,
+    n: float = _MANNING_N,
+    lc_code: int = 1,
+) -> tuple[str, str]:
+    """
+    Generate a constant-value land cover raster that matches the DEM grid,
+    plus a single-entry Manning_n.txt that maps lc_code → n.
+
+    Returns (land_raster_path, manning_n_txt_path).
+    """
+    land_dir.mkdir(parents=True, exist_ok=True)
+    land_raster_path = land_dir / "constant_land.tif"
+    manning_n_path = land_dir / "Manning_n.txt"
+
+    with rasterio.open(dem_path) as src:
+        profile = src.profile.copy()
+
+    profile.update(dtype="uint8", count=1, nodata=0, compress="lzw")
+    data = np.full((profile["height"], profile["width"]), lc_code, dtype=np.uint8)
+
+    with rasterio.open(str(land_raster_path), "w", **profile) as dst:
+        dst.write(data, 1)
+
+    with open(manning_n_path, "w") as f:
+        f.write("LC_Code\tDescription\tMannings_n\n")
+        f.write(f"{lc_code}\tconstant\t{n}\n")
+
+    return str(land_raster_path), str(manning_n_path)
+
+
 def run_screening(
     latitude: float,
     longitude: float,
     work_dir: Optional[Path] = None,
     vpu_map: Optional[Path] = None,
-    manning_n_txt: Optional[Path] = None,
     keep_artifacts: bool = False,
     flowline_distance_km=(1, 2),
     dem_resolution: int = 1,
@@ -93,8 +123,8 @@ def run_screening(
     work_dir
         Where to write intermediate files. If None, a TemporaryDirectory is
         used and cleaned up unless keep_artifacts=True.
-    vpu_map, manning_n_txt
-        Override the module-level defaults if needed.
+    vpu_map
+        Override the module-level default VPU map path if needed.
     keep_artifacts
         If True, the work_dir is preserved (still printed in the result).
     flowline_distance_km
@@ -111,11 +141,8 @@ def run_screening(
         is None for screening; kept for parity), work_dir
     """
     vpu_map = Path(vpu_map or DEFAULT_VPU_MAP)
-    manning_n_txt = Path(manning_n_txt or DEFAULT_MANNING_N_TXT)
     if not vpu_map.exists():
         raise FileNotFoundError(f"VPU map not found: {vpu_map}")
-    if not manning_n_txt.exists():
-        raise FileNotFoundError(f"Manning's n config not found: {manning_n_txt}")
 
     cleanup_ctx = None
     if work_dir is None:
@@ -158,10 +185,8 @@ def run_screening(
         if dem_path is None:
             raise RuntimeError(f"DEM download failed: {dem_source}")
 
-        # 3. Land cover ----------------------------------------------------
-        land_raster = download_land_raster(site_id, str(dem_path), str(land_dir))
-        if land_raster is None:
-            raise RuntimeError("Land raster download failed.")
+        # 3. Constant land cover raster + Manning_n.txt (n=0.035 everywhere) -
+        land_raster, manning_n_txt = _make_constant_land_raster(dem_path, land_dir)
 
         # 4. Cleaned stream raster (rasterize flowline → filter for ARC) ----
         strm_raw = flowline_dir / str(site_id) / f"tdx_{primary_linkno}.tif"
@@ -191,7 +216,7 @@ def run_screening(
             streamflow_source="GEOGLOWS",
             streamflow_csv=flow_csv_path,
             results_dir=results_dir,
-            manning_n_txt=manning_n_txt,
+            manning_n_txt=str(manning_n_txt),
             baseflow_col="q_ep_50",
             qmax_col="rp100",
         )
