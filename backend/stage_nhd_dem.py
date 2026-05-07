@@ -46,6 +46,8 @@ _BACKEND_ROOT = Path(__file__).resolve().parent
 if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
 
+import pynhd as nhd
+
 from lhd_processor.download_geospatial_data import (
     download_nhd_flowline,
     query_dem_tiles,
@@ -108,6 +110,7 @@ def _process_dam(
     lon: float,
     flowline_dir: Path,
     force_flowlines: bool,
+    vaa_df,
 ) -> Tuple[int, dict, List[dict], bool]:
     """
     Resolve a single dam's flowline (cached or freshly downloaded) and query
@@ -133,6 +136,7 @@ def _process_dam(
             flowline_dir=str(flowline_dir),
             distance_km=_FLOWLINE_DISTANCE_KM,
             site_id=dam_id,
+            vaa_df=vaa_df,
         )
         comid: Optional[int] = None
         if path:
@@ -182,6 +186,10 @@ def stage_dams_parallel(
     tile_catalog: Dict[str, dict] = {}
     total = len(dams_df)
 
+    _log("Pre-fetching NHDPlus VAA table (245 MB, once) ...")
+    vaa_df = nhd.nhdplus_vaa()
+    _log("VAA table ready.")
+
     jobs = []
     for i, row in dams_df.iterrows():
         jobs.append((
@@ -196,7 +204,7 @@ def stage_dams_parallel(
             ex.submit(
                 _process_dam,
                 idx, total, dam_id, lat, lon,
-                flowline_dir, force_flowlines,
+                flowline_dir, force_flowlines, vaa_df,
             ): dam_id
             for idx, dam_id, lat, lon in jobs
         }

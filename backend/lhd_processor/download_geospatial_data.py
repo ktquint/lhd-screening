@@ -35,10 +35,14 @@ def sanitize_filename(filename):
 # 1. FLOWLINE FUNCTIONS (NHDPlus & TDX-Hydro)
 # =================================================================
 
-def download_nhd_flowline(lat: float, lon: float, flowline_dir: str, distance_km: Union[float, Tuple[float, float], List[float]] = (1, 2), site_id=None):
+def download_nhd_flowline(lat: float, lon: float, flowline_dir: str, distance_km: Union[float, Tuple[float, float], List[float]] = (1, 2), site_id=None, vaa_df=None):
     """
     Uses HyRiver NLDI to fetch NHDPlus flowlines, merges VAAs (hydroseq, dnhydroseq),
     and standardizes ID columns.
+
+    vaa_df : pre-fetched result of nhd.nhdplus_vaa(). When provided, the function
+             skips the download entirely — pass this when calling from a parallel
+             context to avoid concurrent writes to the shared cache file.
     """
     try:
         if distance_km is None:
@@ -141,10 +145,9 @@ def download_nhd_flowline(lat: float, lon: float, flowline_dir: str, distance_km
         if 'nhdplusid' in combined_df.columns:
             combined_df['nhdplusid'] = pd.to_numeric(combined_df['nhdplusid'])
 
-            # Fetch the VAA table (hydroseq and dnhydroseq are in the 'vaa' service)
-            # Note: nhdplus_vaa() fetches the national parquet file
             try:
-                vaa_df = nhd.nhdplus_vaa()
+                if vaa_df is None:
+                    vaa_df = nhd.nhdplus_vaa()
                 if vaa_df is not None and not vaa_df.empty:
                     vaa_subset = vaa_df[['comid', 'hydroseq', 'dnhydroseq']].rename(columns={'comid': 'nhdplusid'})
 
