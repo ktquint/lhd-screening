@@ -3,7 +3,7 @@ Stage NHD flowlines and USGS 3DEP DEM tiles for the full LHD dataset.
 
 Steps
 -----
-1. For each dam, fetch NHD flowlines (100 m upstream, 1 km downstream)
+1. For each dam, fetch NHD flowlines (1 km upstream, 1.5 km downstream)
    and save as individual .gpkg files under STRM/{dam_id}/.
 2. Query TNM for 1-m DEM tiles covering each flowline bbox
    (fallback: 1/9 arc-second, then 1/3 arc-second).
@@ -55,8 +55,8 @@ from lhd_processor.download_geospatial_data import (
 _REPO_ROOT = _BACKEND_ROOT.parent
 DEFAULT_DAMS_CSV = _REPO_ROOT / "frontend" / "data" / "full_lhd_website.csv"
 
-# NHD reach window: 100 m upstream, 1 km downstream
-_FLOWLINE_DISTANCE_KM = (0.1, 1.0)
+# NHD reach window: 1 km upstream, 1.5 km downstream
+_FLOWLINE_DISTANCE_KM = (1.0, 1.5)
 
 _print_lock = threading.Lock()
 
@@ -376,9 +376,15 @@ def main() -> None:
     raw_dem_dir.mkdir(parents=True, exist_ok=True)
 
     dams_df = pd.read_csv(args.dams_csv)
+    n_raw = len(dams_df)
     dams_df = dams_df[
-        dams_df["Latitude"].notna() & dams_df["Longitude"].notna()
+        dams_df["OBJECTID"].notna()
+        & dams_df["Latitude"].notna()
+        & dams_df["Longitude"].notna()
     ].reset_index(drop=True)
+    dams_df["OBJECTID"] = dams_df["OBJECTID"].astype(int)
+    if len(dams_df) < n_raw:
+        print(f"Dropped {n_raw - len(dams_df)} row(s) with missing OBJECTID/lat/lon")
     if args.limit:
         dams_df = dams_df.head(args.limit)
 
