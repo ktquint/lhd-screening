@@ -72,6 +72,24 @@ def _log(msg: str) -> None:
 # Cache helpers
 # ---------------------------------------------------------------------------
 
+def _load_tile_manifest(staging_dir: Path) -> Tuple[Dict[int, List[str]], Dict[str, dict]]:
+    """
+    Load dam_tiles and tile_catalog from an existing tile_manifest.json.
+    Returns empty dicts if the file doesn't exist or can't be parsed.
+    """
+    json_path = staging_dir / "tile_manifest.json"
+    if not json_path.exists():
+        return {}, {}
+    try:
+        with open(json_path) as f:
+            payload = json.load(f)
+        dam_tiles = {int(k): v for k, v in payload.get("dam_tiles", {}).items()}
+        tile_catalog = payload.get("tile_catalog", {})
+        return dam_tiles, tile_catalog
+    except Exception as e:
+        _log(f"Warning: could not load existing manifest ({e}) — will re-query all dams")
+        return {}, {}
+
 def _load_cached_flowline(site_dir: Path) -> Optional[dict]:
     """Return {path, gdf, comid} if a cached nhd_flowline_*.gpkg exists, else None."""
     if not site_dir.exists():
@@ -111,10 +129,13 @@ def _process_dam(
     flowline_dir: Path,
     force_flowlines: bool,
     vaa_df,
+    cached_tiles: Optional[List[dict]],
 ) -> Tuple[int, dict, List[dict], bool]:
     """
     Resolve a single dam's flowline (cached or freshly downloaded) and query
     its DEM tiles. Returns (dam_id, flowline_entry, tiles, used_cache).
+
+    cached_tiles: if not None, skip the TNM API call and use this list directly.
     """
     site_dir = flowline_dir / str(dam_id)
 
@@ -154,6 +175,10 @@ def _process_dam(
     if gdf is None or gdf.empty:
         return dam_id, flowline_entry, [], used_cache
 
+    if cached_tiles is not None:
+        _log(f"[{idx}/{total}] Dam {dam_id}: {len(cached_tiles)} tile(s) from manifest cache")
+        return dam_id, flowline_entry, cached_tiles, used_cache
+
     tiles = query_dem_tiles(dam_id, gdf)
     if tiles:
         _log(
@@ -169,7 +194,9 @@ def _process_dam(
 def stage_dams_parallel(
     dams_df: pd.DataFrame,
     flowline_dir: Path,
+    staging_dir: Path,
     force_flowlines: bool,
+    force_tile_query: bool,
     workers: int,
 ) -> Tuple[Dict[int, dict], Dict[int, List[str]], Dict[str, dict]]:
     """
@@ -183,12 +210,34 @@ def stage_dams_parallel(
     """
     flowline_results: Dict[int, dict] = {}
     per_dam_tiles: Dict[int, List[str]] = {}
-    tile_catalog: Dict[str, dict] = {}
+    tile_catalog: Dict[str, dict] = {}  # seeded from cache below, then updated by workers
     total = len(dams_df)
 
     _log("Pre-fetching NHDPlus VAA table (245 MB, once) ...")
     vaa_df = nhd.nhdplus_vaa()
     _log("VAA table ready.")
+
+    cached_dam_tiles: Dict[int, List[str]] = {}
+    cached_tile_catalog: Dict[str, dict] = {}
+    if not force_tile_query:
+        cached_dam_tiles, cached_tile_catalog = _load_tile_manifest(staging_dir)
+        if cached_dam_tiles:
+            n_cached = sum(1 for v in cached_dam_tiles.values() if v)
+            _log(f"Loaded tile manifest: {n_cached} dams with cached tile associations.")
+            tile_catalog.update(cached_tile_catalog)
+
+    def _cached_tiles_for(dam_id: int) -> Optional[List[dict]]:
+        """Reconstruct the tiles list for a dam from the cached manifest, or None to re-query."""
+        if dam_id not in cached_dam_tiles:
+            return None
+        filenames = cached_dam_tiles[dam_id]
+        if not filenames:
+            return None  # previously got 0 tiles — re-query in case the API was flaky
+        return [
+            {"filename": fn, **cached_tile_catalog[fn]}
+            for fn in filenames
+            if fn in cached_tile_catalog
+        ] or None
 
     jobs = []
     for i, row in dams_df.iterrows():
@@ -205,6 +254,7 @@ def stage_dams_parallel(
                 _process_dam,
                 idx, total, dam_id, lat, lon,
                 flowline_dir, force_flowlines, vaa_df,
+                _cached_tiles_for(dam_id),
             ): dam_id
             for idx, dam_id, lat, lon in jobs
         }
@@ -364,6 +414,10 @@ def main() -> None:
         help="Re-download DEM tiles even if already present on disk.",
     )
     parser.add_argument(
+        "--force-tile-query", action="store_true",
+        help="Re-query the TNM API for tile associations even if cached in the manifest.",
+    )
+    parser.add_argument(
         "--skip-download", action="store_true",
         help="Build the manifest but do not download DEM tiles",
     )
@@ -406,7 +460,9 @@ def main() -> None:
     print("=" * 60)
     flowline_results, manifest, tile_catalog = stage_dams_parallel(
         dams_df, flowline_dir,
+        staging_dir=staging_dir,
         force_flowlines=args.force_flowlines,
+        force_tile_query=args.force_tile_query,
         workers=args.workers,
     )
     n_ok = sum(1 for v in flowline_results.values() if v.get("path"))
