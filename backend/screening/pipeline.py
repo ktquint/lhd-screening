@@ -35,14 +35,12 @@ _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
 
-import numpy as np
-import rasterio
-
-from lhd_processor.download_geospatial_data import (
-    download_tdx_flowline,
-    download_dem,
+from lhd_processor.download_geospatial_data import download_tdx_flowline
+from lhd_processor.prep_classes import (
+    create_arc_strm_raster,
+    clean_strm_raster,
+    make_constant_land_raster,
 )
-from lhd_processor.prep_classes import create_arc_strm_raster, clean_strm_raster
 from lhd_processor.lhd_arc import ArcDam
 from lhd_processor.analysis_classes import Dam
 
@@ -72,38 +70,6 @@ _MANNING_N = 0.035  # uniform roughness used for all dams
 def _new_site_id() -> int:
     """Cheap unique-per-request ID. ARC uses it as a directory name only."""
     return int(time.time() * 1000)
-
-
-def _make_constant_land_raster(
-    dem_path: str,
-    land_dir: Path,
-    n: float = _MANNING_N,
-    lc_code: int = 1,
-) -> tuple[str, str]:
-    """
-    Generate a constant-value land cover raster that matches the DEM grid,
-    plus a single-entry Manning_n.txt that maps lc_code → n.
-
-    Returns (land_raster_path, manning_n_txt_path).
-    """
-    land_dir.mkdir(parents=True, exist_ok=True)
-    land_raster_path = land_dir / "constant_land.tif"
-    manning_n_path = land_dir / "Manning_n.txt"
-
-    with rasterio.open(dem_path) as src:
-        profile = src.profile.copy()
-
-    profile.update(dtype="uint8", count=1, nodata=0, compress="lzw")
-    data = np.full((profile["height"], profile["width"]), lc_code, dtype=np.uint8)
-
-    with rasterio.open(str(land_raster_path), "w", **profile) as dst:
-        dst.write(data, 1)
-
-    with open(manning_n_path, "w") as f:
-        f.write("LC_Code\tDescription\tMannings_n\n")
-        f.write(f"{lc_code}\tconstant\t{n}\n")
-
-    return str(land_raster_path), str(manning_n_path)
 
 
 def run_screening(
@@ -179,14 +145,20 @@ def run_screening(
         primary_linkno = int(Path(flowline_path).stem.split("_")[-1])
 
         # 2. DEM -----------------------------------------------------------
-        dem_path, dem_res, dem_source = download_dem(
-            site_id, flowline_gdf, str(dem_dir), resolution=dem_resolution
+        # TODO: rewire to consume staged trimmed DEM produced by
+        # backend/build_trimmed_dems.py (DEM/{dam_id}/dem_{dam_id}.tif).
+        # The screening pipeline no longer downloads DEM tiles itself —
+        # tiles are staged in bulk by stage_nhd_dem.py and merged into
+        # per-dam trimmed DEMs by build_trimmed_dems.py.
+        raise NotImplementedError(
+            "screening.pipeline must be rewired to read the staged trimmed DEM "
+            "and constant land cover instead of calling download_dem."
         )
-        if dem_path is None:
-            raise RuntimeError(f"DEM download failed: {dem_source}")
 
         # 3. Constant land cover raster + Manning_n.txt (n=0.035 everywhere) -
-        land_raster, manning_n_txt = _make_constant_land_raster(dem_path, land_dir)
+        land_raster, manning_n_txt = make_constant_land_raster(
+            dem_path, land_dir, n=_MANNING_N
+        )
 
         # 4. Cleaned stream raster (rasterize flowline → filter for ARC) ----
         strm_raw = flowline_dir / str(site_id) / f"tdx_{primary_linkno}.tif"
