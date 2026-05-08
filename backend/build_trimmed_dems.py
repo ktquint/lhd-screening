@@ -68,7 +68,7 @@ def _flowline_bbox_wgs84(gpkg_path: Path, buffer_m: float) -> Tuple[float, float
     elif gdf.crs.to_epsg() != 4326:
         gdf = gdf.to_crs(epsg=4326)
 
-    centroid = gdf.geometry.unary_union.centroid
+    centroid = gdf.geometry.union_all().centroid
     utm_epsg = _utm_epsg(centroid.x, centroid.y)
     gdf_utm = gdf.to_crs(epsg=utm_epsg)
     minx, miny, maxx, maxy = gdf_utm.total_bounds
