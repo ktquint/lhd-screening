@@ -42,7 +42,7 @@ _BACKEND_ROOT = Path(__file__).resolve().parent
 if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
 
-from lhd_processor.prep_classes import make_constant_land_raster
+from lhd_processor.land_raster import make_constant_land_raster
 
 # Matches lhd_processor.lhd_arc.ArcDam.X_SECTION_DIST_M — keep in sync.
 _X_SECTION_DIST_M = 500.0

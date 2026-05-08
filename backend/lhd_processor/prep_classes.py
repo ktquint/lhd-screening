@@ -11,12 +11,11 @@ import geopandas as gpd
 from rasterio.features import rasterize
 from typing import Dict, Any, Optional, List
 
-from pathlib import Path
-
 from .download_geospatial_data import (download_nhd_flowline,
                                        download_tdx_flowline,
                                        download_land_raster,
                                        find_water_gpstime)
+from .land_raster import make_constant_land_raster  # re-exported for callers
 
 try:
     import gdal
@@ -82,31 +81,6 @@ def clean_strm_raster(strm_tif: str, clean_strm_tif: str) -> None:
                     if sum(B[r + 1, c - 1:c + 2]) == B[r, c] * 2:
                         B[r + 1, c] = 0
     write_output_raster(clean_strm_tif, B[1:nrows + 1, 1:ncols + 1], gt, proj)
-
-
-def make_constant_land_raster(dem_path: str, land_dir, n: float = 0.035, lc_code: int = 1):
-    """
-    Write a constant-value land cover raster on the DEM grid plus a single-entry
-    Manning_n.txt that maps lc_code → n. Returns (raster_path, manning_n_path).
-    """
-    land_dir = Path(land_dir)
-    land_dir.mkdir(parents=True, exist_ok=True)
-    land_raster_path = land_dir / "constant_land.tif"
-    manning_n_path = land_dir / "Manning_n.txt"
-
-    with rasterio.open(dem_path) as src:
-        profile = src.profile.copy()
-    profile.update(dtype="uint8", count=1, nodata=0, compress="lzw")
-    data = np.full((profile["height"], profile["width"]), lc_code, dtype=np.uint8)
-
-    with rasterio.open(str(land_raster_path), "w", **profile) as dst:
-        dst.write(data, 1)
-
-    with open(manning_n_path, "w") as f:
-        f.write("LC_Code\tDescription\tMannings_n\n")
-        f.write(f"{lc_code}\tconstant\t{n}\n")
-
-    return str(land_raster_path), str(manning_n_path)
 
 
 def create_arc_strm_raster(StrmSHP, output_raster_path, DEM_File, value_field):
