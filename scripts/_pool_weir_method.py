@@ -44,8 +44,7 @@ import geopandas as gpd
 from pyproj import Transformer
 from shapely.geometry import Point
 from shapely.ops import linemerge
-from scipy.ndimage import grey_dilation
-from skimage import measure
+from scipy.ndimage import grey_dilation, label as _ndimage_label
 
 
 def _fail(reason: str, **extra) -> dict:
@@ -197,7 +196,7 @@ def pool_weir_length(
     pool_mask = np.isfinite(dem) & (dem >= wse - pool_band_m) & (dem <= wse + pool_band_m)
     if not np.any(pool_mask):
         return _fail("empty pool mask")
-    labels = measure.label(pool_mask, connectivity=2)
+    labels, _ = _ndimage_label(pool_mask, structure=np.ones((3, 3)))
 
     step_row_i = int(round(step_row_f))
     step_col_i = int(round(step_col_f))

@@ -4,11 +4,11 @@ published Weir_Length in the dam inventory.
 
 Method A — ARC perpendicular sampling (current pipeline)
   Wraps `screening.width.estimate_weir_length`. Requires ARC outputs
-  (VDT.txt, Curve.csv, XS.txt) under RESULTS/{dam_id}/.
+  (VDT.txt, Curve.csv, XS.txt) under --results-dir/{dam_id}/.
 
 Method B — Pool-mask + crest tracing (proposed)
   Wraps `scripts/_pool_weir_method.pool_weir_length`. Reads the trimmed
-  DEM and NHD flowline directly; no ARC dependency.
+  DEM and flowline directly; no ARC dependency.
 
 For every dam with a finite Weir_Length in the inventory:
   - Method B is always attempted (only needs DEM + flowline).
@@ -22,7 +22,19 @@ Outputs
 
 Usage
 -----
-    python scripts/compare_weir_methods.py --staging-dir /data/lhd_staging
+    # TDX flowlines + TDX_GEO_50 ARC results
+    python scripts/compare_weir_methods.py \\
+        --staging-dir /Volumes/KenDrive/lhd_testing \\
+        --results-dir /Volumes/KenDrive/lhd_testing/TDX_GEO_50 \\
+        --flowline-source tdx \\
+        --output-dir output/weir_comparison_tdx_geo_50
+
+    # NHD flowlines + NHD_NWM_50 ARC results
+    python scripts/compare_weir_methods.py \\
+        --staging-dir /Volumes/KenDrive/lhd_testing \\
+        --results-dir /Volumes/KenDrive/lhd_testing/NHD_NWM_50 \\
+        --flowline-source nhd \\
+        --output-dir output/weir_comparison_nhd_nwm_50
 """
 from __future__ import annotations
 
@@ -54,29 +66,42 @@ DEFAULT_DAMS_CSV = _REPO_ROOT / "frontend" / "data" / "full_lhd_website.csv"
 # Path resolution
 # ---------------------------------------------------------------------------
 
-def _resolve_paths(staging_dir: Path, dam_id: int) -> Dict[str, Path | None]:
+def _resolve_paths(
+    staging_dir: Path,
+    results_dir: Path,
+    dam_id: int,
+    flowline_source: str,
+) -> Dict[str, Path | None]:
     strm_site = staging_dir / "STRM" / str(dam_id)
-    gpkgs = list(strm_site.glob("nhd_flowline_*.gpkg"))
+
+    prefix = flowline_source.lower()  # "nhd" or "tdx"
+    gpkgs = list(strm_site.glob(f"{prefix}_flowline_*.gpkg"))
     gpkg = gpkgs[0] if gpkgs else None
-    nhdplusid = None
+    source_id = None
     if gpkg is not None:
-        m = re.search(r"nhd_flowline_(\d+)", gpkg.stem)
+        m = re.search(rf"{prefix}_flowline_(\d+)", gpkg.stem)
         if m:
-            nhdplusid = int(m.group(1))
+            source_id = int(m.group(1))
 
-    strm_clean = (strm_site / f"nhd_{nhdplusid}_clean.tif"
-                  if nhdplusid is not None else None)
-    dem = staging_dir / "DEM" / str(dam_id) / f"dem_{dam_id}.tif"
+    strm_clean = (strm_site / f"{prefix}_{source_id}_clean.tif"
+                  if source_id is not None else None)
 
-    results = staging_dir / "RESULTS" / str(dam_id)
-    vdt = results / "VDT" / f"{dam_id}_VDT.txt"
-    curve = results / "VDT" / f"{dam_id}_Curve.csv"
-    xs = results / "XS" / f"{dam_id}_XS.txt"
+    dem_dir = staging_dir / "DEM" / str(dam_id)
+    dem_candidates = [
+        dem_dir / f"dem_{dam_id}.tif",
+        dem_dir / f"{dam_id}_MERGED_DEM.tif",
+    ]
+    dem = next((p for p in dem_candidates if p.exists()), None)
+
+    dam_results = results_dir / str(dam_id)
+    vdt = dam_results / "VDT" / f"{dam_id}_VDT.txt"
+    curve = dam_results / "VDT" / f"{dam_id}_Curve.csv"
+    xs = dam_results / "XS" / f"{dam_id}_XS.txt"
 
     return {
         "flowline_gpkg": gpkg,
         "strm_clean": strm_clean if strm_clean and strm_clean.exists() else None,
-        "dem": dem if dem.exists() else None,
+        "dem": dem,
         "vdt": vdt if vdt.exists() else None,
         "curve": curve if curve.exists() else None,
         "xs": xs if xs.exists() else None,
@@ -131,7 +156,13 @@ def main() -> None:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--staging-dir", required=True, type=Path)
+    parser.add_argument("--staging-dir", required=True, type=Path,
+                        help="Root staging dir containing STRM/ and DEM/ subdirs")
+    parser.add_argument("--results-dir", type=Path, default=None,
+                        help="Folder containing per-dam ARC results (e.g. .../TDX_GEO_50). "
+                             "Defaults to <staging-dir>/RESULTS")
+    parser.add_argument("--flowline-source", choices=["nhd", "tdx"], default="nhd",
+                        help="Which flowline set to use from STRM/ (default: nhd)")
     parser.add_argument("--dams-csv", type=Path, default=DEFAULT_DAMS_CSV,
                         help=f"Dam inventory CSV (default: {DEFAULT_DAMS_CSV})")
     parser.add_argument("--output-dir", type=Path,
@@ -139,6 +170,9 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=None,
                         help="Process only the first N eligible dams")
     args = parser.parse_args()
+
+    results_dir = args.results_dir if args.results_dir is not None \
+        else args.staging_dir / "RESULTS"
 
     if not args.dams_csv.exists():
         sys.exit(f"Dam inventory CSV not found: {args.dams_csv}")
@@ -154,6 +188,8 @@ def main() -> None:
     if args.limit:
         dams = dams.head(args.limit)
 
+    print(f"Results dir   : {results_dir}")
+    print(f"Flowline src  : {args.flowline_source.upper()}")
     print(f"Comparing weir methods on {len(dams)} dams with known Weir_Length\n")
 
     rows = []
@@ -165,7 +201,7 @@ def main() -> None:
         lon = float(dam["Longitude"])
         known = float(dam["Weir_Length"])
 
-        paths = _resolve_paths(args.staging_dir, dam_id)
+        paths = _resolve_paths(args.staging_dir, results_dir, dam_id, args.flowline_source)
         if paths["dem"] is None and paths["vdt"] is None:
             counters["no_inputs"] += 1
             continue
@@ -276,7 +312,7 @@ def main() -> None:
                    label=f"Method B (pool+crest), N={int(df['weir_length_method_b'].notna().sum())}")
     ax.set_xlabel("Known Weir_Length (m)")
     ax.set_ylabel("Estimated weir length (m)")
-    ax.set_title(f"Weir-length method comparison (N={len(df)} dams)")
+    ax.set_title(f"Weir-length method comparison — {results_dir.name} (N={len(df)} dams)")
     ax.set_xlim(0, lim)
     ax.set_ylim(0, lim)
     ax.legend()
