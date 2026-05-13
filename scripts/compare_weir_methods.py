@@ -1,19 +1,19 @@
 """
 Compare two weir-length estimation methods on staged dams that have a
-published Weir_Length in the dam inventory.
+published weir_length in the dam database.
 
 Method A — ARC perpendicular sampling (current pipeline)
   Wraps `screening.width.estimate_weir_length`. Requires ARC outputs
-  (VDT.txt, Curve.csv, XS.txt) under --results-dir/{dam_id}/.
+  (VDT.txt, Curve.csv, XS.txt) under --results-dir/{site_id}/.
 
 Method B — Pool-mask + crest tracing (proposed)
-  Wraps `scripts/_pool_weir_method.pool_weir_length`. Reads the trimmed
-  DEM and flowline directly; no ARC dependency.
+  Wraps `scripts/_pool_weir_method.pool_weir_length`. Reads the DEM
+  and flowline directly from paths stored in the database; no ARC dependency.
 
-For every dam with a finite Weir_Length in the inventory:
-  - Method B is always attempted (only needs DEM + flowline).
-  - Method A is attempted if ARC outputs exist.
-  - Both are recorded along with ratios to the published value.
+For every dam in the database:
+  - Method B is always attempted (needs DEM + flowline from the database).
+  - Method A is attempted if ARC outputs exist under --results-dir.
+  - Both are recorded along with ratios to the published weir_length.
 
 Outputs
 -------
@@ -24,14 +24,14 @@ Usage
 -----
     # TDX flowlines + TDX_GEO_50 ARC results
     python scripts/compare_weir_methods.py \\
-        --staging-dir /Volumes/KenDrive/lhd_testing \\
+        --dams-db /Volumes/KenDrive/lhd_testing/lhd_database_50.xlsx \\
         --results-dir /Volumes/KenDrive/lhd_testing/TDX_GEO_50 \\
         --flowline-source tdx \\
         --output-dir output/weir_comparison_tdx_geo_50
 
     # NHD flowlines + NHD_NWM_50 ARC results
     python scripts/compare_weir_methods.py \\
-        --staging-dir /Volumes/KenDrive/lhd_testing \\
+        --dams-db /Volumes/KenDrive/lhd_testing/lhd_database_50.xlsx \\
         --results-dir /Volumes/KenDrive/lhd_testing/NHD_NWM_50 \\
         --flowline-source nhd \\
         --output-dir output/weir_comparison_nhd_nwm_50
@@ -39,7 +39,6 @@ Usage
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from pathlib import Path
 from typing import Dict, Tuple
@@ -58,62 +57,51 @@ for p in (_BACKEND, _SCRIPTS):
 from screening.width import estimate_weir_length            # method A
 from _pool_weir_method import pool_weir_length              # method B
 
-
-DEFAULT_DAMS_CSV = _REPO_ROOT / "frontend" / "data" / "full_lhd_website.csv"
+DEFAULT_DAMS_DB = Path("/Volumes/KenDrive/lhd_testing/lhd_database_50.xlsx")
 
 
 # ---------------------------------------------------------------------------
-# Path resolution
+# Path resolution — reads directly from database row
 # ---------------------------------------------------------------------------
 
 def _resolve_paths(
-    staging_dir: Path,
+    row: pd.Series,
     results_dir: Path,
-    dam_id: int,
     flowline_source: str,
 ) -> Dict[str, Path | None]:
-    strm_site = staging_dir / "STRM" / str(dam_id)
+    dam_id = int(row["site_id"])
 
-    prefix = flowline_source.lower()  # "nhd" or "tdx"
-    gpkgs = list(strm_site.glob(f"{prefix}_flowline_*.gpkg"))
-    gpkg = gpkgs[0] if gpkgs else None
-    source_id = None
-    if gpkg is not None:
-        m = re.search(rf"{prefix}_flowline_(\d+)", gpkg.stem)
-        if m:
-            source_id = int(m.group(1))
+    dem = Path(row["dem_path"]) if pd.notna(row["dem_path"]) else None
+    if dem is not None and not dem.exists():
+        dem = None
 
-    strm_clean = (strm_site / f"{prefix}_{source_id}_clean.tif"
-                  if source_id is not None else None)
-
-    dem_dir = staging_dir / "DEM" / str(dam_id)
-    dem_candidates = [
-        dem_dir / f"dem_{dam_id}.tif",
-        dem_dir / f"{dam_id}_MERGED_DEM.tif",
-    ]
-    dem = next((p for p in dem_candidates if p.exists()), None)
+    fl_col = f"flowline_path_{flowline_source}"
+    raster_col = f"flowline_raster_{flowline_source}"
+    gpkg = Path(row[fl_col]) if pd.notna(row[fl_col]) else None
+    strm_clean = Path(row[raster_col]) if pd.notna(row[raster_col]) else None
+    if strm_clean is not None and not strm_clean.exists():
+        strm_clean = None
 
     dam_results = results_dir / str(dam_id)
-    vdt = dam_results / "VDT" / f"{dam_id}_VDT.txt"
+    vdt   = dam_results / "VDT" / f"{dam_id}_VDT.txt"
     curve = dam_results / "VDT" / f"{dam_id}_Curve.csv"
-    xs = dam_results / "XS" / f"{dam_id}_XS.txt"
+    xs    = dam_results / "XS"  / f"{dam_id}_XS.txt"
 
     return {
         "flowline_gpkg": gpkg,
-        "strm_clean": strm_clean if strm_clean and strm_clean.exists() else None,
-        "dem": dem,
-        "vdt": vdt if vdt.exists() else None,
-        "curve": curve if curve.exists() else None,
-        "xs": xs if xs.exists() else None,
+        "strm_clean":    strm_clean,
+        "dem":           dem,
+        "vdt":           vdt   if vdt.exists()   else None,
+        "curve":         curve if curve.exists() else None,
+        "xs":            xs    if xs.exists()    else None,
     }
 
 
 # ---------------------------------------------------------------------------
-# Per-dam comparison
+# Per-dam methods
 # ---------------------------------------------------------------------------
 
 def _run_method_a(dam_lat: float, dam_lon: float, paths: Dict[str, Path | None]) -> Tuple[float | None, str]:
-    """Returns (weir_length_m, status). status = 'ok' or short reason."""
     if paths["strm_clean"] is None or paths["vdt"] is None \
             or paths["curve"] is None or paths["xs"] is None:
         return None, "no-arc-outputs"
@@ -131,7 +119,6 @@ def _run_method_a(dam_lat: float, dam_lon: float, paths: Dict[str, Path | None])
 
 
 def _run_method_b(dam_lat: float, dam_lon: float, paths: Dict[str, Path | None]) -> Tuple[float | None, str, dict]:
-    """Returns (weir_length_m, status, diagnostics)."""
     if paths["dem"] is None or paths["flowline_gpkg"] is None:
         return None, "no-dem-or-flowline", {}
     try:
@@ -156,67 +143,54 @@ def main() -> None:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--staging-dir", required=True, type=Path,
-                        help="Root staging dir containing STRM/ and DEM/ subdirs")
-    parser.add_argument("--results-dir", type=Path, default=None,
-                        help="Folder containing per-dam ARC results (e.g. .../TDX_GEO_50). "
-                             "Defaults to <staging-dir>/RESULTS")
+    parser.add_argument("--dams-db", type=Path, default=DEFAULT_DAMS_DB,
+                        help=f"Dam database xlsx (default: {DEFAULT_DAMS_DB})")
+    parser.add_argument("--results-dir", required=True, type=Path,
+                        help="Folder containing per-dam ARC results (e.g. .../TDX_GEO_50)")
     parser.add_argument("--flowline-source", choices=["nhd", "tdx"], default="nhd",
-                        help="Which flowline set to use from STRM/ (default: nhd)")
-    parser.add_argument("--dams-csv", type=Path, default=DEFAULT_DAMS_CSV,
-                        help=f"Dam inventory CSV (default: {DEFAULT_DAMS_CSV})")
+                        help="Which flowline columns to use from the database (default: nhd)")
     parser.add_argument("--output-dir", type=Path,
                         default=_REPO_ROOT / "output" / "weir_method_comparison")
     parser.add_argument("--limit", type=int, default=None,
-                        help="Process only the first N eligible dams")
+                        help="Process only the first N dams")
     args = parser.parse_args()
 
-    results_dir = args.results_dir if args.results_dir is not None \
-        else args.staging_dir / "RESULTS"
-
-    if not args.dams_csv.exists():
-        sys.exit(f"Dam inventory CSV not found: {args.dams_csv}")
-    dams = pd.read_csv(args.dams_csv)
-    needed = {"OBJECTID", "Latitude", "Longitude", "Weir_Length"}
+    if not args.dams_db.exists():
+        sys.exit(f"Dam database not found: {args.dams_db}")
+    dams = pd.read_excel(args.dams_db)
+    needed = {"site_id", "latitude", "longitude", "weir_length"}
     missing = needed - set(dams.columns)
     if missing:
-        sys.exit(f"Dam CSV missing columns: {sorted(missing)}")
-    dams = dams.dropna(subset=["OBJECTID", "Latitude", "Longitude", "Weir_Length"])
-    dams["OBJECTID"] = dams["OBJECTID"].astype(int)
-    dams["Weir_Length"] = pd.to_numeric(dams["Weir_Length"], errors="coerce")
-    dams = dams[dams["Weir_Length"] > 0].reset_index(drop=True)
+        sys.exit(f"Database missing columns: {sorted(missing)}")
+    dams = dams.dropna(subset=["site_id", "latitude", "longitude", "weir_length"])
+    dams["site_id"] = dams["site_id"].astype(int)
+    dams["weir_length"] = pd.to_numeric(dams["weir_length"], errors="coerce")
+    dams = dams[dams["weir_length"] > 0].reset_index(drop=True)
     if args.limit:
         dams = dams.head(args.limit)
 
-    print(f"Results dir   : {results_dir}")
+    print(f"Database      : {args.dams_db}")
+    print(f"Results dir   : {args.results_dir}")
     print(f"Flowline src  : {args.flowline_source.upper()}")
-    print(f"Comparing weir methods on {len(dams)} dams with known Weir_Length\n")
+    print(f"Dams to compare: {len(dams)}\n")
 
     rows = []
-    counters = {"a_ok": 0, "a_fail": 0, "b_ok": 0, "b_fail": 0,
-                "both_ok": 0, "no_inputs": 0}
+    counters = {"a_ok": 0, "a_fail": 0, "b_ok": 0, "b_fail": 0, "both_ok": 0}
     for i, dam in dams.iterrows():
-        dam_id = int(dam["OBJECTID"])
-        lat = float(dam["Latitude"])
-        lon = float(dam["Longitude"])
-        known = float(dam["Weir_Length"])
+        dam_id = int(dam["site_id"])
+        lat    = float(dam["latitude"])
+        lon    = float(dam["longitude"])
+        known  = float(dam["weir_length"])
 
-        paths = _resolve_paths(args.staging_dir, results_dir, dam_id, args.flowline_source)
-        if paths["dem"] is None and paths["vdt"] is None:
-            counters["no_inputs"] += 1
-            continue
+        paths = _resolve_paths(dam, args.results_dir, args.flowline_source)
 
-        a_val, a_status = _run_method_a(lat, lon, paths)
-        b_val, b_status, b_info = _run_method_b(lat, lon, paths)
+        a_val, a_status          = _run_method_a(lat, lon, paths)
+        b_val, b_status, b_info  = _run_method_b(lat, lon, paths)
 
-        if a_status == "ok":
-            counters["a_ok"] += 1
-        else:
-            counters["a_fail"] += 1
-        if b_status == "ok":
-            counters["b_ok"] += 1
-        else:
-            counters["b_fail"] += 1
+        if a_status == "ok":   counters["a_ok"]   += 1
+        else:                  counters["a_fail"]  += 1
+        if b_status == "ok":   counters["b_ok"]   += 1
+        else:                  counters["b_fail"]  += 1
         if a_status == "ok" and b_status == "ok":
             counters["both_ok"] += 1
 
@@ -224,29 +198,28 @@ def main() -> None:
         ratio_b = b_val / known if b_val is not None else float("nan")
 
         rows.append({
-            "dam_id": dam_id,
-            "latitude": lat,
-            "longitude": lon,
-            "weir_length_known": known,
+            "dam_id":               dam_id,
+            "latitude":             lat,
+            "longitude":            lon,
+            "weir_length_known":    known,
             "weir_length_method_a": a_val if a_val is not None else float("nan"),
-            "method_a_status": a_status,
-            "ratio_a": ratio_a,
+            "method_a_status":      a_status,
+            "ratio_a":              ratio_a,
             "weir_length_method_b": b_val if b_val is not None else float("nan"),
-            "method_b_status": b_status,
-            "ratio_b": ratio_b,
-            "wse_method_b": b_info.get("wse", float("nan")),
-            "drop_m_method_b": b_info.get("drop_m", float("nan")),
+            "method_b_status":      b_status,
+            "ratio_b":              ratio_b,
+            "wse_method_b":         b_info.get("wse", float("nan")),
+            "drop_m_method_b":      b_info.get("drop_m", float("nan")),
             "pool_size_px_method_b": b_info.get("pool_size_px"),
-            "n_crest_px_method_b": b_info.get("n_crest_pixels"),
+            "n_crest_px_method_b":  b_info.get("n_crest_pixels"),
         })
 
         a_str = f"{a_val:.1f}" if a_val is not None else f"  -   ({a_status})"
         b_str = f"{b_val:.1f}" if b_val is not None else f"  -   ({b_status})"
-        print(f"[{i+1}/{len(dams)}] Dam {dam_id}: known={known:.1f}  "
-              f"A={a_str}  B={b_str}")
+        print(f"[{i+1}/{len(dams)}] Dam {dam_id}: known={known:.1f}  A={a_str}  B={b_str}")
 
     if not rows:
-        print("\nNo dams processed (no staged inputs?). Exiting.")
+        print("\nNo dams produced any result. Exiting.")
         return
 
     df = pd.DataFrame(rows)
@@ -255,29 +228,26 @@ def main() -> None:
     df.to_csv(out_csv, index=False)
     print(f"\nWrote {out_csv}")
 
-    # ----------------------------------------------------------------------
     # Summary stats
-    # ----------------------------------------------------------------------
-    def _stats(label: str, ratios: pd.Series):
+    def _stats(label: str, ratios: pd.Series) -> None:
         r = ratios.dropna()
         if r.empty:
             print(f"  {label}: no rows")
             return
-        # Bias = mean ratio; spread = std of ratio; |error| = mean abs deviation from 1
-        bias = float(r.mean())
-        med = float(r.median())
-        sd = float(r.std())
+        bias   = float(r.mean())
+        med    = float(r.median())
+        sd     = float(r.std())
         abserr = float((r - 1.0).abs().mean())
         print(f"  {label} (N={len(r)}):  median ratio={med:.2f}  "
               f"mean ratio={bias:.2f} ± {sd:.2f}  mean|ratio−1|={abserr:.2f}")
 
     print("\nSummary:")
-    print(f"  inputs: A_ok={counters['a_ok']}  B_ok={counters['b_ok']}  "
-          f"both_ok={counters['both_ok']}  no_inputs={counters['no_inputs']}")
+    print(f"  A_ok={counters['a_ok']}  B_ok={counters['b_ok']}  "
+          f"both_ok={counters['both_ok']}  "
+          f"A_fail={counters['a_fail']}  B_fail={counters['b_fail']}")
     _stats("Method A (ARC perpendicular)", df["ratio_a"])
     _stats("Method B (pool + crest)    ", df["ratio_b"])
 
-    # Head-to-head on dams where both succeeded
     both = df.dropna(subset=["ratio_a", "ratio_b"])
     if not both.empty:
         a_abs = float((both["ratio_a"] - 1.0).abs().mean())
@@ -290,11 +260,9 @@ def main() -> None:
         elif a_abs < b_abs:
             print(f"    → Method A is closer to truth by {(b_abs - a_abs):.2f} on average")
         else:
-            print(f"    → Tie")
+            print("    → Tie")
 
-    # ----------------------------------------------------------------------
     # Scatter plot
-    # ----------------------------------------------------------------------
     lim = float(np.nanmax([
         df["weir_length_known"].max(),
         np.nanmax(df["weir_length_method_a"]) if df["weir_length_method_a"].notna().any() else 0,
@@ -310,9 +278,9 @@ def main() -> None:
         ax.scatter(df["weir_length_known"], df["weir_length_method_b"],
                    alpha=0.7, edgecolor="black", color="orange", marker="s",
                    label=f"Method B (pool+crest), N={int(df['weir_length_method_b'].notna().sum())}")
-    ax.set_xlabel("Known Weir_Length (m)")
+    ax.set_xlabel("Known weir_length (m)")
     ax.set_ylabel("Estimated weir length (m)")
-    ax.set_title(f"Weir-length method comparison — {results_dir.name} (N={len(df)} dams)")
+    ax.set_title(f"Weir-length comparison — {args.results_dir.name} / {args.flowline_source.upper()} (N={len(df)})")
     ax.set_xlim(0, lim)
     ax.set_ylim(0, lim)
     ax.legend()
