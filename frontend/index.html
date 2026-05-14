@@ -84,6 +84,7 @@
         .tab-panel { display: none; flex-grow: 1; width: 100%; overflow: auto; }
         .tab-panel.active { display: flex; flex-direction: column; }
         #map { flex-grow: 1; width: 100%; }
+        .embedded-frame { flex-grow: 1; width: 100%; border: 0; }
 
         /* CFD Toolbox tab */
         .cfd-container {
@@ -200,7 +201,7 @@
     <nav class="nav-bar">
         <button class="nav-button active" data-tab="forecasts">Forecasts</button>
         <button class="nav-button" data-tab="cfd-toolbox">CFD Toolbox</button>
-        <a class="nav-button" href="https://www.lowheaddamfatalities.org" target="_blank" rel="noopener">Low-Head Dam Fatalities Database</a>
+        <button class="nav-button" data-tab="fatalities">Fatalities Database</button>
         <a class="nav-button" href="https://nid.sec.usace.army.mil/lhdi" target="_blank" rel="noopener">National Inventory of Low-Head Dams</a>
         <a class="nav-button placeholder" href="#">Educational Resources</a>
         <button class="nav-button" data-tab="about">About</button>
@@ -210,6 +211,14 @@
     <div class="tab-content-area">
         <div id="tab-forecasts" class="tab-panel active">
             <div id="map"></div>
+        </div>
+        <div id="tab-fatalities" class="tab-panel">
+            <iframe
+                class="embedded-frame"
+                src="https://www.lowheaddamfatalities.org"
+                title="Low-Head Dam Fatalities Database"
+                loading="lazy"
+                referrerpolicy="no-referrer-when-downgrade"></iframe>
         </div>
         <div id="tab-cfd-toolbox" class="tab-panel">
             <div class="cfd-container">
