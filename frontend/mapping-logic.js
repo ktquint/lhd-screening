@@ -382,34 +382,30 @@ loadHydrography();
     const panels = document.querySelectorAll('.tab-panel');
     let cfdLoaded = false;
 
+    const IMAGE_EXT_RE = /\.(png|jpe?g|gif|svg|webp)$/i;
+    const EXTERNAL_RE = /^(https?:|mailto:|#|\/|cfd-toolbox\/)/i;
+
+    function preprocessCfdMarkdown(md) {
+        // Promote [text](image.ext) links to ![text](image.ext) so images render inline.
+        md = md.replace(/(^|[^!])\[([^\]]+)\]\(([^)\s]+\.(?:png|jpe?g|gif|svg|webp))\)/gi,
+            (_m, pre, text, href) => `${pre}![${text}](${href})`);
+        // Prefix relative image/link targets with cfd-toolbox/.
+        md = md.replace(/(!?\[[^\]]*\])\(([^)\s]+)\)/g, (_m, label, href) => {
+            if (!EXTERNAL_RE.test(href)) href = 'cfd-toolbox/' + href;
+            return `${label}(${href})`;
+        });
+        return md;
+    }
+
     async function loadCfdToolbox() {
         if (cfdLoaded) return;
         const target = document.getElementById('cfd-content');
         try {
             const res = await fetch('cfd-toolbox/README.md');
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const md = await res.text();
-            const renderer = new marked.Renderer();
-            const origImage = renderer.image.bind(renderer);
-            renderer.image = (href, title, text) => {
-                if (href && !/^(https?:)?\/\//.test(href) && !href.startsWith('cfd-toolbox/')) {
-                    href = 'cfd-toolbox/' + href;
-                }
-                return origImage(href, title, text);
-            };
-            const origLink = renderer.link.bind(renderer);
-            renderer.link = (href, title, text) => {
-                if (href && !/^(https?:|mailto:|#)/.test(href) && !href.startsWith('cfd-toolbox/')) {
-                    href = 'cfd-toolbox/' + href;
-                }
-                if (href && /\.(png|jpe?g|gif|svg|webp)$/i.test(href)) {
-                    const alt = (text || '').replace(/"/g, '&quot;');
-                    return `<figure><img src="${href}" alt="${alt}"${title ? ` title="${title}"` : ''}><figcaption><a href="${href}" target="_blank" rel="noopener">${text}</a></figcaption></figure>`;
-                }
-                return origLink(href, title, text);
-            };
+            const md = preprocessCfdMarkdown(await res.text());
             target.classList.remove('cfd-loading');
-            target.innerHTML = marked.parse(md, { renderer });
+            target.innerHTML = marked.parse(md);
             cfdLoaded = true;
         } catch (err) {
             console.error('Failed to load CFD toolbox README:', err);
