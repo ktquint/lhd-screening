@@ -380,46 +380,12 @@ loadHydrography();
 (function setupTabs() {
     const buttons = document.querySelectorAll('.nav-button[data-tab]');
     const panels = document.querySelectorAll('.tab-panel');
-    let cfdLoaded = false;
-
-    const IMAGE_EXT_RE = /\.(png|jpe?g|gif|svg|webp)$/i;
-    const EXTERNAL_RE = /^(https?:|mailto:|#|\/|cfd-toolbox\/)/i;
-
-    function preprocessCfdMarkdown(md) {
-        // Promote [text](image.ext) links to ![text](image.ext) so images render inline.
-        md = md.replace(/(^|[^!])\[([^\]]+)\]\(([^)\s]+\.(?:png|jpe?g|gif|svg|webp))\)/gi,
-            (_m, pre, text, href) => `${pre}![${text}](${href})`);
-        // Prefix relative image/link targets with cfd-toolbox/.
-        md = md.replace(/(!?\[[^\]]*\])\(([^)\s]+)\)/g, (_m, label, href) => {
-            if (!EXTERNAL_RE.test(href)) href = 'cfd-toolbox/' + href;
-            return `${label}(${href})`;
-        });
-        return md;
-    }
-
-    async function loadCfdToolbox() {
-        if (cfdLoaded) return;
-        const target = document.getElementById('cfd-content');
-        try {
-            const res = await fetch('cfd-toolbox/README.md');
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const md = preprocessCfdMarkdown(await res.text());
-            target.classList.remove('cfd-loading');
-            target.innerHTML = marked.parse(md);
-            cfdLoaded = true;
-        } catch (err) {
-            console.error('Failed to load CFD toolbox README:', err);
-            target.innerHTML = `<p style="color:#c0392b;">Could not load CFD Toolbox documentation: ${err.message}</p>`;
-        }
-    }
 
     function activate(tabName) {
         buttons.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tabName));
         panels.forEach(p => p.classList.toggle('active', p.id === `tab-${tabName}`));
         if (tabName === 'forecasts') {
             setTimeout(() => map.invalidateSize(), 0);
-        } else if (tabName === 'cfd-toolbox') {
-            loadCfdToolbox();
         }
     }
 

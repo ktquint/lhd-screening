@@ -11,7 +11,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/@ngageoint/geopackage@4.1.0/dist/geopackage.min.js"></script>
     <script src="https://unpkg.com/@ngageoint/leaflet-geopackage@3.0.0/dist/leaflet-geopackage.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; background-color: #f4f7f6; overflow: hidden; }
@@ -214,7 +213,429 @@
         </div>
         <div id="tab-cfd-toolbox" class="tab-panel">
             <div class="cfd-container">
-                <div id="cfd-content" class="cfd-loading">Loading CFD Toolbox documentation…</div>
+<h1>FLOW-3D CFD Toolbox for Low-Head Dam Hazard Analysis</h1>
+<h2>Start Here</h2>
+<p>This HydroShare resource provides an online training toolbox for setting up, running, and interpreting a FLOW-3D HYDRO computational fluid dynamics (CFD) model for assessing drowning potential at low-head dams. The toolbox is designed as a step-by-step learning module with example files, screenshots, model inputs, downloadable results, and post-processing materials.</p>
+<p>The purpose of this toolbox is to guide users through the complete modeling workflow, from preparing input data to interpreting FLOW-3D simulation results.</p>
+<hr />
+<h2>How to Use This Toolbox</h2>
+<ol>
+<li>Review the <strong>Tool Summary</strong> section to understand the purpose and scope of the toolbox.</li>
+<li>Review <strong>What is Needed</strong> before opening FLOW-3D.</li>
+<li>Download the input files, geometry files, boundary-condition files, and model files from the HydroShare resource content section.</li>
+<li>Follow the <strong>Step-by-Step Walkthrough in FLOW-3D</strong>.</li>
+<li>Compare your outputs with the example results provided in the <strong>Summary of Results</strong> section.</li>
+<li>Use the downloadable files and post-processing materials to reproduce or adapt the workflow for other low-head dam sites.</li>
+</ol>
+<hr />
+<h2>1. Tool Summary</h2>
+<h3>Objective and Scope</h3>
+<p>This toolbox demonstrates how FLOW-3D can be used to set up, run, and interpret a three-dimensional CFD model for low-head dam reverse-roller and drowning-potential assessment. This manual toolbox discusses the step-by-step process for simulating the flow at low-head dams in different scenarios. It includes analysis of several ranges of discharge/head for which a reverse roller forms, its drowning potential, flow characteristics, discharge, water-surface profile, velocity distribution, etc.</p>
+<p>The current example focuses on:</p>
+<ul>
+<li>Low-head dam hydraulic hazard analysis</li>
+<li>Free-surface flow simulation</li>
+<li>Velocity and water-surface analysis</li>
+<li>Reverse-roller and submerged-jump behavior</li>
+<li>Identification of high-velocity zones, recirculation zones, and hydraulic conditions that may contribute to public-safety risk</li>
+</ul>
+<h3>Motivation</h3>
+<p>Recent advances in three-dimensional CFD modeling allow modelers to analyze reverse-roller hydraulics and, when needed, evaluate floating-body behavior using human-prototype or simplified floating-body representations. This type of modeling can support the assessment of drowning potential and can also be used to evaluate structural modifications intended to reduce reverse-roller strength.</p>
+<p>FLOW-3D outputs also provide intuitive visualizations that can help communicate hydraulic hazards to first responders, dam owners, government officials, and the public. While several commercial and open-source CFD tools are available for hydraulic-structure modeling, FLOW-3D is widely used because it provides robust free-surface and multiphase-flow modeling capabilities for complex hydraulic conditions.</p>
+<p>A CFD toolbox can assist dam owners and stakeholders in identifying reverse-roller hazards and evaluating mitigation alternatives. A straightforward CFD workflow allows users to assess low-head dam drowning potential in ways that are not possible using only one-dimensional or two-dimensional hydraulic models.</p>
+<p>The toolbox can also be used to analyze structural modifications such as sills, baffle blocks, and other features that may be placed on the downstream apron or stilling floor to reduce hazardous reverse-roller behavior.</p>
+<figure><img src="cfd-toolbox/lhd.png" alt="Formation of submerged jump/reverse roller"><figcaption><strong>Figure 1.</strong> Formation of a submerged jump/reverse roller near the toe of a low-head dam.</figcaption></figure>
+<h3>What This Toolbox Does</h3>
+<p>This toolbox helps users learn how to:</p>
+<ul>
+<li>Prepare geometry and terrain/bathymetry data.</li>
+<li>Define the computational domain and mesh blocks.</li>
+<li>Set fluid properties and initial conditions.</li>
+<li>Select physics options such as turbulence and air-entrainment models.</li>
+<li>Set the general moving-object model, if floating-body simulation is required.</li>
+<li>Apply inflow, outflow, wall, and symmetry boundary conditions.</li>
+<li>Run a FLOW-3D simulation.</li>
+<li>Extract results such as velocity, water-surface elevation, pressure, turbulence, and hydraulic-roller behavior.</li>
+<li>Calibrate and validate results using site data or laboratory data, when available.</li>
+<li>Run models for different discharge ranges.</li>
+<li>Link modeled flow ranges to probability of exceedance and structural rating-curve information.</li>
+<li>Prepare figures, tables, and animations for reporting and communication.</li>
+</ul>
+<hr />
+<h2>2. What is Needed</h2>
+<h3>Required Software</h3>
+<p>The following software may be needed to complete this training module:</p>
+<table>
+<thead><tr><th>Software</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>FLOW-3D HYDRO / FLOW-3D</td><td>Main CFD model setup and simulation</td></tr>
+<tr><td>FLOW-3D POST</td><td>Visualization and post-processing</td></tr>
+<tr><td>CAD software</td><td>Geometry preparation or editing, if needed</td></tr>
+<tr><td>ArcGIS or QGIS</td><td>DEM, bathymetry, terrain, or survey-data processing</td></tr>
+<tr><td>Excel / MATLAB / Python</td><td>Boundary-condition preparation, data processing, and result summaries</td></tr>
+<tr><td>Jupyter Notebook</td><td>Optional reproducible workflow for post-processing or data preparation</td></tr>
+</tbody>
+</table>
+<h3>Required Input Data</h3>
+<p>The following data are typically needed for this workflow:</p>
+<table>
+<thead><tr><th>Input Data</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>Geometry file</td><td>Hydraulic structure and/or channel geometry, such as STL, OBJ, or CAD-derived surface file</td></tr>
+<tr><td>Terrain or bathymetry</td><td>Channel bed surface, LiDAR DEM, ADCP bathymetry, surveyed cross sections, or interpolated bed surface</td></tr>
+<tr><td>Inflow condition</td><td>Flow rate, velocity boundary, discharge hydrograph, or rating-curve-based discharge</td></tr>
+<tr><td>Downstream condition</td><td>Tailwater depth, stage, pressure boundary, rating curve, or measured downstream water level</td></tr>
+<tr><td>Fluid properties</td><td>Water density, viscosity, and gravitational acceleration</td></tr>
+<tr><td>Mesh settings</td><td>Computational-domain extent and mesh resolution</td></tr>
+<tr><td>Validation data</td><td>Observed water levels, velocity data, laboratory data, or field observations, if available</td></tr>
+</tbody>
+</table>
+<h3>Folder Organization</h3>
+<p>The resource files are organized as follows:</p>
+<pre><code>Flow3D_HydroShare_Toolbox/
+│
+├── README.md
+├── lhd.png
+├── 01_Input_Data/
+├── 02_Geometry/
+├── 03_FLOW3D_Model_Files/
+├── 04_Boundary_Conditions/
+├── 05_Step_by_Step_Walkthrough/
+├── 06_Results/
+├── 07_PostProcessing/
+└── 08_Downloadable_Package/
+</code></pre>
+<h3>Recommended Naming Practice</h3>
+<p>Use short folder and file names without spaces. For example:</p>
+<pre><code>lhd.png
+04_Boundary_Conditions/inflow_tailwater_summary.xlsx
+06_Results/velocity_contour_Q1.png
+</code></pre>
+<hr />
+<h2>3. Data and Model Setup</h2>
+<h3>Example Description</h3>
+<p>This training example demonstrates a FLOW-3D CFD modeling workflow for evaluating hazardous hydraulic conditions at a low-head dam. The example focuses on identifying reverse-roller behavior, high-velocity zones, free-surface response, and flow patterns relevant to drowning-potential assessment.</p>
+<h3>Geometry Preparation</h3>
+<ul>
+<li>Obtain detailed weir dimensions from as-built drawings, design blueprints, or site surveys.</li>
+<li>Key parameters: crest shape, length, height, slopes, steps (if any), pier and abutment layout, and venting systems.</li>
+</ul>
+<p>Before importing the geometry into FLOW-3D, check the following:</p>
+<ul>
+<li>Confirm that the geometry uses the correct unit system.</li>
+<li>Confirm that the geometry scale is correct.</li>
+<li>Confirm that the upstream and downstream directions are correctly oriented.</li>
+<li>Check whether the structure and channel surfaces are properly represented.</li>
+<li>Check whether the geometry has gaps, overlaps, or unrealistic features.</li>
+<li>Simplify unnecessary details that may increase computation time without improving hydraulic interpretation.</li>
+</ul>
+<h3>Bathymetry and Terrain Preparation</h3>
+<ul>
+<li>Conduct a bathymetric survey of the upstream and downstream channel to capture the channel bed topography and flow parameters such as discharge, velocity, and depth.</li>
+<li>Use ADCP for bathymetric survey and LiDAR for overall terrain. Very high-resolution DEM is required for flow simulation. Survey channel banks and surrounding terrain to define computational boundaries and capture natural topography of the channel.</li>
+<li>Take two cross-sections (2 and 3) just upstream and downstream of the LHD, and third (1) and fourth (4) cross-sections farther upstream and downstream. The distance between cross sections is decided based on channel bank and bed irregularities and on upstream/downstream boundary conditions for CFD modeling.</li>
+</ul>
+<p>If bathymetry, DEM, or cross-section data are included, prepare the terrain before creating the FLOW-3D model. Recommended steps for processing LiDAR DEM in ArcGIS Pro:</p>
+<ul>
+<li>Convert point-data cross sections to a point shapefile.</li>
+<li>Create a TIN using all point shapefiles.</li>
+<li>Create a channel-mask polygon.</li>
+<li>Extract by mask.</li>
+<li>Mosaic to new raster.</li>
+<li>Export raster as ASCII file.</li>
+</ul>
+<p>Additional checks:</p>
+<ul>
+<li>Confirm horizontal and vertical units.</li>
+<li>Convert elevations to the unit system used in FLOW-3D.</li>
+<li>Remove obvious survey errors or unrealistic bed elevations.</li>
+<li>Interpolate between surveyed cross sections if needed.</li>
+<li>Clip or mask the terrain to the modeling domain.</li>
+<li>Export the terrain or bed surface in a format compatible with the geometry workflow.</li>
+</ul>
+<h3>Create Stereolithography File (.STL) for Simulation in FLOW-3D</h3>
+<p>Prepare a 3D solid model of the weir geometry using AutoCAD, Civil 3D, Sketchup, etc., to scale. Incorporate all relevant structural features such as the weir crest, side walls, training walls, and stilling basin. Similarly, generate the terrain surface using DEM or surveyed topographic data. Once both the weir and terrain models are complete, convert them to STL format using the CAD software or equivalent tools to ensure compatibility with FLOW-3D. Ensure the geometry is watertight and free of gaps or overlaps before exporting.</p>
+<p>While preparing the solid geometry for FLOW-3D, ensure that the User Coordinate System (UCS) is aligned as follows and that the units match FLOW-3D:</p>
+<ul>
+<li>Z-axis: upward (vertical direction)</li>
+<li>X-axis: flow direction (longitudinal)</li>
+<li>Y-axis: channel width (lateral)</li>
+</ul>
+<p>This alignment matches FLOW-3D's coordinate system and ensures correct geometry orientation during import. Import as STL file(s) into FLOW-3D and assign appropriate geometry types (subcomponent, fluid-region boundary, etc.).</p>
+<h3>Floating / Moving Object Properties</h3>
+<p>If trapped floating-body simulation is required:</p>
+<ul>
+<li><strong>Coefficient of restitution</strong> = V<sub>r</sub>(after collision) / V<sub>r</sub>(before collision). <em>e</em> = 1 is perfectly elastic; <em>e</em> = 0 is fully inelastic. Used to model how objects rebound.</li>
+<li><strong>Coefficient of friction</strong> = resistance to sliding of the body.</li>
+</ul>
+<h3>Computational Domain</h3>
+<p>The computational domain should include:</p>
+<ul>
+<li>Sufficient upstream length for inflow development.</li>
+<li>The dam crest or hydraulic-structure region.</li>
+<li>The downstream apron or stilling-floor region.</li>
+<li>Sufficient downstream length to capture the reverse roller and recovery zone.</li>
+<li>Adequate vertical clearance above the expected water surface.</li>
+</ul>
+<h3>Mesh Setup</h3>
+<p>Mesh refinement should be concentrated near:</p>
+<ul>
+<li>The dam or weir crest.</li>
+<li>The nappe or overflow region.</li>
+<li>The toe of the structure.</li>
+<li>The reverse-roller region.</li>
+<li>The downstream recirculation and energy-dissipation zone.</li>
+<li>Any floating-body or moving-object region, if included.</li>
+</ul>
+<p>A coarser mesh can be used farther from the hydraulic structure to reduce computational cost. Multiple meshes (mesh block, mesh planes, nested block) can be used for refinement in particular regions.</p>
+<h3>Boundary Conditions and Initial Conditions</h3>
+<p>Boundary conditions are known conditions (such as flow depth or discharge) that allow the discretized governing flow equations to be solved at each grid node. In FLOW-3D, upstream boundary conditions can be defined by specifying flow depth, velocity, or discharge, depending on channel geometry and flow uniformity. For the downstream boundary, a flow-depth or pressure boundary condition is typically assigned to compute backwater effects and ensure numerical stability, especially in subcritical flow.</p>
+<p>Containing block mesh:</p>
+<ul>
+<li><strong>Inflow:</strong> specify velocity components, volume flow rate, or pressure. For pressure, assign stagnation pressure with fluid elevation/height.</li>
+<li><strong>Outflow:</strong> specify zero gradient, pressure, or elevation.</li>
+<li><strong>Wall:</strong> Y<sub>min</sub> and Y<sub>max</sub> are typically set as symmetry boundaries for closed domains. Symmetry boundaries can also reduce computational cost in symmetric or 2D simulations.</li>
+<li><strong>Bottom (bed):</strong> assign Z<sub>min</sub> as wall.</li>
+<li><strong>Top surface:</strong> assign Z<sub>max</sub> as stagnation pressure with fluid fraction zero.</li>
+</ul>
+<p>For nested block meshes, symmetry boundary conditions are applied for all boundaries. For initial conditions, set the upstream water level to the weir crest elevation; for the global initial condition, set the tailwater depth to represent downstream flow conditions.</p>
+<p>Typical boundary conditions are summarized below:</p>
+<table>
+<thead><tr><th>Boundary</th><th>Typical Condition</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Upstream</td><td>Flow rate, velocity, or pressure boundary</td><td>Based on measured or design discharge</td></tr>
+<tr><td>Downstream</td><td>Tailwater depth, pressure outlet, or rating curve</td><td>Should represent downstream hydraulic control</td></tr>
+<tr><td>Bottom</td><td>Wall boundary</td><td>Represents bed and structural surfaces</td></tr>
+<tr><td>Side walls</td><td>Wall or symmetry boundary</td><td>Depends on channel/domain representation</td></tr>
+<tr><td>Top</td><td>Atmospheric / free-surface condition</td><td>Allows free-surface flow development</td></tr>
+</tbody>
+</table>
+<h3>Fluid Properties</h3>
+<p>Assign the fluid as water with its properties from the FLOW-3D material library.</p>
+<h3>Global Settings</h3>
+<p>Set units, temperature, reference pressure, file details, and the start and end times of the simulation. The end time should be long enough for the desired flow to fully develop.</p>
+<h3>Physics</h3>
+<p>Set gravity z-component to −9.81 m/s². Use the Renormalized Group (RNG) turbulence model for fluid motion. Activate wall shear stress to account for shear stress at boundary surfaces. If a trapped floating body is simulated, activate the moving-object model with the collision model enabled.</p>
+<h3>Output</h3>
+<p>Output variables are selected based on the analysis requirement.</p>
+<h3>Solver Settings / Numerics</h3>
+<p>Use the default solver settings unless project requirements dictate otherwise.</p>
+<h3>FAVOR</h3>
+<p>In FLOW-3D, <strong>FAVOR™</strong> (Fractional Area/Volume Obstacle Representation) represents solid geometry inside the computational mesh without requiring the mesh to conform exactly to the object's shape. FAVOR calculates how much of each mesh cell is occupied by solid geometry and how much remains open for fluid flow.</p>
+<h3>Model Validation Data</h3>
+<p>If field or laboratory data are available, the model should be checked against:</p>
+<ul>
+<li>Upstream water-surface elevation.</li>
+<li>Downstream tailwater elevation.</li>
+<li>Flow depth at selected cross sections.</li>
+<li>Velocity measurements.</li>
+<li>Visual observations of roller location and free-surface behavior.</li>
+<li>Laboratory-scale results, when applicable.</li>
+</ul>
+<hr />
+<h2>4. Summary of Results</h2>
+<p>After completing this training module, users should be able to generate and interpret the following outputs.</p>
+<h3>Main Hydraulic Results</h3>
+<table>
+<thead><tr><th>Result</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>Water-surface elevation</td><td>Identify flow depth, free-surface profile, and upstream/downstream water levels</td></tr>
+<tr><td>Velocity magnitude</td><td>Locate high-velocity zones and flow-acceleration regions</td></tr>
+<tr><td>Pressure distribution</td><td>Evaluate pressure zones and hydraulic loading</td></tr>
+<tr><td>Turbulence and vorticity</td><td>Identify recirculation, roller structure, and energy-dissipation regions</td></tr>
+<tr><td>Flow profiles</td><td>Compare upstream, crest, toe, and downstream hydraulic conditions</td></tr>
+<tr><td>Streamlines or pathlines</td><td>Visualize flow direction and recirculation patterns</td></tr>
+<tr><td>Animations</td><td>Communicate transient flow evolution and hydraulic hazards</td></tr>
+</tbody>
+</table>
+<h3>Expected Products</h3>
+<ul>
+<li>Plan-view velocity maps.</li>
+<li>Longitudinal velocity profiles.</li>
+<li>Cross-section plots.</li>
+<li>Water-surface elevation plots.</li>
+<li>Three-dimensional free-surface visualizations.</li>
+<li>Reverse-roller visualization figures.</li>
+<li>Simulation summary tables.</li>
+<li>Result comparison figures for different flow ranges.</li>
+<li>Animations for technical and public communication.</li>
+</ul>
+<h3>Interpretation Guidance</h3>
+<ul>
+<li>Whether the flow pattern is physically reasonable.</li>
+<li>Whether the simulation reached a stable or quasi-steady condition.</li>
+<li>Whether mass-conservation errors are acceptable.</li>
+<li>Whether mesh resolution is sufficient in the critical flow region.</li>
+<li>Whether the simulated water levels match available field or laboratory observations.</li>
+<li>Whether a reverse roller forms at the downstream toe.</li>
+<li>Whether the roller strength, recirculation zone, or surface return flow indicates a potential public-safety concern.</li>
+<li>Whether structural modifications reduce hazardous flow behavior.</li>
+</ul>
+<figure><img src="cfd-toolbox/GPC.png" alt="Example FLOW-3D output"><figcaption><strong>Figure 2.</strong> Example FLOW-3D output for a low-head dam.</figcaption></figure>
+<hr />
+<h2>5. Step-by-Step Walkthrough in FLOW-3D</h2>
+<h3>Step 1: Create a New Simulation</h3>
+<p><strong>Purpose:</strong> Start a new FLOW-3D HYDRO simulation using the correct unit system and project name.</p>
+<p><strong>Action:</strong></p>
+<ol>
+<li>Open FLOW-3D HYDRO.</li>
+<li>Create a new workspace or project.</li>
+<li>Select the correct unit system.</li>
+<li>Save the simulation using a clear name, such as <code>LHD_reverse_roller_training_case</code>.</li>
+</ol>
+<p><strong>Expected outcome:</strong> A new FLOW-3D simulation is created and ready for geometry import.</p>
+<h3>Step 2: Import Geometry</h3>
+<p><strong>Purpose:</strong> Load the low-head dam and channel geometry into the FLOW-3D model.</p>
+<p><strong>Action:</strong></p>
+<ol>
+<li>Import the structure geometry file from the <code>02_Geometry</code> folder.</li>
+<li>Check the model scale.</li>
+<li>Check the model orientation.</li>
+<li>Confirm that the dam, crest, apron, and downstream channel are positioned correctly.</li>
+</ol>
+<p><strong>Expected outcome:</strong> The hydraulic-structure geometry appears correctly within the computational domain.</p>
+<h3>Step 3: Define the Computational Domain</h3>
+<p><strong>Purpose:</strong> Create a model domain that includes the upstream approach, dam crest, downstream apron, reverse-roller zone, and downstream recovery reach.</p>
+<p><strong>Action:</strong></p>
+<ol>
+<li>Define the upstream and downstream domain limits.</li>
+<li>Set the domain width to include the full channel or modeled section.</li>
+<li>Set the vertical extent high enough to contain the expected water surface.</li>
+<li>Leave sufficient downstream distance to capture the reverse roller and flow recovery.</li>
+</ol>
+<p><strong>Expected outcome:</strong> The computational domain fully contains the hydraulic features of interest.</p>
+<h3>Step 4: Generate the Mesh</h3>
+<p><strong>Purpose:</strong> Create a computational mesh that captures key hydraulic behavior while maintaining reasonable computation time.</p>
+<p><strong>Action:</strong></p>
+<ol>
+<li>Create a mesh block covering the full computational domain.</li>
+<li>Refine the mesh near the dam crest, toe, apron, and roller region.</li>
+<li>Check the number of cells and expected runtime.</li>
+<li>Adjust mesh resolution if important features are not well represented.</li>
+</ol>
+<p><strong>Expected outcome:</strong> The mesh is sufficiently refined near the low-head dam and reverse-roller region.</p>
+<h3>Step 5: Select Physics Options</h3>
+<p><strong>Purpose:</strong> Activate the physics models needed for free-surface hydraulic simulation.</p>
+<p><strong>Action:</strong></p>
+<ol>
+<li>Activate gravity.</li>
+<li>Activate free-surface flow.</li>
+<li>Select the appropriate turbulence model.</li>
+<li>Activate air entrainment if required for the simulation purpose.</li>
+<li>Activate the general moving-object model if a floating body is included.</li>
+</ol>
+<p><strong>Expected outcome:</strong> The simulation physics are appropriate for low-head dam free-surface flow and reverse-roller analysis.</p>
+<h3>Step 6: Apply Boundary Conditions</h3>
+<p><strong>Purpose:</strong> Define the upstream inflow and downstream hydraulic control.</p>
+<p><strong>Action:</strong></p>
+<ol>
+<li>Assign the upstream inflow boundary using discharge, velocity, or pressure conditions.</li>
+<li>Assign the downstream boundary using tailwater elevation, pressure, or rating-curve information.</li>
+<li>Assign wall boundaries to the channel bed and structure.</li>
+<li>Assign side-wall or symmetry boundaries as appropriate.</li>
+<li>Confirm that the top boundary allows free-surface behavior.</li>
+</ol>
+<p><strong>Expected outcome:</strong> All boundary conditions are assigned and consistent with the site or laboratory conditions.</p>
+<h3>Step 7: Set Initial Conditions</h3>
+<p><strong>Purpose:</strong> Define initial water levels and flow conditions to improve model stability.</p>
+<p><strong>Action:</strong></p>
+<ol>
+<li>Set the initial water level upstream and downstream.</li>
+<li>Define initial fluid regions.</li>
+<li>Check whether the initial water surface is reasonable.</li>
+<li>Avoid unrealistic dry or overfilled regions unless intentionally modeled.</li>
+</ol>
+<p><strong>Expected outcome:</strong> The model begins from a stable and physically reasonable initial condition.</p>
+<h3>Step 8: Set Simulation Control</h3>
+<p><strong>Purpose:</strong> Set runtime, output intervals, and numerical controls.</p>
+<p><strong>Action:</strong></p>
+<ol>
+<li>Define total simulation time.</li>
+<li>Define output-save intervals.</li>
+<li>Enable restart files if needed.</li>
+<li>Review stability controls and solver settings.</li>
+<li>Set monitoring points or output locations if needed.</li>
+</ol>
+<p><strong>Expected outcome:</strong> The simulation control settings are ready for running the model.</p>
+<h3>Step 9: Run the Simulation</h3>
+<p><strong>Purpose:</strong> Run the model and monitor stability.</p>
+<p><strong>Action:</strong></p>
+<ol>
+<li>Run the preprocessor.</li>
+<li>Check for warnings or errors.</li>
+<li>Start the simulation.</li>
+<li>Monitor time step, volume error, and free-surface behavior.</li>
+<li>Stop and troubleshoot if the model becomes unstable.</li>
+</ol>
+<p><strong>Expected outcome:</strong> The model runs successfully and produces output files for post-processing.</p>
+<h3>Step 10: Post-Process Results</h3>
+<p><strong>Purpose:</strong> Use FLOW-3D POST to visualize and extract hydraulic results.</p>
+<p><strong>Action:</strong></p>
+<ol>
+<li>Open the completed simulation in FLOW-3D POST.</li>
+<li>Create longitudinal and cross-section slices.</li>
+<li>Plot velocity contours.</li>
+<li>Plot water-surface elevation.</li>
+<li>Extract pressure, turbulence, and vorticity results.</li>
+<li>Generate figures and animations.</li>
+</ol>
+<p><strong>Expected outcome:</strong> Hydraulic results are available for interpretation and reporting.</p>
+<h3>Step 11: Interpret Hydraulic Hazard Conditions</h3>
+<p><strong>Purpose:</strong> Use model outputs to assess reverse-roller formation and drowning potential.</p>
+<p><strong>Action:</strong></p>
+<ol>
+<li>Identify whether a reverse roller forms downstream of the dam.</li>
+<li>Locate the recirculation zone and surface return flow.</li>
+<li>Identify high-velocity regions.</li>
+<li>Compare modeled water levels with observed or expected values.</li>
+<li>Evaluate whether structural modifications reduce hazardous hydraulic behavior.</li>
+<li>Summarize results by flow range and probability of exceedance, when applicable.</li>
+</ol>
+<p><strong>Expected outcome:</strong> The user can interpret whether the modeled flow condition may indicate hazardous reverse-roller behavior.</p>
+<hr />
+<h2>Downloadable Files</h2>
+<p>The following files are included in the HydroShare resource:</p>
+<table>
+<thead><tr><th>Folder</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>01_Input_Data</code></td><td>Flow rates, tailwater data, survey data, and supporting input files</td></tr>
+<tr><td><code>02_Geometry</code></td><td>Low-head dam, channel, and/or terrain geometry files</td></tr>
+<tr><td><code>03_FLOW3D_Model_Files</code></td><td>FLOW-3D simulation files</td></tr>
+<tr><td><code>04_Boundary_Conditions</code></td><td>Boundary-condition tables and notes</td></tr>
+<tr><td><code>05_Step_by_Step_Walkthrough</code></td><td>Additional notes and screenshots for the online walkthrough</td></tr>
+<tr><td><code>06_Results</code></td><td>Example figures, tables, and animations</td></tr>
+<tr><td><code>07_PostProcessing</code></td><td>Optional Jupyter Notebook, Python scripts, or post-processing files</td></tr>
+<tr><td><code>08_Downloadable_Package</code></td><td>Complete zipped training package</td></tr>
+</tbody>
+</table>
+<hr />
+<h2>Recommended Learning Sequence</h2>
+<ol>
+<li>Read the <strong>Tool Summary</strong>.</li>
+<li>Review the software and data requirements.</li>
+<li>Download the input data and model files.</li>
+<li>Open the FLOW-3D model.</li>
+<li>Follow the step-by-step walkthrough.</li>
+<li>Run or review the simulation.</li>
+<li>Post-process the results.</li>
+<li>Compare results with the example outputs.</li>
+<li>Use the workflow to test additional flow ranges or structural modifications.</li>
+</ol>
+<hr />
+<h2>Version Information</h2>
+<table>
+<thead><tr><th>Item</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>Toolbox version</td><td>Version 1.0</td></tr>
+<tr><td>Author</td><td>Rakesh Kumar Chaudhary</td></tr>
+<tr><td>Institution</td><td>Utah State University</td></tr>
+<tr><td>Date</td><td>May 2026</td></tr>
+<tr><td>Contact</td><td>Add contact email here</td></tr>
+</tbody>
+</table>
+<hr />
+<h2>Notes</h2>
+<p>This toolbox is intended for training and educational use. Users should modify the mesh resolution, boundary conditions, physics options, and simulation controls based on their own project needs and available validation data.</p>
             </div>
         </div>
         <div id="tab-about" class="tab-panel">
