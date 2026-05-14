@@ -204,9 +204,8 @@
         <a class="nav-button" href="https://www.lowheaddamfatalities.org" target="_blank" rel="noopener">Low-Head Dam Fatalities Database</a>
         <a class="nav-button" href="https://nid.sec.usace.army.mil/lhdi" target="_blank" rel="noopener">National Inventory of Low-Head Dams</a>
         <a class="nav-button placeholder" href="#">Educational Resources</a>
-        <a class="nav-button placeholder" href="#">Submit a Site</a>
-        <a class="nav-button placeholder" href="#">About</a>
-        <a class="nav-button placeholder" href="#">Contact</a>
+        <button class="nav-button" data-tab="about">About</button>
+        <button class="nav-button" data-tab="contact">Contact</button>
     </nav>
 
     <div class="tab-content-area">
@@ -216,6 +215,67 @@
         <div id="tab-cfd-toolbox" class="tab-panel">
             <div class="cfd-container">
                 <div id="cfd-content" class="cfd-loading">Loading CFD Toolbox documentation…</div>
+            </div>
+        </div>
+        <div id="tab-about" class="tab-panel">
+            <div class="cfd-container">
+                <h1>About</h1>
+                <p>The <strong>Low-Head Dam Inventory (LHDI) Live Forecasts</strong> platform is a public-safety tool that combines the national low-head dam inventory with real-time streamflow forecasts from the GEOGLOWS hydrological model. The goal is to help recreators, first responders, dam owners, and the public understand when conditions at a low-head dam may pose a drowning hazard.</p>
+
+                <h2>What this tool does</h2>
+                <ul>
+                    <li>Displays the locations of known low-head dams across the United States.</li>
+                    <li>Highlights sites where fatalities have been recorded.</li>
+                    <li>Pulls live streamflow forecasts from the GEOGLOWS API and compares them against site-specific dangerous flow ranges.</li>
+                    <li>Provides a CFD Toolbox walkthrough for analyzing reverse-roller hydraulics at low-head dams using FLOW-3D.</li>
+                </ul>
+
+                <h2>Partners</h2>
+                <p>This project is developed and maintained through a collaboration between:</p>
+                <ul>
+                    <li><strong>Brigham Young University (BYU)</strong> &mdash; research and platform development.</li>
+                    <li><strong>U.S. Army Corps of Engineers (USACE)</strong> &mdash; National Inventory of Low-Head Dams.</li>
+                    <li><strong>U.S. Department of Homeland Security (DHS)</strong> &mdash; public-safety support.</li>
+                </ul>
+
+                <h2>Data sources</h2>
+                <ul>
+                    <li>Low-head dam locations: USACE National Inventory of Low-Head Dams (NID-LHDI).</li>
+                    <li>Fatality records: <a href="https://www.lowheaddamfatalities.org" target="_blank" rel="noopener">Low-Head Dam Fatalities Database</a>.</li>
+                    <li>Streamflow forecasts: <a href="https://geoglows.ecmwf.int" target="_blank" rel="noopener">GEOGLOWS Hydrologic Forecast System</a>.</li>
+                    <li>Hydrography background: NHDPlus stream network.</li>
+                </ul>
+
+                <h2>Disclaimer</h2>
+                <p>Forecasts are informational and are not a substitute for on-site judgment. Conditions at any low-head dam can change rapidly. Always exercise caution near hydraulic structures and follow local advisories.</p>
+            </div>
+        </div>
+        <div id="tab-contact" class="tab-panel">
+            <div class="cfd-container">
+                <h1>Contact</h1>
+                <p>Questions, corrections, or suggestions about the LHDI Live Forecasts platform are welcome.</p>
+
+                <h2>General inquiries</h2>
+                <p>Email: <a href="mailto:lhdi@byu.edu">lhdi@byu.edu</a></p>
+
+                <h2>Report a data issue</h2>
+                <p>If you notice a dam that is missing, mislocated, or has outdated information, please include:</p>
+                <ul>
+                    <li>Dam name (if known) and location (latitude/longitude, city, state).</li>
+                    <li>A short description of the issue.</li>
+                    <li>Any supporting links or photographs.</li>
+                </ul>
+
+                <h2>Research collaboration</h2>
+                <p>For research partnerships, CFD modeling support, or access to the underlying data, contact the BYU Hydraulics group directly.</p>
+
+                <h2>Mailing address</h2>
+                <p>
+                    BYU Hydraulics Research Group<br>
+                    Department of Civil and Construction Engineering<br>
+                    Brigham Young University<br>
+                    Provo, UT 84602
+                </p>
             </div>
         </div>
     </div>
