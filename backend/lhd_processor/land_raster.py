@@ -30,8 +30,12 @@ def make_constant_land_raster(dem_path: str, land_dir, n: float = 0.035, lc_code
     with rasterio.open(str(land_raster_path), "w", **profile) as dst:
         dst.write(data, 1)
 
+    # ARC overlays the stream raster onto the LC raster using LC_Water_Value
+    # (default 80) for stream pixels, so the Manning table must include that
+    # code even though our constant LC raster never contains it on disk.
     with open(manning_n_path, "w") as f:
         f.write("LC_Code\tDescription\tMannings_n\n")
         f.write(f"{lc_code}\tconstant\t{n}\n")
+        f.write(f"80\twater\t{n}\n")
 
     return str(land_raster_path), str(manning_n_path)
