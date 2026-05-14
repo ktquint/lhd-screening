@@ -43,7 +43,7 @@ import rasterio
 import geopandas as gpd
 from pyproj import Transformer
 from shapely.geometry import Point
-from shapely.ops import linemerge
+from shapely.ops import linemerge, unary_union
 from scipy.ndimage import grey_dilation, label as _ndimage_label
 
 
@@ -109,7 +109,7 @@ def pool_weir_length(
     if not (0 <= dam_row_f < rows and 0 <= dam_col_f < cols):
         return _fail("dam projects outside DEM")
 
-    # 3. Load flowline, pick segment closest to dam ----------------------
+    # 3. Load flowline, merge all features, pick closest component -------
     fl = gpd.read_file(flowline_path)
     if fl.crs is None:
         fl = fl.set_crs(epsg=4326)
@@ -120,14 +120,14 @@ def pool_weir_length(
         return _fail("no flowline geometry")
 
     dam_pt = Point(dam_x, dam_y)
-    closest = min(geoms, key=lambda g: g.distance(dam_pt))
-    if closest.geom_type == "MultiLineString":
-        merged = linemerge(closest)
-        if merged.geom_type == "MultiLineString":
-            merged = min(merged.geoms, key=lambda g: g.distance(dam_pt))
-        line = merged
+    # Merge all features into one continuous line where possible.
+    # This avoids treating a short connector stub as the whole flowline.
+    merged = linemerge(unary_union(geoms))
+    if merged.geom_type == "MultiLineString":
+        # Still disconnected — pick the component that passes closest to the dam
+        line = min(merged.geoms, key=lambda g: g.distance(dam_pt))
     else:
-        line = closest
+        line = merged
 
     line_len = line.length
     if line_len < 2 * profile_step_m:
@@ -153,21 +153,39 @@ def pool_weir_length(
     elevs[~in_bounds] = np.nan
 
     # 5. Locate dam-induced step in profile ------------------------------
+    # Use a rolling window sum (~10 m) so a drop spread across several
+    # pixels still registers as a single step, rather than relying on
+    # one 1-m sample exceeding the threshold.
     dz = np.diff(elevs)  # dz[i] = elevs[i+1] - elevs[i]; negative = drop downstream
     dz_dist = (distances[:-1] + distances[1:]) * 0.5
-    window_mask = np.abs(dz_dist - dam_dist_along) <= search_window_m
-    valid = window_mask & np.isfinite(dz)
-    if not np.any(valid):
+    win_samples = max(1, int(10.0 / profile_step_m))
+    dz_filled = np.where(np.isfinite(dz), dz, 0.0)
+    if len(dz_filled) >= win_samples:
+        rolled_drop = np.convolve(dz_filled, np.ones(win_samples), mode="valid")
+        # distance at the centre of each rolling window
+        centre_idx = np.minimum(
+            np.arange(len(rolled_drop)) + win_samples // 2, len(dz_dist) - 1
+        )
+        roll_dist = dz_dist[centre_idx]
+    else:
+        rolled_drop = np.array([dz_filled.sum()])
+        roll_dist = np.array([dz_dist[len(dz_dist) // 2]])
+
+    roll_window_mask = np.abs(roll_dist - dam_dist_along) <= search_window_m
+    if not np.any(roll_window_mask):
         return _fail("no finite dz in flowline window")
-    masked_dz = np.where(valid, dz, np.inf)
-    best_idx = int(np.argmin(masked_dz))
-    drop = float(dz[best_idx])
+    masked_rolled = np.where(roll_window_mask, rolled_drop, np.inf)
+    best_roll_idx = int(np.argmin(masked_rolled))
+    drop = float(rolled_drop[best_roll_idx])
     if drop > -min_step_m:
         return _fail(f"flowline step too small ({drop:.2f} m)")
 
-    # WSE = mean of N samples immediately upstream of the step (= idx best_idx)
-    up0 = max(0, best_idx - wse_avg_samples + 1)
-    wse_window = elevs[up0:best_idx + 1]
+    # Step position = centre sample of the best rolling window
+    best_idx = min(best_roll_idx + win_samples // 2, len(sample_x) - 1)
+
+    # WSE = mean of N samples immediately upstream of the window start
+    up0 = max(0, best_roll_idx - wse_avg_samples + 1)
+    wse_window = elevs[up0:best_roll_idx + 1]
     wse_window = wse_window[np.isfinite(wse_window)]
     if wse_window.size == 0:
         return _fail("no finite upstream samples")
