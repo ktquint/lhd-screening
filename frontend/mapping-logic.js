@@ -375,3 +375,59 @@ legend.addTo(map);
 window.addEventListener('resize', () => { map.invalidateSize(); });
 loadDams();
 loadHydrography();
+
+// --- Tab navigation ---
+(function setupTabs() {
+    const buttons = document.querySelectorAll('.nav-button[data-tab]');
+    const panels = document.querySelectorAll('.tab-panel');
+    let cfdLoaded = false;
+
+    async function loadCfdToolbox() {
+        if (cfdLoaded) return;
+        const target = document.getElementById('cfd-content');
+        try {
+            const res = await fetch('cfd-toolbox/README.md');
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const md = await res.text();
+            const renderer = new marked.Renderer();
+            const origImage = renderer.image.bind(renderer);
+            renderer.image = (href, title, text) => {
+                if (href && !/^(https?:)?\/\//.test(href) && !href.startsWith('cfd-toolbox/')) {
+                    href = 'cfd-toolbox/' + href;
+                }
+                return origImage(href, title, text);
+            };
+            const origLink = renderer.link.bind(renderer);
+            renderer.link = (href, title, text) => {
+                if (href && !/^(https?:|mailto:|#)/.test(href) && !href.startsWith('cfd-toolbox/')) {
+                    href = 'cfd-toolbox/' + href;
+                }
+                if (href && /\.(png|jpe?g|gif|svg|webp)$/i.test(href)) {
+                    const alt = (text || '').replace(/"/g, '&quot;');
+                    return `<figure><img src="${href}" alt="${alt}"${title ? ` title="${title}"` : ''}><figcaption><a href="${href}" target="_blank" rel="noopener">${text}</a></figcaption></figure>`;
+                }
+                return origLink(href, title, text);
+            };
+            target.classList.remove('cfd-loading');
+            target.innerHTML = marked.parse(md, { renderer });
+            cfdLoaded = true;
+        } catch (err) {
+            console.error('Failed to load CFD toolbox README:', err);
+            target.innerHTML = `<p style="color:#c0392b;">Could not load CFD Toolbox documentation: ${err.message}</p>`;
+        }
+    }
+
+    function activate(tabName) {
+        buttons.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tabName));
+        panels.forEach(p => p.classList.toggle('active', p.id === `tab-${tabName}`));
+        if (tabName === 'forecasts') {
+            setTimeout(() => map.invalidateSize(), 0);
+        } else if (tabName === 'cfd-toolbox') {
+            loadCfdToolbox();
+        }
+    }
+
+    buttons.forEach(btn => {
+        btn.addEventListener('click', () => activate(btn.dataset.tab));
+    });
+})();
