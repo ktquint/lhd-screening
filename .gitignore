@@ -9,6 +9,10 @@ venv/
 # Validation script outputs
 output/
 
+# pynhd VAA + aiohttp cache (created on first run of assign_nhd_comid.py etc.)
+cache/
+backend/data/nhd_comid_checkpoint.json
+
 # Hydrography data — too large for GitHub (4.5 GB total).
 # These files must be hosted separately and fetched at runtime.
 frontend/hydrography/*.gpkg

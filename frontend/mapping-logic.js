@@ -205,7 +205,8 @@ const SearchControl = L.Control.extend({
             if (rq) {
                 const gnis   = (d.GNIS_Name        || '').toLowerCase();
                 const stream = (d['River/Stream']  || '').toLowerCase();
-                if (!gnis.includes(rq) && !stream.includes(rq)) return false;
+                const river  = (d.River            || '').toLowerCase();
+                if (!gnis.includes(rq) && !stream.includes(rq) && !river.includes(rq)) return false;
             }
             if (sq && (d['State Abbreviation'] || '').toUpperCase() !== sq) return false;
             return true;
@@ -305,7 +306,8 @@ function renderMarkers() {
 
             const qMinVal = Math.round(parseFloat(dam.Qmin));
             const qMaxVal = Math.round(parseFloat(dam.Qmax));
-            const hasSafetyData = !isNaN(qMinVal) && dam.LinkNo;
+            const hasComid = dam.Reach_ID !== undefined && dam.Reach_ID !== null && String(dam.Reach_ID).trim() !== '';
+            const hasSafetyData = !isNaN(qMinVal) && hasComid;
 
             if (showOnlyForecast && !hasSafetyData) return;
 
@@ -315,7 +317,8 @@ function renderMarkers() {
             if (riverQ) {
                 const gnis   = (dam.GNIS_Name        || '').toLowerCase();
                 const stream = (dam['River/Stream']  || '').toLowerCase();
-                if (!gnis.includes(riverQ) && !stream.includes(riverQ)) return;
+                const river  = (dam.River            || '').toLowerCase();
+                if (!gnis.includes(riverQ) && !stream.includes(riverQ) && !river.includes(riverQ)) return;
             }
             if (stateQ && (dam['State Abbreviation'] || '').toUpperCase() !== stateQ) return;
 
@@ -346,6 +349,8 @@ function renderMarkers() {
                     <button class="btn-check" onclick="checkSafety('${dam.LinkNo}', ${qMinVal}, ${qMaxVal}, '${dam.Dam_Name}')">
                         Check Live Forecast
                     </button>`;
+            } else if (!hasComid) {
+                popupContent += `<i>No forecast available: this site is not linked to an NHDPlus stream reach.</i>`;
             } else {
                 popupContent += `<i>Safety flow range data unavailable for this site.</i>`;
             }
@@ -360,6 +365,8 @@ function renderMarkers() {
 }
 
 // 4. GEOGLOWS API Integration & Plotting
+// TODO: swap to National Water Model using Reach_ID (NHDPlus V2 COMID); keeping
+// GEOGLOWS LinkNo here until the NWM endpoint is wired up.
 async function checkSafety(linkNo, qMin, qMax, damName) {
     const url = `https://geoglows.ecmwf.int/api/v2/forecast/${linkNo}?format=json`;
     

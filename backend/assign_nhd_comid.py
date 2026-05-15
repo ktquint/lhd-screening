@@ -1,0 +1,253 @@
+"""
+Assign NHDPlus V2 COMID + GNIS river name to every dam in full_lhd_website.csv.
+
+The NHDPlus V2 COMID is the feature_id used by the National Water Model, so once
+this column is populated for every dam we can swap forecast lookups from
+GEOGLOWS to NWM without per-dam re-keying.
+
+Phase A
+    For each dam with valid lat/lon, query USGS NLDI `comid_byloc` to get the
+    nearest NHDFlowline COMID. Runs in parallel with retries and writes
+    progress to a JSON checkpoint after every successful lookup so the run is
+    resumable.
+
+Phase B
+    Load the cached NHDPlus VAA table once and look up `gnis_name` for each
+    COMID locally (no further web calls).
+
+Output
+    Overwrites `Reach_ID` and adds `GNIS_Name` in
+    frontend/data/full_lhd_website.csv.
+
+Usage
+    python backend/assign_nhd_comid.py
+    python backend/assign_nhd_comid.py --workers 24 --limit 100
+    python backend/assign_nhd_comid.py --force      # ignore checkpoint, re-fetch all
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+from typing import Optional
+
+import pandas as pd
+import pynhd as nhd
+from pynhd import NLDI
+
+_BACKEND_ROOT = Path(__file__).resolve().parent
+_REPO_ROOT = _BACKEND_ROOT.parent
+DEFAULT_CSV = _REPO_ROOT / "frontend" / "data" / "full_lhd_website.csv"
+DEFAULT_CHECKPOINT = _BACKEND_ROOT / "data" / "nhd_comid_checkpoint.json"
+
+_print_lock = threading.Lock()
+_ckpt_lock = threading.Lock()
+
+
+def _log(msg: str) -> None:
+    with _print_lock:
+        print(msg, flush=True)
+
+
+def _load_checkpoint(path: Path) -> dict[str, Optional[int]]:
+    if not path.exists():
+        return {}
+    try:
+        with open(path) as f:
+            return {str(k): v for k, v in json.load(f).items()}
+    except Exception as e:
+        _log(f"Warning: could not parse checkpoint ({e}) — starting fresh")
+        return {}
+
+
+def _save_checkpoint(path: Path, data: dict[str, Optional[int]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".json.tmp")
+    with open(tmp, "w") as f:
+        json.dump(data, f)
+    tmp.replace(path)
+
+
+def _lookup_comid(nldi: NLDI, lon: float, lat: float, retries: int = 3) -> Optional[int]:
+    """Return the NHDPlus V2 COMID for (lon, lat), or None."""
+    for attempt in range(retries):
+        try:
+            df = nldi.comid_byloc((lon, lat))
+            if df is None or df.empty or "comid" not in df.columns:
+                return None
+            val = df["comid"].iloc[0]
+            if pd.isna(val):
+                return None
+            return int(val)
+        except Exception as e:
+            if attempt == retries - 1:
+                _log(f"  NLDI fail @ ({lat:.4f},{lon:.4f}): {e}")
+                return None
+            time.sleep(1.5 * (attempt + 1))
+    return None
+
+
+def phase_a_fetch_comids(
+    df: pd.DataFrame,
+    checkpoint_path: Path,
+    workers: int,
+    flush_every: int,
+    force: bool,
+) -> dict[str, Optional[int]]:
+    """Populate {objectid -> comid} via parallel NLDI lookups."""
+    checkpoint = {} if force else _load_checkpoint(checkpoint_path)
+    nldi = NLDI()
+
+    todo: list[tuple[str, float, float]] = []
+    for _, row in df.iterrows():
+        oid = str(int(row["OBJECTID"]))
+        if oid in checkpoint:
+            continue
+        try:
+            lat = float(row["Latitude"])
+            lon = float(row["Longitude"])
+        except (TypeError, ValueError):
+            checkpoint[oid] = None
+            continue
+        if pd.isna(lat) or pd.isna(lon):
+            checkpoint[oid] = None
+            continue
+        todo.append((oid, lon, lat))
+
+    _log(f"Phase A: {len(checkpoint)} cached, {len(todo)} to fetch with {workers} workers")
+    if not todo:
+        return checkpoint
+
+    done_count = 0
+    last_flush = 0
+    start = time.time()
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {
+            pool.submit(_lookup_comid, nldi, lon, lat): oid
+            for oid, lon, lat in todo
+        }
+        for fut in as_completed(futures):
+            oid = futures[fut]
+            try:
+                comid = fut.result()
+            except Exception as e:
+                _log(f"  unexpected error for {oid}: {e}")
+                comid = None
+            with _ckpt_lock:
+                checkpoint[oid] = comid
+                done_count += 1
+                if done_count - last_flush >= flush_every:
+                    _save_checkpoint(checkpoint_path, checkpoint)
+                    last_flush = done_count
+                    rate = done_count / max(time.time() - start, 1e-6)
+                    remaining = (len(todo) - done_count) / max(rate, 1e-6)
+                    _log(
+                        f"  {done_count}/{len(todo)} done  "
+                        f"({rate:.1f}/s, ~{remaining/60:.1f} min left)"
+                    )
+
+    _save_checkpoint(checkpoint_path, checkpoint)
+    hits = sum(1 for v in checkpoint.values() if v is not None)
+    _log(f"Phase A complete: {hits}/{len(checkpoint)} got a COMID")
+    return checkpoint
+
+
+def phase_b_lookup_gnis(comids: list[int]) -> dict[int, Optional[str]]:
+    """Map each COMID to its gnis_name from the cached NHDPlus VAA table."""
+    _log("Phase B: loading NHDPlus VAA (cached after first run) ...")
+    vaa = nhd.nhdplus_vaa()
+    if "gnis_name" not in vaa.columns:
+        _log(f"  Unexpected: VAA missing gnis_name. Columns: {list(vaa.columns)[:20]}")
+        return {c: None for c in comids}
+
+    subset = vaa[["comid", "gnis_name"]].dropna(subset=["comid"]).copy()
+    subset["comid"] = pd.to_numeric(subset["comid"], errors="coerce").astype("Int64")
+    name_map = dict(zip(subset["comid"].dropna().astype(int), subset["gnis_name"]))
+
+    out: dict[int, Optional[str]] = {}
+    for c in comids:
+        name = name_map.get(c)
+        if isinstance(name, str):
+            name = name.strip()
+            out[c] = name or None
+        else:
+            out[c] = None
+    hits = sum(1 for v in out.values() if v)
+    _log(f"Phase B complete: {hits}/{len(out)} COMIDs have a GNIS name")
+    return out
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--csv", type=Path, default=DEFAULT_CSV, help="dam CSV to update in place")
+    ap.add_argument("--checkpoint", type=Path, default=DEFAULT_CHECKPOINT)
+    ap.add_argument("--workers", type=int, default=16)
+    ap.add_argument("--flush-every", type=int, default=200, help="save checkpoint every N lookups")
+    ap.add_argument("--limit", type=int, default=None, help="only process first N dams (smoke test)")
+    ap.add_argument("--force", action="store_true", help="ignore checkpoint, re-fetch everything")
+    ap.add_argument("--phase-a-only", action="store_true")
+    ap.add_argument("--phase-b-only", action="store_true", help="skip NLDI; just rebuild GNIS from checkpoint")
+    args = ap.parse_args()
+
+    if not args.csv.exists():
+        _log(f"ERROR: {args.csv} not found")
+        return 1
+
+    _log(f"Loading {args.csv} ...")
+    df = pd.read_csv(args.csv, low_memory=False)
+    _log(f"  {len(df)} rows")
+
+    work_df = df.head(args.limit) if args.limit else df
+
+    if not args.phase_b_only:
+        checkpoint = phase_a_fetch_comids(
+            work_df,
+            args.checkpoint,
+            workers=args.workers,
+            flush_every=args.flush_every,
+            force=args.force,
+        )
+    else:
+        checkpoint = _load_checkpoint(args.checkpoint)
+        _log(f"Phase B only: loaded {len(checkpoint)} cached comids")
+
+    if args.phase_a_only:
+        _log("Phase A only — done.")
+        return 0
+
+    unique_comids = sorted({v for v in checkpoint.values() if v is not None})
+    gnis = phase_b_lookup_gnis(unique_comids)
+
+    if "GNIS_Name" not in df.columns:
+        df["GNIS_Name"] = pd.NA
+
+    oid_str = df["OBJECTID"].astype(int).astype(str)
+    new_comid = oid_str.map(checkpoint)
+    new_gnis = new_comid.map(lambda c: gnis.get(int(c)) if pd.notna(c) else pd.NA)
+
+    touched = oid_str.isin(checkpoint.keys())
+    n_touched = int(touched.sum())
+    n_untouched = int((~touched).sum())
+    _log(f"Merging: {n_touched} rows updated, {n_untouched} rows left untouched (no checkpoint entry)")
+
+    df.loc[touched, "Reach_ID"] = new_comid[touched]
+    df.loc[touched, "GNIS_Name"] = new_gnis[touched]
+    df["Reach_ID"] = pd.to_numeric(df["Reach_ID"], errors="coerce").astype("Int64")
+
+    _log(f"Writing {args.csv} ...")
+    df.to_csv(args.csv, index=False)
+    _log(
+        f"Done. Reach_ID filled: {df['Reach_ID'].notna().sum()}/{len(df)}  "
+        f"GNIS_Name filled: {df['GNIS_Name'].notna().sum()}/{len(df)}"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
