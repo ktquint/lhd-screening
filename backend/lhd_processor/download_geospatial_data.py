@@ -13,7 +13,39 @@ from shapely.geometry import Point, box
 from datetime import datetime, timedelta
 import time
 import traceback
-from typing import Union, Tuple, List
+from typing import Optional, Union, Tuple, List
+
+# Direct NLDI endpoint for the initial COMID lookup. We bypass pynhd's
+# comid_byloc here because its pygeoutils JSON parser crashes (surfaces as
+# "CRS attribute" AttributeError) on certain server responses, which would
+# make ~70% of NID-sourced dam coordinates fail before the navigation step.
+_NLDI_COMID_URL = "https://labs-beta.waterdata.usgs.gov/api/nldi/linked-data/comid/position"
+
+
+def _lookup_comid_direct(lon: float, lat: float, timeout: float = 30) -> Optional[int]:
+    """Return the NHDPlus V2 COMID nearest (lon, lat), or None if NLDI 404s.
+
+    No retries (caller decides). 404 means NLDI has no flowline at that point.
+    """
+    try:
+        r = requests.get(_NLDI_COMID_URL, params={"coords": f"POINT({lon} {lat})"}, timeout=timeout)
+    except requests.RequestException:
+        return None
+    if r.status_code != 200:
+        return None
+    try:
+        payload = r.json()
+    except ValueError:
+        return None
+    feats = payload.get("features") or []
+    if not feats:
+        return None
+    props = feats[0].get("properties") or {}
+    val = props.get("comid") or props.get("identifier")
+    try:
+        return int(val) if val is not None else None
+    except (TypeError, ValueError):
+        return None
 
 try:
     import gdal
@@ -64,24 +96,11 @@ def download_nhd_flowline(lat: float, lon: float, flowline_dir: str, distance_km
                     print(f"Failed to initialize NLDI after retries: {e}")
                     return None, None
 
-        try:
-            comid_df = nldi.comid_byloc((lon, lat))
-        except Exception as e:
-            print(f"NLDI Error: {e}")
+        # Direct HTTP call to NLDI for COMID resolution — see _lookup_comid_direct
+        # for why we bypass pynhd here.
+        comid_val = _lookup_comid_direct(lon, lat)
+        if comid_val is None:
             return None, None
-
-        if comid_df is None or comid_df.empty:
-            print(f"No NHD COMID found for location: {lat}, {lon}")
-            return None, None
-
-        if 'comid' not in comid_df.columns:
-             print(f"No 'comid' column in NLDI result. Columns: {comid_df.columns}")
-             return None, None
-
-        comid_val = comid_df.comid.values[0]
-        if pd.isna(comid_val):
-             print("Found None/NaN for COMID")
-             return None, None
         
         # Create site-specific subdirectory if site_id is provided
         if site_id:
