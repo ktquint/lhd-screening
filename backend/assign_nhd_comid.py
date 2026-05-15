@@ -42,7 +42,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-NLDI_URL = "https://api.water.usgs.gov/nldi/linked-data/comid/position"
+NLDI_URL = "https://labs-beta.waterdata.usgs.gov/api/nldi/linked-data/comid/position"
 
 _BACKEND_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _BACKEND_ROOT.parent
