@@ -19,6 +19,7 @@
 let forecastChart;
 let allDams = [];
 let markers = L.layerGroup();
+let activeRiverFilter = { river: '', state: '' };
 
 const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
@@ -166,6 +167,88 @@ const SearchControl = L.Control.extend({
             });
         });
 
+        // --- River Filter section ---
+        const divider = L.DomUtil.create('hr', '', panel);
+        divider.style.cssText = 'margin:8px 0;border:none;border-top:1px solid #ddd;';
+
+        const riverLabel = L.DomUtil.create('div', '', panel);
+        riverLabel.style.cssText = 'font-size:11px;font-weight:bold;color:#555;margin-bottom:5px;letter-spacing:0.03em;';
+        riverLabel.textContent = 'FILTER BY RIVER';
+
+        const riverInput = L.DomUtil.create('input', '', panel);
+        riverInput.type = 'text';
+        riverInput.placeholder = 'River name (e.g. South Platte)';
+        riverInput.style.cssText = 'width:100%;padding:6px;box-sizing:border-box;border:1px solid #ccc;border-radius:3px;margin-bottom:4px;font-size:12px;';
+
+        const stateInput = L.DomUtil.create('input', '', panel);
+        stateInput.type = 'text';
+        stateInput.maxLength = 2;
+        stateInput.placeholder = 'State abbr. (e.g. CO)';
+        stateInput.style.cssText = 'width:100%;padding:6px;box-sizing:border-box;border:1px solid #ccc;border-radius:3px;margin-bottom:6px;font-size:12px;text-transform:uppercase;';
+
+        const btnRow = L.DomUtil.create('div', '', panel);
+        btnRow.style.cssText = 'display:flex;gap:4px;margin-bottom:4px;';
+
+        const applyBtn = L.DomUtil.create('button', '', btnRow);
+        applyBtn.textContent = 'Apply Filter';
+        applyBtn.style.cssText = 'flex:1;padding:6px;background:#3498db;color:white;border:none;border-radius:3px;cursor:pointer;font-size:12px;font-weight:600;';
+
+        const clearBtn = L.DomUtil.create('button', '', btnRow);
+        clearBtn.textContent = 'Clear';
+        clearBtn.style.cssText = 'padding:6px 10px;background:#95a5a6;color:white;border:none;border-radius:3px;cursor:pointer;font-size:12px;';
+
+        const filterStatus = L.DomUtil.create('div', '', panel);
+        filterStatus.style.cssText = 'font-size:11px;color:#666;min-height:15px;';
+
+        function _damMatchesRiverFilter(d, rq, sq) {
+            if (!d['State Abbreviation']) return false;
+            if (rq) {
+                const gnis   = (d.GNIS_Name        || '').toLowerCase();
+                const stream = (d['River/Stream']  || '').toLowerCase();
+                if (!gnis.includes(rq) && !stream.includes(rq)) return false;
+            }
+            if (sq && (d['State Abbreviation'] || '').toUpperCase() !== sq) return false;
+            return true;
+        }
+
+        function applyRiverFilter() {
+            const rq = riverInput.value.trim().toLowerCase();
+            const sq = stateInput.value.trim().toUpperCase();
+            activeRiverFilter = { river: rq, state: sq };
+            renderMarkers();
+
+            if (!rq && !sq) {
+                filterStatus.textContent = '';
+                return;
+            }
+
+            const matched = allDams.filter(d => _damMatchesRiverFilter(d, rq, sq));
+            const withCoords = matched.filter(d => !isNaN(parseFloat(d.Latitude)) && !isNaN(parseFloat(d.Longitude)));
+
+            filterStatus.textContent = `${withCoords.length} dam${withCoords.length !== 1 ? 's' : ''} matched`;
+
+            if (withCoords.length > 0) {
+                const bounds = L.latLngBounds(
+                    withCoords.map(d => [parseFloat(d.Latitude), parseFloat(d.Longitude)])
+                );
+                map.fitBounds(bounds, { padding: [60, 60], maxZoom: 13 });
+            }
+        }
+
+        L.DomEvent.on(applyBtn, 'click', (e) => { L.DomEvent.preventDefault(e); applyRiverFilter(); });
+
+        L.DomEvent.on(clearBtn, 'click', (e) => {
+            L.DomEvent.preventDefault(e);
+            riverInput.value = '';
+            stateInput.value = '';
+            activeRiverFilter = { river: '', state: '' };
+            filterStatus.textContent = '';
+            renderMarkers();
+        });
+
+        L.DomEvent.on(riverInput, 'keydown', (e) => { if (e.key === 'Enter') applyRiverFilter(); });
+        L.DomEvent.on(stateInput, 'keydown', (e) => { if (e.key === 'Enter') applyRiverFilter(); });
+
         return container;
     }
 });
@@ -225,6 +308,16 @@ function renderMarkers() {
             const hasSafetyData = !isNaN(qMinVal) && dam.LinkNo;
 
             if (showOnlyForecast && !hasSafetyData) return;
+
+            // River / stream name filter (searches GNIS_Name then River/Stream as fallback)
+            const riverQ = activeRiverFilter.river.toLowerCase();
+            const stateQ  = activeRiverFilter.state.toUpperCase();
+            if (riverQ) {
+                const gnis   = (dam.GNIS_Name        || '').toLowerCase();
+                const stream = (dam['River/Stream']  || '').toLowerCase();
+                if (!gnis.includes(riverQ) && !stream.includes(riverQ)) return;
+            }
+            if (stateQ && (dam['State Abbreviation'] || '').toUpperCase() !== stateQ) return;
 
             const place = (dam.City && dam.City.trim()) || (dam["County Name"] && dam["County Name"].trim()) || "Unknown location";
             const state = dam["State Abbreviation"] || "";
