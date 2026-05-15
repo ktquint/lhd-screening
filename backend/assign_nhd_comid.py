@@ -38,7 +38,11 @@ from typing import Optional
 
 import pandas as pd
 import pynhd as nhd
-from pynhd import NLDI
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+NLDI_URL = "https://api.water.usgs.gov/nldi/linked-data/comid/position"
 
 _BACKEND_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _BACKEND_ROOT.parent
@@ -73,23 +77,59 @@ def _save_checkpoint(path: Path, data: dict[str, Optional[int]]) -> None:
     tmp.replace(path)
 
 
-def _lookup_comid(nldi: NLDI, lon: float, lat: float, retries: int = 3) -> Optional[int]:
-    """Return the NHDPlus V2 COMID for (lon, lat), or None."""
-    for attempt in range(retries):
-        try:
-            df = nldi.comid_byloc((lon, lat))
-            if df is None or df.empty or "comid" not in df.columns:
-                return None
-            val = df["comid"].iloc[0]
-            if pd.isna(val):
-                return None
-            return int(val)
-        except Exception as e:
-            if attempt == retries - 1:
-                _log(f"  NLDI fail @ ({lat:.4f},{lon:.4f}): {e}")
-                return None
-            time.sleep(1.5 * (attempt + 1))
-    return None
+def _make_session() -> requests.Session:
+    """HTTP session with retries on 5xx + connection errors. 404 is NOT retried."""
+    s = requests.Session()
+    retry = Retry(
+        total=4,
+        backoff_factor=1.0,
+        status_forcelist=(500, 502, 503, 504),
+        allowed_methods=("GET",),
+        raise_on_status=False,
+    )
+    s.mount("https://", HTTPAdapter(max_retries=retry, pool_connections=32, pool_maxsize=32))
+    return s
+
+
+def _lookup_comid(session: requests.Session, lon: float, lat: float) -> Optional[int]:
+    """Return the NHDPlus V2 COMID for (lon, lat).
+
+    - HTTP 404 means NLDI has no flowline at this point (closed basin, outside
+      CONUS, off-network) — return None immediately, no retry.
+    - Real network/5xx errors are retried by the session adapter.
+    """
+    try:
+        r = session.get(
+            NLDI_URL,
+            params={"coords": f"POINT({lon} {lat})"},
+            timeout=30,
+        )
+    except requests.RequestException as e:
+        _log(f"  NLDI net fail @ ({lat:.4f},{lon:.4f}): {e}")
+        return None
+
+    if r.status_code == 404:
+        return None
+    if r.status_code != 200:
+        _log(f"  NLDI HTTP {r.status_code} @ ({lat:.4f},{lon:.4f})")
+        return None
+
+    try:
+        payload = r.json()
+    except ValueError:
+        return None
+
+    features = payload.get("features") or []
+    if not features:
+        return None
+    props = features[0].get("properties") or {}
+    comid = props.get("comid") or props.get("identifier")
+    if comid is None:
+        return None
+    try:
+        return int(comid)
+    except (TypeError, ValueError):
+        return None
 
 
 def phase_a_fetch_comids(
@@ -101,7 +141,7 @@ def phase_a_fetch_comids(
 ) -> dict[str, Optional[int]]:
     """Populate {objectid -> comid} via parallel NLDI lookups."""
     checkpoint = {} if force else _load_checkpoint(checkpoint_path)
-    nldi = NLDI()
+    session = _make_session()
 
     todo: list[tuple[str, float, float]] = []
     for _, row in df.iterrows():
@@ -129,7 +169,7 @@ def phase_a_fetch_comids(
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {
-            pool.submit(_lookup_comid, nldi, lon, lat): oid
+            pool.submit(_lookup_comid, session, lon, lat): oid
             for oid, lon, lat in todo
         }
         for fut in as_completed(futures):
