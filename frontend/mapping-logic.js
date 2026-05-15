@@ -143,7 +143,8 @@ const SearchControl = L.Control.extend({
                 div.style.borderBottom = '1px solid #eee';
                 div.style.fontSize = '12px';
 
-                const loc = [dam.City, dam['State Abbreviation']].filter(Boolean).join(', ');
+                const place = (dam.City && dam.City.trim()) || (dam['County Name'] && dam['County Name'].trim()) || '';
+                const loc = [place, dam['State Abbreviation']].filter(Boolean).join(', ');
                 div.innerHTML = `<strong>${dam.Dam_Name}</strong><br><span style="color:#666;">${loc}</span>`;
 
                 div.onmouseover = () => div.style.backgroundColor = '#f0f0f0';
@@ -225,9 +226,9 @@ function renderMarkers() {
 
             if (showOnlyForecast && !hasSafetyData) return;
 
-            const city = dam.City || "Unknown City";
+            const place = (dam.City && dam.City.trim()) || (dam["County Name"] && dam["County Name"].trim()) || "Unknown location";
             const state = dam["State Abbreviation"] || "";
-            const location = city + (state ? `, ${state}` : "");
+            const location = place + (state ? `, ${state}` : "");
             const fatalities = parseInt(dam.NumberOfFatalities) || 0;
             
             const marker = L.circleMarker([lat, lng], {
