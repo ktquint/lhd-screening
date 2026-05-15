@@ -172,6 +172,7 @@ def phase_a_fetch_comids(
             pool.submit(_lookup_comid, session, lon, lat): oid
             for oid, lon, lat in todo
         }
+        _log(f"  submitted {len(futures)} requests, waiting for results ...")
         for fut in as_completed(futures):
             oid = futures[fut]
             try:
@@ -228,7 +229,7 @@ def main() -> int:
     ap.add_argument("--csv", type=Path, default=DEFAULT_CSV, help="dam CSV to update in place")
     ap.add_argument("--checkpoint", type=Path, default=DEFAULT_CHECKPOINT)
     ap.add_argument("--workers", type=int, default=16)
-    ap.add_argument("--flush-every", type=int, default=200, help="save checkpoint every N lookups")
+    ap.add_argument("--flush-every", type=int, default=25, help="save checkpoint + log progress every N lookups")
     ap.add_argument("--limit", type=int, default=None, help="only process first N dams (smoke test)")
     ap.add_argument("--force", action="store_true", help="ignore checkpoint, re-fetch everything")
     ap.add_argument("--phase-a-only", action="store_true")
