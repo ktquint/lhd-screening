@@ -388,16 +388,38 @@ async function checkForecast(comid, qMin, qMax, damName) {
         const mrMembers = ['member1','member2','member3','member4','member5','member6']
             .map(k => mrData.mediumRange?.[k]?.data ?? []);
 
-        const now = Date.now();
+        // Floor current time to the nearest hour
+        const nowFloor = new Date();
+        nowFloor.setMinutes(0, 0, 0);
+        const nowMs = nowFloor.getTime();
 
-        const allPoints = mrMean
-            .map((p, i) => ({
-                validTime: p.validTime,
-                flow:  p.flow,
-                upper: Math.max(...mrMembers.map(m => m[i]?.flow ?? p.flow)),
-                lower: Math.min(...mrMembers.map(m => m[i]?.flow ?? p.flow))
-            }))
-            .filter(p => new Date(p.validTime).getTime() >= now);
+        const rawPoints = mrMean.map((p, i) => ({
+            validTime: p.validTime,
+            validMs:   new Date(p.validTime).getTime(),
+            flow:  p.flow,
+            upper: Math.max(...mrMembers.map(m => m[i]?.flow ?? p.flow)),
+            lower: Math.min(...mrMembers.map(m => m[i]?.flow ?? p.flow))
+        }));
+
+        // Interpolate a synthetic point at the current floored hour
+        const afterIdx = rawPoints.findIndex(p => p.validMs > nowMs);
+        let allPoints;
+        if (afterIdx > 0) {
+            const p0 = rawPoints[afterIdx - 1];
+            const p1 = rawPoints[afterIdx];
+            const t  = (nowMs - p0.validMs) / (p1.validMs - p0.validMs);
+            const lerp = (a, b) => a + t * (b - a);
+            const synthetic = {
+                validTime: nowFloor.toISOString(),
+                validMs:   nowMs,
+                flow:  lerp(p0.flow,  p1.flow),
+                upper: lerp(p0.upper, p1.upper),
+                lower: lerp(p0.lower, p1.lower)
+            };
+            allPoints = [synthetic, ...rawPoints.filter(p => p.validMs > nowMs)];
+        } else {
+            allPoints = rawPoints.filter(p => p.validMs >= nowMs);
+        }
 
         if (allPoints.length === 0) {
             document.getElementById('forecastSpinner').style.display = 'none';
