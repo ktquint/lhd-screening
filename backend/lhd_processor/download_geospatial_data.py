@@ -19,7 +19,41 @@ from typing import Optional, Union, Tuple, List
 # comid_byloc here because its pygeoutils JSON parser crashes (surfaces as
 # "CRS attribute" AttributeError) on certain server responses, which would
 # make ~70% of NID-sourced dam coordinates fail before the navigation step.
-_NLDI_COMID_URL = "https://labs-beta.waterdata.usgs.gov/api/nldi/linked-data/comid/position"
+_NLDI_BASE = "https://labs-beta.waterdata.usgs.gov/api/nldi/linked-data"
+_NLDI_COMID_URL = f"{_NLDI_BASE}/comid/position"
+
+
+def _fetch_seed_flowline(comid: int, timeout: float = 30) -> Optional[gpd.GeoDataFrame]:
+    """Return a 1-row GeoDataFrame with the geometry of `comid`, or None.
+
+    Used as a fallback when neither upstream nor downstream navigation
+    returns anything (e.g. headwater + terminal reach, coastline,
+    disconnected canal). Lets us at least produce a flowline gpkg
+    containing the seed reach so the dam isn't fully dropped from the
+    pipeline.
+    """
+    try:
+        r = requests.get(f"{_NLDI_BASE}/comid/{int(comid)}", timeout=timeout)
+    except requests.RequestException:
+        return None
+    if r.status_code != 200:
+        return None
+    try:
+        payload = r.json()
+    except ValueError:
+        return None
+    feats = payload.get("features") or []
+    if not feats:
+        return None
+    try:
+        gdf = gpd.GeoDataFrame.from_features(feats, crs="EPSG:4326")
+    except Exception:
+        return None
+    if gdf.empty:
+        return None
+    if "comid" not in gdf.columns and "identifier" in gdf.columns:
+        gdf = gdf.rename(columns={"identifier": "comid"})
+    return gdf
 
 
 def _lookup_comid_direct(lon: float, lat: float, timeout: float = 30) -> Optional[int]:
@@ -120,15 +154,19 @@ def download_nhd_flowline(lat: float, lon: float, flowline_dir: str, distance_km
                 print(f"Error reading existing file, redownloading: {e}")
 
         all_reaches = []
-        nav_modes = ["upstreamMain", "downstreamMain"]
+        # upstreamTributaries walks every branch (catches braided / canal /
+        # side-channel networks that main-stem navigation skips); downstreamMain
+        # stays on the main path because tributaries downstream rarely make
+        # sense from a screening perspective.
+        nav_modes = [("upstreamTributaries", "up"), ("downstreamMain", "down")]
 
-        for mode in nav_modes:
+        for mode, direction in nav_modes:
             try:
                 # Handle distance logic safely
                 dist = distance_km
                 if isinstance(distance_km, (tuple, list)):
                     if len(distance_km) == 2:
-                        dist = distance_km[0] if mode == "upstreamMain" else distance_km[1]
+                        dist = distance_km[0] if direction == "up" else distance_km[1]
                     elif len(distance_km) > 0:
                         dist = distance_km[0]
                     else:
@@ -147,7 +185,15 @@ def download_nhd_flowline(lat: float, lon: float, flowline_dir: str, distance_km
                 print(f"NLDI Navigation Error ({mode}): {e}")
 
         if not all_reaches:
-            return None, None
+            # Fallback: both nav directions came back empty (headwater +
+            # terminal reach, coastline, disconnected canal). Save just the
+            # seed COMID's own geometry so the dam still gets a flowline file.
+            seed = _fetch_seed_flowline(comid_val)
+            if seed is None or seed.empty:
+                print(f"  Both navigations empty AND seed fetch failed for COMID {comid_val} @ ({lat:.4f},{lon:.4f})")
+                return None, None
+            print(f"  Both navigations empty — using seed-only flowline for COMID {comid_val}")
+            all_reaches.append(seed)
 
         combined_df = pd.concat(all_reaches)
         combined_df.columns = combined_df.columns.str.lower()
