@@ -366,7 +366,7 @@ function renderMarkers() {
 }
 
 // 4. National Water Model Forecast (NOAA NWPS API, NHDPlus V2 COMID = Reach_ID)
-// Short-range: 18h hourly deterministic. Medium-range: ~10d 3-hourly ensemble mean + spread.
+// Medium-range only: ~10d 3-hourly ensemble mean + member spread as uncertainty band.
 // Units: API returns ft³/s (cfs) — no conversion needed.
 async function checkForecast(comid, qMin, qMax, damName) {
     const hasSafetyRange = qMin !== null && !isNaN(qMin) && qMax !== null && !isNaN(qMax);
@@ -379,28 +379,20 @@ async function checkForecast(comid, qMin, qMax, damName) {
     if (forecastChart) { forecastChart.destroy(); forecastChart = null; }
 
     try {
-        const [srData, mrData] = await Promise.all([
-            fetch(`https://api.water.noaa.gov/nwps/v1/reaches/${comid}/streamflow?series=short_range`).then(r => r.json()),
-            fetch(`https://api.water.noaa.gov/nwps/v1/reaches/${comid}/streamflow?series=medium_range`).then(r => r.json())
-        ]);
+        const mrData = await fetch(
+            `https://api.water.noaa.gov/nwps/v1/reaches/${comid}/streamflow?series=medium_range`
+        ).then(r => r.json());
 
-        const srPoints  = srData.shortRange?.series?.data ?? [];
-        const mrMean    = mrData.mediumRange?.mean?.data  ?? [];
+        const mrMean    = mrData.mediumRange?.mean?.data ?? [];
         const mrMembers = ['member1','member2','member3','member4','member5','member6']
             .map(k => mrData.mediumRange?.[k]?.data ?? []);
 
-        const srWithBands = srPoints.map(p => ({ ...p, upper: p.flow, lower: p.flow }));
-        const srEndTime   = srPoints.length ? new Date(srPoints[srPoints.length - 1].validTime).getTime() : 0;
-        const mrExtra = mrMean
-            .map((p, i) => ({
-                validTime: p.validTime,
-                flow:  p.flow,
-                upper: Math.max(...mrMembers.map(m => m[i]?.flow ?? p.flow)),
-                lower: Math.min(...mrMembers.map(m => m[i]?.flow ?? p.flow))
-            }))
-            .filter(p => new Date(p.validTime).getTime() > srEndTime);
-
-        const allPoints = [...srWithBands, ...mrExtra];
+        const allPoints = mrMean.map((p, i) => ({
+            validTime: p.validTime,
+            flow:  p.flow,
+            upper: Math.max(...mrMembers.map(m => m[i]?.flow ?? p.flow)),
+            lower: Math.min(...mrMembers.map(m => m[i]?.flow ?? p.flow))
+        }));
 
         if (allPoints.length === 0) {
             document.getElementById('forecastSpinner').style.display = 'none';
