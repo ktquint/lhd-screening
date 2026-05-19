@@ -293,8 +293,8 @@ async function loadDams() {
 // 3. Render Markers with Filter Logic
 function renderMarkers() {
     markers.clearLayers(); 
-    const filterEl = document.getElementById('forecastFilter');
-    const showOnlyForecast = filterEl ? filterEl.checked : false;
+    const filterEl = document.getElementById('fatalityFilter');
+    const showOnlyFatality = filterEl ? filterEl.checked : false;
 
     allDams.forEach(dam => {
         const lat = parseFloat(dam.Latitude);
@@ -309,7 +309,7 @@ function renderMarkers() {
             const hasComid = dam.Reach_ID !== undefined && dam.Reach_ID !== null && String(dam.Reach_ID).trim() !== '';
             const hasSafetyData = !isNaN(qMinVal) && hasComid;
 
-            if (showOnlyForecast && !hasComid) return;
+            if (showOnlyFatality && fatalities === 0) return;
 
             // River / stream name filter (searches GNIS_Name then River/Stream as fallback)
             const riverQ = activeRiverFilter.river.toLowerCase();
@@ -379,41 +379,37 @@ async function checkForecast(comid, qMin, qMax, damName) {
     if (forecastChart) { forecastChart.destroy(); forecastChart = null; }
 
     try {
-        // Fire both fetches simultaneously
-        const srPromise = fetch(`https://api.water.noaa.gov/nwps/v1/reaches/${comid}/streamflow?series=short_range`).then(r => r.json());
-        const mrPromise = fetch(`https://api.water.noaa.gov/nwps/v1/reaches/${comid}/streamflow?series=medium_range`).then(r => r.json());
+        const [srData, mrData] = await Promise.all([
+            fetch(`https://api.water.noaa.gov/nwps/v1/reaches/${comid}/streamflow?series=short_range`).then(r => r.json()),
+            fetch(`https://api.water.noaa.gov/nwps/v1/reaches/${comid}/streamflow?series=medium_range`).then(r => r.json())
+        ]);
 
-        // Render short-range as soon as it arrives (fast, 18 points)
-        const srData = await srPromise;
-        const srPoints = srData.shortRange?.series?.data ?? [];
+        const srPoints  = srData.shortRange?.series?.data ?? [];
+        const mrMean    = mrData.mediumRange?.mean?.data  ?? [];
+        const mrMembers = ['member1','member2','member3','member4','member5','member6']
+            .map(k => mrData.mediumRange?.[k]?.data ?? []);
 
-        if (srPoints.length === 0) {
+        const srWithBands = srPoints.map(p => ({ ...p, upper: p.flow, lower: p.flow }));
+        const srEndTime   = srPoints.length ? new Date(srPoints[srPoints.length - 1].validTime).getTime() : 0;
+        const mrExtra = mrMean
+            .map((p, i) => ({
+                validTime: p.validTime,
+                flow:  p.flow,
+                upper: Math.max(...mrMembers.map(m => m[i]?.flow ?? p.flow)),
+                lower: Math.min(...mrMembers.map(m => m[i]?.flow ?? p.flow))
+            }))
+            .filter(p => new Date(p.validTime).getTime() > srEndTime);
+
+        const allPoints = [...srWithBands, ...mrExtra];
+
+        if (allPoints.length === 0) {
             document.getElementById('forecastSpinner').style.display = 'none';
             document.getElementById('statusDisplay').innerHTML =
                 `<strong>${damName}</strong><br>No forecast data returned for reach ${comid}.`;
             return;
         }
 
-        const srWithBands = srPoints.map(p => ({ ...p, upper: p.flow, lower: p.flow }));
-        _renderForecastChart(srWithBands, hasSafetyRange, qMin, qMax, damName, false);
-
-        // Extend with medium-range (ensemble spread) when it arrives
-        const mrData = await mrPromise;
-        const mrMean    = mrData.mediumRange?.mean?.data ?? [];
-        const mrMembers = ['member1','member2','member3','member4','member5','member6']
-            .map(k => mrData.mediumRange?.[k]?.data ?? []);
-
-        const srEndTime = srPoints.length ? new Date(srPoints[srPoints.length - 1].validTime).getTime() : 0;
-        const mrExtra = mrMean
-            .map((p, i) => ({
-                validTime: p.validTime,
-                flow:  p.flow,
-                upper: mrMembers.length ? Math.max(...mrMembers.map(m => m[i]?.flow ?? p.flow)) : p.flow,
-                lower: mrMembers.length ? Math.min(...mrMembers.map(m => m[i]?.flow ?? p.flow)) : p.flow
-            }))
-            .filter(p => new Date(p.validTime).getTime() > srEndTime);
-
-        _renderForecastChart([...srWithBands, ...mrExtra], hasSafetyRange, qMin, qMax, damName, true);
+        _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName);
 
     } catch (err) {
         console.error("NWM API Error:", err);
@@ -423,7 +419,7 @@ async function checkForecast(comid, qMin, qMax, damName) {
     }
 }
 
-function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, isFinal) {
+function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName) {
     const allFlow  = allPoints.map(p => p.flow);
     const allUpper = allPoints.map(p => p.upper);
     const allLower = allPoints.map(p => p.lower);
@@ -444,8 +440,6 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, is
     } else {
         statusText += `<br><span style="color:#555;">No dangerous flow range on record for this site.</span>`;
     }
-    if (!isFinal) statusText += `<br><span style="color:#aaa; font-size:11px;">Loading extended forecast…</span>`;
-
     document.getElementById('statusDisplay').innerHTML = statusText;
     document.getElementById('forecastSpinner').style.display = 'none';
     document.getElementById('forecastChart').style.display = 'block';
@@ -470,10 +464,12 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, is
         data: { labels, datasets },
         options: {
             responsive: true,
-            animation: { duration: isFinal ? 400 : 0 },
             plugins: { filler: { propagate: true } },
             scales: {
-                y: { beginAtZero: true, title: { display: true, text: 'Streamflow (cfs)' } },
+                y: {
+                    title: { display: true, text: 'Streamflow (cfs)' },
+                    grace: '10%'
+                },
                 x: { ticks: { maxTicksLimit: 10 } }
             }
         }
@@ -490,7 +486,7 @@ legend.onAdd = function (map) {
         <i style="background: #3498db"></i> No Recorded Fatalities<br>
         <div class="filter-section" style="border-top: 1px solid #ccc; margin-top: 8px; padding-top: 8px;">
             <label style="cursor: pointer;">
-                <input type="checkbox" id="forecastFilter"> Hide sites without forecasts
+                <input type="checkbox" id="fatalityFilter"> Show only fatality sites
             </label>
         </div>
     `;
@@ -498,7 +494,7 @@ legend.onAdd = function (map) {
     L.DomEvent.disableClickPropagation(div);
     
     setTimeout(() => {
-        const filterCheckbox = document.getElementById('forecastFilter');
+        const filterCheckbox = document.getElementById('fatalityFilter');
         if (filterCheckbox) {
             filterCheckbox.addEventListener('change', renderMarkers);
         }
