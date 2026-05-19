@@ -412,7 +412,6 @@ async function checkForecast(comid, qMin, qMax, damName) {
 
         const slider = document.getElementById('forecastSlider');
         slider.value = 5;
-        document.getElementById('forecastSliderLabel').textContent = '5 days';
         document.getElementById('forecastSliderWrap').style.display = 'block';
 
         _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, parseInt(slider.value));
@@ -516,8 +515,7 @@ window.addEventListener('resize', () => { map.invalidateSize(); });
 
 document.getElementById('forecastSlider').addEventListener('input', function () {
     const days = parseInt(this.value);
-    document.getElementById('forecastSliderLabel').textContent = `${days} day${days !== 1 ? 's' : ''}`;
-    if (_forecastState) {
+if (_forecastState) {
         const { allPoints, hasSafetyRange, qMin, qMax, damName } = _forecastState;
         _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, days);
     }
