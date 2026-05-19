@@ -411,7 +411,11 @@ async function checkForecast(comid, qMin, qMax, damName) {
         _forecastState = { allPoints, hasSafetyRange, qMin, qMax, damName };
 
         const slider = document.getElementById('forecastSlider');
-        slider.value = 5;
+        const maxDays = Math.floor(
+            (new Date(allPoints[allPoints.length - 1].validTime) - new Date(allPoints[0].validTime)) / 86400000
+        );
+        slider.max = maxDays;
+        slider.value = Math.min(5, maxDays);
         document.getElementById('forecastSliderWrap').style.display = 'block';
 
         _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, parseInt(slider.value));
@@ -424,9 +428,9 @@ async function checkForecast(comid, qMin, qMax, damName) {
     }
 }
 
-function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, days = 10) {
-    const stepsPerDay = 8; // 3-hourly
-    const points = allPoints.slice(0, days * stepsPerDay);
+function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, days = 5) {
+    const cutoff = new Date(allPoints[0].validTime).getTime() + days * 86400000;
+    const points = allPoints.filter(p => new Date(p.validTime).getTime() <= cutoff);
     const allFlow  = points.map(p => p.flow);
     const allUpper = points.map(p => p.upper);
     const allLower = points.map(p => p.lower);
