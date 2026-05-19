@@ -205,8 +205,6 @@
     <nav class="nav-bar">
         <button class="nav-button active" data-tab="forecasts">Forecasts</button>
         <button class="nav-button" data-tab="cfd-toolbox">CFD Toolbox</button>
-        <button class="nav-button" data-tab="fatalities">Fatalities Database</button>
-        <a class="nav-button" href="https://nid.sec.usace.army.mil/lhdi" target="_blank" rel="noopener">National Inventory of Low-Head Dams</a>
         <button class="nav-button" data-tab="about">About</button>
         <button class="nav-button" data-tab="contact">Contact</button>
     </nav>
@@ -214,14 +212,6 @@
     <div class="tab-content-area">
         <div id="tab-forecasts" class="tab-panel active">
             <div id="map"></div>
-        </div>
-        <div id="tab-fatalities" class="tab-panel">
-            <iframe
-                class="embedded-frame"
-                src="https://www.lowheaddamfatalities.org"
-                title="Low-Head Dam Fatalities Database"
-                loading="lazy"
-                referrerpolicy="no-referrer-when-downgrade"></iframe>
         </div>
         <div id="tab-cfd-toolbox" class="tab-panel">
             <div class="cfd-container">
@@ -674,7 +664,7 @@
 
                 <h2>Data sources</h2>
                 <ul>
-                    <li>Low-head dam locations: USACE National Inventory of Low-Head Dams (NID-LHDI).</li>
+                    <li>Low-head dam locations: <a href="https://nid.sec.usace.army.mil/lhdi" target="_blank" rel="noopener">USACE National Inventory of Low-Head Dams (NID-LHDI)</a>.</li>
                     <li>Fatality records: <a href="https://www.lowheaddamfatalities.org" target="_blank" rel="noopener">Low-Head Dam Fatalities Database</a>.</li>
                     <li>Streamflow forecasts: <a href="https://water.noaa.gov/about/nwm" target="_blank" rel="noopener">NOAA National Water Model</a> via the NOAA Water Prediction Services API.</li>
                     <li>Hydrography background: NHDPlus stream network.</li>
