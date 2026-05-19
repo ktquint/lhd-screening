@@ -382,14 +382,25 @@ async function checkForecast(comid, qMin, qMax, damName) {
         // Short-range: [{validTime, flow}] — single deterministic series
         const srPoints = srData.shortRange?.series?.data ?? [];
 
-        // Medium-range: precomputed mean at mediumRange.mean.data — [{validTime, flow}]
-        const mrPoints = mrData.mediumRange?.mean?.data ?? [];
+        // Medium-range: mean + 6 ensemble members for uncertainty band
+        const mrMean    = mrData.mediumRange?.mean?.data ?? [];
+        const mrMembers = ['member1','member2','member3','member4','member5','member6']
+            .map(k => mrData.mediumRange?.[k]?.data ?? []);
 
         // Stitch: append medium-range steps that fall after the short-range window
         const srEndTime = srPoints.length ? new Date(srPoints[srPoints.length - 1].validTime).getTime() : 0;
-        const mrExtra = mrPoints.filter(p => new Date(p.validTime).getTime() > srEndTime);
+        const mrExtra = mrMean
+            .map((p, i) => ({
+                validTime: p.validTime,
+                flow:  p.flow,
+                upper: mrMembers.length ? Math.max(...mrMembers.map(m => m[i]?.flow ?? p.flow)) : p.flow,
+                lower: mrMembers.length ? Math.min(...mrMembers.map(m => m[i]?.flow ?? p.flow)) : p.flow
+            }))
+            .filter(p => new Date(p.validTime).getTime() > srEndTime);
 
-        const allPoints = [...srPoints, ...mrExtra];
+        // Short-range points get no spread (deterministic) — upper/lower = flow
+        const srWithBands = srPoints.map(p => ({ ...p, upper: p.flow, lower: p.flow }));
+        const allPoints = [...srWithBands, ...mrExtra];
 
         if (allPoints.length === 0) {
             document.getElementById('statusDisplay').innerHTML =
@@ -398,7 +409,9 @@ async function checkForecast(comid, qMin, qMax, damName) {
             return;
         }
 
-        const allFlow = allPoints.map(p => p.flow);
+        const allFlow  = allPoints.map(p => p.flow);
+        const allUpper = allPoints.map(p => p.upper);
+        const allLower = allPoints.map(p => p.lower);
         const currentCfs = allFlow[0];
         const labels = allPoints.map(p =>
             new Date(p.validTime).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit' })
@@ -430,16 +443,37 @@ async function checkForecast(comid, qMin, qMax, damName) {
                 { label: 'Dangerous Flow Range', data: Array(allFlow.length).fill(qMin), borderColor: '#e74c3c', borderDash: [10, 5], borderWidth: 2, pointRadius: 0, fill: 0, backgroundColor: 'rgba(231, 76, 60, 0.2)' }
             );
         }
-        datasets.push({
-            label: 'NWM Forecast (cfs)',
-            data: allFlow,
-            borderColor: '#000000',
-            backgroundColor: 'transparent',
-            fill: false,
-            tension: 0.2,
-            borderWidth: 3,
-            pointRadius: 0
-        });
+        datasets.push(
+            {
+                label: 'NWM Forecast (cfs)',
+                data: allFlow,
+                borderColor: '#000000',
+                backgroundColor: 'transparent',
+                fill: false,
+                tension: 0.2,
+                borderWidth: 3,
+                pointRadius: 0
+            },
+            {
+                label: 'Ensemble Upper',
+                data: allUpper,
+                borderColor: 'rgba(52, 152, 219, 0.5)',
+                borderWidth: 1,
+                pointRadius: 0,
+                fill: '+1',
+                backgroundColor: 'rgba(52, 152, 219, 0.2)',
+                tension: 0.2
+            },
+            {
+                label: 'Ensemble Lower',
+                data: allLower,
+                borderColor: 'rgba(52, 152, 219, 0.5)',
+                borderWidth: 1,
+                pointRadius: 0,
+                fill: false,
+                tension: 0.2
+            }
+        );
 
         forecastChart = new Chart(ctx, {
             type: 'line',
