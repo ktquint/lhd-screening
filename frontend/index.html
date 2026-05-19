@@ -716,11 +716,18 @@
 
     <div id="forecastModal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="document.getElementById('forecastModal').style.display='none'">&times;</span>
+            <span class="close" onclick="document.getElementById('forecastModal').style.display='none'; document.getElementById('forecastSliderWrap').style.display='none';">&times;</span>
             <div id="statusDisplay"></div>
             <div id="forecastSpinner" class="forecast-spinner">
                 <div class="forecast-spinner-ring"></div>
                 <div class="forecast-spinner-label">Fetching NWM forecast...</div>
+            </div>
+            <div id="forecastSliderWrap" style="display:none; margin: 12px 0 4px;">
+                <label style="font-size:13px; color:#555;">
+                    Forecast horizon: <strong id="forecastSliderLabel">5 days</strong>
+                </label>
+                <input type="range" id="forecastSlider" min="1" max="10" value="5"
+                    style="width:100%; margin-top:4px;">
             </div>
             <canvas id="forecastChart"></canvas>
         </div>

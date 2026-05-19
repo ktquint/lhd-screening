@@ -18,6 +18,7 @@
 // 1. Initialize Map with multiple base layers
 let forecastChart;
 let allDams = [];
+let _forecastState = null; // { allPoints, hasSafetyRange, qMin, qMax, damName }
 let markers = L.layerGroup();
 let activeRiverFilter = { river: '', state: '' };
 
@@ -353,13 +354,6 @@ async function checkForecast(comid, qMin, qMax, damName) {
     const hasSafetyRange = qMin !== null && !isNaN(qMin) && qMax !== null && !isNaN(qMax);
 
     // Show modal + spinner immediately
-    const _now = new Date();
-    const _floor = new Date(); _floor.setMinutes(0,0,0);
-    document.getElementById('statusDisplay').innerHTML = `
-        <div style="font-size:11px;color:#888;margin-bottom:6px;">
-            Browser time: ${_now.toLocaleString()} (UTC offset: ${-_now.getTimezoneOffset()/60}h)<br>
-            Chart will start at: ${_floor.toLocaleString()} → UTC: ${_floor.toISOString()}
-        </div>`;
     document.getElementById('forecastSpinner').style.display = 'block';
     document.getElementById('forecastChart').style.display = 'none';
     document.getElementById('forecastModal').style.display = 'block';
@@ -414,7 +408,14 @@ async function checkForecast(comid, qMin, qMax, damName) {
             return;
         }
 
-        _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName);
+        _forecastState = { allPoints, hasSafetyRange, qMin, qMax, damName };
+
+        const slider = document.getElementById('forecastSlider');
+        slider.value = 5;
+        document.getElementById('forecastSliderLabel').textContent = '5 days';
+        document.getElementById('forecastSliderWrap').style.display = 'block';
+
+        _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, parseInt(slider.value));
 
     } catch (err) {
         console.error("NWM API Error:", err);
@@ -424,12 +425,14 @@ async function checkForecast(comid, qMin, qMax, damName) {
     }
 }
 
-function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName) {
-    const allFlow  = allPoints.map(p => p.flow);
-    const allUpper = allPoints.map(p => p.upper);
-    const allLower = allPoints.map(p => p.lower);
+function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, days = 10) {
+    const stepsPerDay = 8; // 3-hourly
+    const points = allPoints.slice(0, days * stepsPerDay);
+    const allFlow  = points.map(p => p.flow);
+    const allUpper = points.map(p => p.upper);
+    const allLower = points.map(p => p.lower);
     const currentCfs = allFlow[0];
-    const labels = allPoints.map(p =>
+    const labels = points.map(p =>
         new Date(p.validTime).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit' })
     );
 
@@ -510,6 +513,16 @@ legend.onAdd = function (map) {
 legend.addTo(map);
 
 window.addEventListener('resize', () => { map.invalidateSize(); });
+
+document.getElementById('forecastSlider').addEventListener('input', function () {
+    const days = parseInt(this.value);
+    document.getElementById('forecastSliderLabel').textContent = `${days} day${days !== 1 ? 's' : ''}`;
+    if (_forecastState) {
+        const { allPoints, hasSafetyRange, qMin, qMax, damName } = _forecastState;
+        _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, days);
+    }
+});
+
 loadDams();
 
 // --- Tab navigation ---
