@@ -258,26 +258,6 @@ map.addControl(new SearchControl());
 // Add the background maps button (Layers Control)
 L.control.layers(baseMaps).addTo(map);
 
-// --- Background Hydrography (.gpkg) Loading ---
-const hydroFiles = [
-    'streams_702.gpkg', 'streams_703.gpkg', 'streams_704.gpkg',
-    'streams_706.gpkg', 'streams_709.gpkg', 'streams_712.gpkg',
-    'streams_713.gpkg', 'streams_714.gpkg', 'streams_715.gpkg'
-];
-
-async function loadHydrography() {
-    hydroFiles.forEach(filename => {
-        try {
-            L.geoPackageFeatureLayer([], {
-                geoPackageUrl: `hydrography/${filename}`,
-                layerName: 'features', 
-                style: { color: '#3498db', weight: 1.2, opacity: 1.0 }
-            }).addTo(map);
-        } catch (err) {
-            console.warn(`Could not load background layer ${filename}:`, err);
-        }
-    });
-}
 
 // 2. Load Dam Data
 async function loadDams() {
@@ -373,7 +353,13 @@ async function checkForecast(comid, qMin, qMax, damName) {
     const hasSafetyRange = qMin !== null && !isNaN(qMin) && qMax !== null && !isNaN(qMax);
 
     // Show modal + spinner immediately
-    document.getElementById('statusDisplay').innerHTML = '';
+    const _now = new Date();
+    const _floor = new Date(); _floor.setMinutes(0,0,0);
+    document.getElementById('statusDisplay').innerHTML = `
+        <div style="font-size:11px;color:#888;margin-bottom:6px;">
+            Browser time: ${_now.toLocaleString()} (UTC offset: ${-_now.getTimezoneOffset()/60}h)<br>
+            Chart will start at: ${_floor.toLocaleString()} → UTC: ${_floor.toISOString()}
+        </div>`;
     document.getElementById('forecastSpinner').style.display = 'block';
     document.getElementById('forecastChart').style.display = 'none';
     document.getElementById('forecastModal').style.display = 'block';
@@ -525,7 +511,6 @@ legend.addTo(map);
 
 window.addEventListener('resize', () => { map.invalidateSize(); });
 loadDams();
-loadHydrography();
 
 // --- Tab navigation ---
 (function setupTabs() {
