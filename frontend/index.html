@@ -139,6 +139,10 @@
         .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); }
         .modal-content { background: white; margin: 5% auto; padding: 20px; width: 80%; border-radius: 8px; position: relative; }
         .close { float: right; cursor: pointer; font-size: 24px; font-weight: bold; }
+        @keyframes nwm-spin { to { transform: rotate(360deg); } }
+        .forecast-spinner { display: none; text-align: center; padding: 40px 0; }
+        .forecast-spinner-ring { display: inline-block; width: 40px; height: 40px; border: 4px solid #ddd; border-top-color: #3498db; border-radius: 50%; animation: nwm-spin 0.8s linear infinite; }
+        .forecast-spinner-label { margin-top: 10px; color: #888; font-size: 13px; }
 
         /* --- Disclaimer (shown on first load) --- */
         .disclaimer-overlay {
@@ -652,13 +656,13 @@
         <div id="tab-about" class="tab-panel">
             <div class="cfd-container">
                 <h1>About</h1>
-                <p>The <strong>Low-Head Dam Inventory (LHDI) Live Forecasts</strong> platform is a public-safety tool that combines the national low-head dam inventory with real-time streamflow forecasts from the GEOGLOWS hydrological model. The goal is to help recreators, first responders, dam owners, and the public understand when conditions at a low-head dam may pose a drowning hazard.</p>
+                <p>The <strong>Low-Head Dam Inventory (LHDI) Live Forecasts</strong> platform is a public-safety tool that combines the national low-head dam inventory with real-time streamflow forecasts from the NOAA National Water Model (NWM). The goal is to help recreators, first responders, dam owners, and the public understand when conditions at a low-head dam may pose a drowning hazard.</p>
 
                 <h2>What this tool does</h2>
                 <ul>
                     <li>Displays the locations of known low-head dams across the United States.</li>
                     <li>Highlights sites where fatalities have been recorded.</li>
-                    <li>Pulls live streamflow forecasts from the GEOGLOWS API and compares them against site-specific dangerous flow ranges.</li>
+                    <li>Pulls live streamflow forecasts from the NOAA NWM and, where available, compares them against site-specific dangerous flow ranges.</li>
                     <li>Provides a CFD Toolbox walkthrough for analyzing reverse-roller hydraulics at low-head dams using FLOW-3D.</li>
                 </ul>
 
@@ -675,7 +679,7 @@
                 <ul>
                     <li>Low-head dam locations: USACE National Inventory of Low-Head Dams (NID-LHDI).</li>
                     <li>Fatality records: <a href="https://www.lowheaddamfatalities.org" target="_blank" rel="noopener">Low-Head Dam Fatalities Database</a>.</li>
-                    <li>Streamflow forecasts: <a href="https://geoglows.ecmwf.int" target="_blank" rel="noopener">GEOGLOWS River Forecast System</a>.</li>
+                    <li>Streamflow forecasts: <a href="https://water.noaa.gov/about/nwm" target="_blank" rel="noopener">NOAA National Water Model</a> via the NOAA Water Prediction Services API.</li>
                     <li>Hydrography background: NHDPlus stream network.</li>
                 </ul>
 
@@ -717,6 +721,10 @@
         <div class="modal-content">
             <span class="close" onclick="document.getElementById('forecastModal').style.display='none'">&times;</span>
             <div id="statusDisplay"></div>
+            <div id="forecastSpinner" class="forecast-spinner">
+                <div class="forecast-spinner-ring"></div>
+                <div class="forecast-spinner-label">Fetching NWM forecast...</div>
+            </div>
             <canvas id="forecastChart"></canvas>
         </div>
     </div>

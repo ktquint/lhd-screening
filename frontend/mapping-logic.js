@@ -366,28 +366,43 @@ function renderMarkers() {
 }
 
 // 4. National Water Model Forecast (NOAA NWPS API, NHDPlus V2 COMID = Reach_ID)
-// Short-range: 18h hourly deterministic. Medium-range: ~10d 3-hourly ensemble mean.
+// Short-range: 18h hourly deterministic. Medium-range: ~10d 3-hourly ensemble mean + spread.
 // Units: API returns ft³/s (cfs) — no conversion needed.
 async function checkForecast(comid, qMin, qMax, damName) {
     const hasSafetyRange = qMin !== null && !isNaN(qMin) && qMax !== null && !isNaN(qMax);
 
-    try {
-        const [srRes, mrRes] = await Promise.all([
-            fetch(`https://api.water.noaa.gov/nwps/v1/reaches/${comid}/streamflow?series=short_range`),
-            fetch(`https://api.water.noaa.gov/nwps/v1/reaches/${comid}/streamflow?series=medium_range`)
-        ]);
-        const srData = await srRes.json();
-        const mrData = await mrRes.json();
+    // Show modal + spinner immediately
+    document.getElementById('statusDisplay').innerHTML = '';
+    document.getElementById('forecastSpinner').style.display = 'block';
+    document.getElementById('forecastChart').style.display = 'none';
+    document.getElementById('forecastModal').style.display = 'block';
+    if (forecastChart) { forecastChart.destroy(); forecastChart = null; }
 
-        // Short-range: [{validTime, flow}] — single deterministic series
+    try {
+        // Fire both fetches simultaneously
+        const srPromise = fetch(`https://api.water.noaa.gov/nwps/v1/reaches/${comid}/streamflow?series=short_range`).then(r => r.json());
+        const mrPromise = fetch(`https://api.water.noaa.gov/nwps/v1/reaches/${comid}/streamflow?series=medium_range`).then(r => r.json());
+
+        // Render short-range as soon as it arrives (fast, 18 points)
+        const srData = await srPromise;
         const srPoints = srData.shortRange?.series?.data ?? [];
 
-        // Medium-range: mean + 6 ensemble members for uncertainty band
+        if (srPoints.length === 0) {
+            document.getElementById('forecastSpinner').style.display = 'none';
+            document.getElementById('statusDisplay').innerHTML =
+                `<strong>${damName}</strong><br>No forecast data returned for reach ${comid}.`;
+            return;
+        }
+
+        const srWithBands = srPoints.map(p => ({ ...p, upper: p.flow, lower: p.flow }));
+        _renderForecastChart(srWithBands, hasSafetyRange, qMin, qMax, damName, false);
+
+        // Extend with medium-range (ensemble spread) when it arrives
+        const mrData = await mrPromise;
         const mrMean    = mrData.mediumRange?.mean?.data ?? [];
         const mrMembers = ['member1','member2','member3','member4','member5','member6']
             .map(k => mrData.mediumRange?.[k]?.data ?? []);
 
-        // Stitch: append medium-range steps that fall after the short-range window
         const srEndTime = srPoints.length ? new Date(srPoints[srPoints.length - 1].validTime).getTime() : 0;
         const mrExtra = mrMean
             .map((p, i) => ({
@@ -398,102 +413,71 @@ async function checkForecast(comid, qMin, qMax, damName) {
             }))
             .filter(p => new Date(p.validTime).getTime() > srEndTime);
 
-        // Short-range points get no spread (deterministic) — upper/lower = flow
-        const srWithBands = srPoints.map(p => ({ ...p, upper: p.flow, lower: p.flow }));
-        const allPoints = [...srWithBands, ...mrExtra];
-
-        if (allPoints.length === 0) {
-            document.getElementById('statusDisplay').innerHTML =
-                `<strong>${damName}</strong><br>No forecast data returned for reach ${comid}.`;
-            document.getElementById('forecastModal').style.display = 'block';
-            return;
-        }
-
-        const allFlow  = allPoints.map(p => p.flow);
-        const allUpper = allPoints.map(p => p.upper);
-        const allLower = allPoints.map(p => p.lower);
-        const currentCfs = allFlow[0];
-        const labels = allPoints.map(p =>
-            new Date(p.validTime).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit' })
-        );
-
-        let statusText = `<strong>${damName}</strong><br>`;
-        statusText += `Current Forecast: ${currentCfs != null ? currentCfs.toFixed(0) : 'N/A'} cfs`;
-
-        if (hasSafetyRange) {
-            statusText += ` | Dangerous Range: ${qMin.toFixed(0)}-${qMax.toFixed(0)} cfs<br>`;
-            const isAnyDangerous = allFlow.some(v => v != null && v >= qMin && v <= qMax);
-            statusText += isAnyDangerous
-                ? `<span style="color:red; font-weight:bold;">⚠️ WARNING: DANGEROUS CONDITIONS FORECASTED ⚠️</span>`
-                : `<span style="color:green; font-weight:bold;">✅ Status: Safe for Forecast Period</span>`;
-        } else {
-            statusText += `<br><span style="color:#555;">No dangerous flow range on record for this site.</span>`;
-        }
-
-        document.getElementById('statusDisplay').innerHTML = statusText;
-        document.getElementById('forecastModal').style.display = 'block';
-
-        const ctx = document.getElementById('forecastChart').getContext('2d');
-        if (forecastChart) forecastChart.destroy();
-
-        const datasets = [];
-        if (hasSafetyRange) {
-            datasets.push(
-                { label: 'Max Dangerous Flow',   data: Array(allFlow.length).fill(qMax), borderColor: '#e74c3c', borderDash: [10, 5], borderWidth: 2, pointRadius: 0, fill: false },
-                { label: 'Dangerous Flow Range', data: Array(allFlow.length).fill(qMin), borderColor: '#e74c3c', borderDash: [10, 5], borderWidth: 2, pointRadius: 0, fill: 0, backgroundColor: 'rgba(231, 76, 60, 0.2)' }
-            );
-        }
-        datasets.push(
-            {
-                label: 'NWM Forecast (cfs)',
-                data: allFlow,
-                borderColor: '#000000',
-                backgroundColor: 'transparent',
-                fill: false,
-                tension: 0.2,
-                borderWidth: 3,
-                pointRadius: 0
-            },
-            {
-                label: 'Ensemble Upper',
-                data: allUpper,
-                borderColor: 'rgba(52, 152, 219, 0.5)',
-                borderWidth: 1,
-                pointRadius: 0,
-                fill: '+1',
-                backgroundColor: 'rgba(52, 152, 219, 0.2)',
-                tension: 0.2
-            },
-            {
-                label: 'Ensemble Lower',
-                data: allLower,
-                borderColor: 'rgba(52, 152, 219, 0.5)',
-                borderWidth: 1,
-                pointRadius: 0,
-                fill: false,
-                tension: 0.2
-            }
-        );
-
-        forecastChart = new Chart(ctx, {
-            type: 'line',
-            data: { labels, datasets },
-            options: {
-                responsive: true,
-                plugins: { filler: { propagate: true } },
-                scales: {
-                    y: { beginAtZero: true, title: { display: true, text: 'Streamflow (cfs)' } },
-                    x: { ticks: { maxTicksLimit: 10 } }
-                }
-            }
-        });
+        _renderForecastChart([...srWithBands, ...mrExtra], hasSafetyRange, qMin, qMax, damName, true);
 
     } catch (err) {
         console.error("NWM API Error:", err);
+        document.getElementById('forecastSpinner').style.display = 'none';
         document.getElementById('statusDisplay').innerHTML =
             `<strong>${damName}</strong><br>Error fetching NWM forecast data.`;
-        document.getElementById('forecastModal').style.display = 'block';
     }
+}
+
+function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, isFinal) {
+    const allFlow  = allPoints.map(p => p.flow);
+    const allUpper = allPoints.map(p => p.upper);
+    const allLower = allPoints.map(p => p.lower);
+    const currentCfs = allFlow[0];
+    const labels = allPoints.map(p =>
+        new Date(p.validTime).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit' })
+    );
+
+    let statusText = `<strong>${damName}</strong><br>`;
+    statusText += `Current Forecast: ${currentCfs != null ? currentCfs.toFixed(0) : 'N/A'} cfs`;
+
+    if (hasSafetyRange) {
+        statusText += ` | Dangerous Range: ${qMin.toFixed(0)}-${qMax.toFixed(0)} cfs<br>`;
+        const isAnyDangerous = allFlow.some(v => v != null && v >= qMin && v <= qMax);
+        statusText += isAnyDangerous
+            ? `<span style="color:red; font-weight:bold;">⚠️ WARNING: DANGEROUS CONDITIONS FORECASTED ⚠️</span>`
+            : `<span style="color:green; font-weight:bold;">✅ Status: Safe for Forecast Period</span>`;
+    } else {
+        statusText += `<br><span style="color:#555;">No dangerous flow range on record for this site.</span>`;
+    }
+    if (!isFinal) statusText += `<br><span style="color:#aaa; font-size:11px;">Loading extended forecast…</span>`;
+
+    document.getElementById('statusDisplay').innerHTML = statusText;
+    document.getElementById('forecastSpinner').style.display = 'none';
+    document.getElementById('forecastChart').style.display = 'block';
+
+    const datasets = [];
+    if (hasSafetyRange) {
+        datasets.push(
+            { label: 'Max Dangerous Flow',   data: Array(allFlow.length).fill(qMax), borderColor: '#e74c3c', borderDash: [10, 5], borderWidth: 2, pointRadius: 0, fill: false },
+            { label: 'Dangerous Flow Range', data: Array(allFlow.length).fill(qMin), borderColor: '#e74c3c', borderDash: [10, 5], borderWidth: 2, pointRadius: 0, fill: 0, backgroundColor: 'rgba(231, 76, 60, 0.2)' }
+        );
+    }
+    datasets.push(
+        { label: 'NWM Forecast (cfs)', data: allFlow, borderColor: '#000000', backgroundColor: 'transparent', fill: false, tension: 0.2, borderWidth: 3, pointRadius: 0 },
+        { label: 'Ensemble Upper', data: allUpper, borderColor: 'rgba(52, 152, 219, 0.5)', borderWidth: 1, pointRadius: 0, fill: '+1', backgroundColor: 'rgba(52, 152, 219, 0.2)', tension: 0.2 },
+        { label: 'Ensemble Lower', data: allLower, borderColor: 'rgba(52, 152, 219, 0.5)', borderWidth: 1, pointRadius: 0, fill: false, tension: 0.2 }
+    );
+
+    const ctx = document.getElementById('forecastChart').getContext('2d');
+    if (forecastChart) forecastChart.destroy();
+    forecastChart = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            animation: { duration: isFinal ? 400 : 0 },
+            plugins: { filler: { propagate: true } },
+            scales: {
+                y: { beginAtZero: true, title: { display: true, text: 'Streamflow (cfs)' } },
+                x: { ticks: { maxTicksLimit: 10 } }
+            }
+        }
+    });
 }
 
 // 5. Legend and Filter Integration
