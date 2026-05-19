@@ -388,8 +388,9 @@ async function checkForecast(comid, qMin, qMax, damName) {
         const mrMembers = ['member1','member2','member3','member4','member5','member6']
             .map(k => mrData.mediumRange?.[k]?.data ?? []);
 
-        const nowFloor = new Date();
-        nowFloor.setMinutes(0, 0, 0);
+        // Floor to the current 3-hour UTC boundary to align with NWM timesteps
+        const step3h  = 3 * 3600 * 1000;
+        const nowFloor = Math.floor(Date.now() / step3h) * step3h;
 
         const allPoints = mrMean
             .map((p, i) => ({
@@ -398,7 +399,7 @@ async function checkForecast(comid, qMin, qMax, damName) {
                 upper: Math.max(...mrMembers.map(m => m[i]?.flow ?? p.flow)),
                 lower: Math.min(...mrMembers.map(m => m[i]?.flow ?? p.flow))
             }))
-            .filter(p => new Date(p.validTime).getTime() >= nowFloor.getTime());
+            .filter(p => new Date(p.validTime).getTime() >= nowFloor);
 
         if (allPoints.length === 0) {
             document.getElementById('forecastSpinner').style.display = 'none';
