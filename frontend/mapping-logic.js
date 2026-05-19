@@ -304,12 +304,14 @@ function renderMarkers() {
             // Filter out sites that don't have a US State abbreviation
             if (!dam["State Abbreviation"]) return;
 
+            const fatalities = parseInt(dam.NumberOfFatalities) || 0;
+
+            if (showOnlyFatality && fatalities === 0) return;
+
             const qMinVal = Math.round(parseFloat(dam.Qmin));
             const qMaxVal = Math.round(parseFloat(dam.Qmax));
             const hasComid = dam.Reach_ID !== undefined && dam.Reach_ID !== null && String(dam.Reach_ID).trim() !== '';
             const hasSafetyData = !isNaN(qMinVal) && hasComid;
-
-            if (showOnlyFatality && fatalities === 0) return;
 
             // River / stream name filter (searches GNIS_Name then River/Stream as fallback)
             const riverQ = activeRiverFilter.river.toLowerCase();
@@ -325,7 +327,6 @@ function renderMarkers() {
             const place = (dam.City && dam.City.trim()) || (dam["County Name"] && dam["County Name"].trim()) || "Unknown location";
             const state = dam["State Abbreviation"] || "";
             const location = place + (state ? `, ${state}` : "");
-            const fatalities = parseInt(dam.NumberOfFatalities) || 0;
             
             const marker = L.circleMarker([lat, lng], {
                 radius: 6,
@@ -387,12 +388,17 @@ async function checkForecast(comid, qMin, qMax, damName) {
         const mrMembers = ['member1','member2','member3','member4','member5','member6']
             .map(k => mrData.mediumRange?.[k]?.data ?? []);
 
-        const allPoints = mrMean.map((p, i) => ({
-            validTime: p.validTime,
-            flow:  p.flow,
-            upper: Math.max(...mrMembers.map(m => m[i]?.flow ?? p.flow)),
-            lower: Math.min(...mrMembers.map(m => m[i]?.flow ?? p.flow))
-        }));
+        const nowFloor = new Date();
+        nowFloor.setMinutes(0, 0, 0);
+
+        const allPoints = mrMean
+            .map((p, i) => ({
+                validTime: p.validTime,
+                flow:  p.flow,
+                upper: Math.max(...mrMembers.map(m => m[i]?.flow ?? p.flow)),
+                lower: Math.min(...mrMembers.map(m => m[i]?.flow ?? p.flow))
+            }))
+            .filter(p => new Date(p.validTime).getTime() >= nowFloor.getTime());
 
         if (allPoints.length === 0) {
             document.getElementById('forecastSpinner').style.display = 'none';
