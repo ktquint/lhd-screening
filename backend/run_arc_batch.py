@@ -1,8 +1,5 @@
 """
-Run ARC for every staged dam: produce VDT / Curve / XS artifacts, derive a
-surrogate weir length from the lidar water-surface width at the snapped
-stream pixel, and extract the 5 hydraulic cross-sections at multiples of
-that weir length.
+Run ARC for every staged dam: produce the raw VDT / Curve / XS artifacts.
 
 For each dam in tile_manifest.json this script:
   1. Resolves the staged input set
@@ -12,13 +9,15 @@ For each dam in tile_manifest.json this script:
         STRM/{dam_id}/nhd_{nhdplusid}_clean.tif
         FLOW/{dam_id}/flow_{dam_id}.csv
      plus dam lat/lon from the dam inventory CSV (OBJECTID-keyed).
-  2. Runs ArcDam.run_arc()  →  VDT.txt, Curve.csv, XS.txt under RESULTS/{dam_id}/
-  3. Snaps the dam point to the nearest VDT cell and reads the lidar
-     water-surface width there  →  weir_length (the "surrogate L").
-  4. Re-extracts the 5 local hydraulic cross-sections at multiples of L.
-  5. Writes RESULTS/{dam_id}/arc_summary.json with weir_length + snap info.
+  2. Runs ArcDam.run_arc() → VDT.txt, Curve.csv, XS.txt under RESULTS/{dam_id}/
+  3. Writes RESULTS/{dam_id}/arc_done.json as a fast cache marker so reruns
+     can skip without reconstructing ArcDam.
 
-Existing summaries are reused; pass --force to re-run.
+Weir-length estimation, local cross-section extraction, dam-height, and
+dangerous-flow analysis are split out into run_analysis_batch.py so ARC
+can be re-run independently of the downstream geometry analysis.
+
+Existing arc_done.json markers are reused; pass --force to re-run.
 
 Usage
 -----
@@ -43,7 +42,6 @@ if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
 
 from lhd_processor.lhd_arc import ArcDam
-from screening.width import estimate_weir_length
 
 _REPO_ROOT = _BACKEND_ROOT.parent
 DEFAULT_DAMS_CSV = _REPO_ROOT / "frontend" / "data" / "full_lhd_website.csv"
@@ -103,8 +101,8 @@ def _process_dam(
     results_dir: Path,
     force: bool,
 ) -> Tuple[int, str]:
-    summary_path = results_dir / str(dam_id) / "arc_summary.json"
-    if not force and summary_path.exists():
+    marker_path = results_dir / str(dam_id) / "arc_done.json"
+    if not force and marker_path.exists():
         _log(f"[{idx}/{total}] Dam {dam_id}: cached")
         return dam_id, "cached"
 
@@ -140,59 +138,26 @@ def _process_dam(
         _log(f"[{idx}/{total}] Dam {dam_id}: FAIL run_arc ({e})")
         return dam_id, f"arc-error:{e}"
 
-    # Verify ARC actually produced its three core artifacts before we proceed.
+    # Verify ARC actually produced its three core artifacts.
     for attr in ("vdt_txt", "curvefile_csv", "xs_txt"):
         p = getattr(arc, attr, None)
         if p is None or not Path(p).exists():
             _log(f"[{idx}/{total}] Dam {dam_id}: FAIL — ARC missing {attr}")
             return dam_id, f"arc-no-{attr}"
 
-    try:
-        width_info = estimate_weir_length(
-            dam_lat=lat,
-            dam_lon=lon,
-            strm_path=paths["strm_clean"],
-            vdt_path=arc.vdt_txt,
-            xs_path=arc.xs_txt,
-            curve_path=arc.curvefile_csv,
-        )
-    except Exception as e:
-        _log(f"[{idx}/{total}] Dam {dam_id}: FAIL weir length ({e})")
-        return dam_id, f"weir-error:{e}"
-
-    weir_length = float(width_info["weir_length"])
-
-    try:
-        arc.extract_local_xs(
-            snap_row=int(width_info["snap_row"]),
-            snap_col=int(width_info["snap_col"]),
-            weir_length=weir_length,
-        )
-    except Exception as e:
-        _log(f"[{idx}/{total}] Dam {dam_id}: FAIL local XS extract ({e})")
-        return dam_id, f"localxs-error:{e}"
-
-    summary_path.parent.mkdir(parents=True, exist_ok=True)
-    summary = {
+    marker_path.parent.mkdir(parents=True, exist_ok=True)
+    marker = {
         "dam_id": dam_id,
         "latitude": lat,
         "longitude": lon,
-        "weir_length_m": weir_length,
-        "snap_row": int(width_info["snap_row"]),
-        "snap_col": int(width_info["snap_col"]),
-        "snap_dist_m": float(width_info["snap_dist_m"]),
-        "wse_used": float(width_info["wse_used"]),
-        "arc_wse": (float(width_info["arc_wse"])
-                    if width_info.get("arc_wse") is not None else None),
-        "ordinate_dist": float(width_info["ordinate_dist"]),
         "vdt_txt": str(arc.vdt_txt),
         "curvefile_csv": str(arc.curvefile_csv),
         "xs_txt": str(arc.xs_txt),
     }
-    with open(summary_path, "w") as f:
-        json.dump(summary, f, indent=2)
+    with open(marker_path, "w") as f:
+        json.dump(marker, f, indent=2)
 
-    _log(f"[{idx}/{total}] Dam {dam_id}: ok (L={weir_length:.1f} m, snap_dist={summary['snap_dist_m']:.1f} m)")
+    _log(f"[{idx}/{total}] Dam {dam_id}: ok")
     return dam_id, "ok"
 
 
@@ -214,7 +179,7 @@ def main() -> None:
     parser.add_argument("--workers", type=int, default=4,
                         help="Parallel workers [default: 4]")
     parser.add_argument("--force", action="store_true",
-                        help="Re-run ARC even if RESULTS/{dam_id}/arc_summary.json exists")
+                        help="Re-run ARC even if RESULTS/{dam_id}/arc_done.json exists")
     args = parser.parse_args()
 
     staging_dir: Path = args.staging_dir
