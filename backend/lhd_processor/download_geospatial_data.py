@@ -1,6 +1,8 @@
 import os
 import requests
+import shutil
 import tempfile
+import zipfile
 import rasterio
 import numpy as np
 import pandas as pd
@@ -501,15 +503,55 @@ def query_dem_tiles(lhd_id, flowline_gdf, buffer_deg: float = 0.002) -> List[dic
     return []
 
 
+_RASTER_EXTS = (".tif", ".tiff", ".img")
+
+
+def _extract_zipped_raster(zip_path: str, raw_dem_dir: str) -> Union[str, None]:
+    """
+    Extract the first raster (.tif/.tiff/.img) member from `zip_path` into
+    `raw_dem_dir` (flattening any internal directory structure), delete the
+    zip, and return the extracted file path. Returns None on failure.
+
+    USGS TNM serves 1/9 arc-second NED tiles as .zip archives wrapping an
+    .img raster; the rest of the pipeline expects a bare raster on disk.
+    """
+    try:
+        with zipfile.ZipFile(zip_path) as zf:
+            raster_members = [
+                m for m in zf.namelist()
+                if not m.endswith("/")
+                and os.path.basename(m).lower().endswith(_RASTER_EXTS)
+            ]
+            if not raster_members:
+                print(f"Error: no raster (.tif/.img) inside {zip_path}")
+                return None
+            member = raster_members[0]
+            out_name = sanitize_filename(os.path.basename(member))
+            out_path = os.path.join(raw_dem_dir, out_name)
+            with zf.open(member) as src, open(out_path, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+        os.remove(zip_path)
+        return out_path
+    except Exception as e:
+        print(f"Error extracting {zip_path}: {e}")
+        return None
+
+
 def download_raw_tile(tile_url: str, raw_dem_dir: str) -> Union[str, None]:
     """
     Downloads a single DEM tile to raw_dem_dir if not already present.
-    Returns the local file path on success, None on failure.
+    If the downloaded payload is a .zip (e.g. 1/9 arc-second NED tiles),
+    extracts the inner raster and removes the zip.
+    Returns the local raster file path on success, None on failure.
     """
     filename = sanitize_filename(os.path.basename(tile_url))
     local_path = os.path.join(raw_dem_dir, filename)
 
+    # Cache hit: a prior run may have left either the raster or an unextracted zip.
     if os.path.exists(local_path):
+        if local_path.lower().endswith(".zip"):
+            extracted = _extract_zipped_raster(local_path, raw_dem_dir)
+            return extracted  # may be None if the zip is corrupt
         return local_path
 
     os.makedirs(raw_dem_dir, exist_ok=True)
@@ -519,12 +561,15 @@ def download_raw_tile(tile_url: str, raw_dem_dir: str) -> Union[str, None]:
         with open(local_path, "wb") as f:
             for chunk in r.iter_content(chunk_size=8192):
                 f.write(chunk)
-        return local_path
     except Exception as e:
         print(f"Error downloading {tile_url}: {e}")
         if os.path.exists(local_path):
             os.remove(local_path)
         return None
+
+    if local_path.lower().endswith(".zip"):
+        return _extract_zipped_raster(local_path, raw_dem_dir)
+    return local_path
 
 
 # =================================================================

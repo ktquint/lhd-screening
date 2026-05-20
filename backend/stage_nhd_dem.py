@@ -336,8 +336,15 @@ def download_all_tiles(
     raw_dem_dir: Path,
     workers: int,
     force: bool,
-) -> None:
-    """Download every unique tile in tile_catalog, skipping those already on disk."""
+) -> Dict[str, str]:
+    """
+    Download every unique tile in tile_catalog, skipping those already on disk.
+
+    Returns a rename map {original_catalog_filename: extracted_filename} for any
+    tile whose on-disk name differs from the cataloged name (e.g. a .zip
+    archive that was extracted to a .img/.tif). The caller is expected to use
+    this to rewrite the manifest before saving.
+    """
     todo: List[Tuple[str, dict]] = []
     cached = 0
     for filename, meta in tile_catalog.items():
@@ -352,9 +359,10 @@ def download_all_tiles(
         f"(of {len(tile_catalog)} total)"
     )
 
+    rename_map: Dict[str, str] = {}
     if not todo:
         print("Nothing to download.")
-        return
+        return rename_map
 
     ok = fail = 0
     with ThreadPoolExecutor(max_workers=workers) as ex:
@@ -373,7 +381,12 @@ def download_all_tiles(
                 _log(f"  [{done}/{len(todo)}] FAIL  {filename}: {e}")
             if result:
                 ok += 1
-                _log(f"  [{done}/{len(todo)}] ok    {filename}")
+                actual_name = Path(result).name
+                if actual_name != filename:
+                    rename_map[filename] = actual_name
+                    _log(f"  [{done}/{len(todo)}] ok    {filename}  →  {actual_name}")
+                else:
+                    _log(f"  [{done}/{len(todo)}] ok    {filename}")
             else:
                 # download_raw_tile already prints its own error; just count it.
                 fail += 1
@@ -382,6 +395,23 @@ def download_all_tiles(
         f"\nTile downloads complete: {ok + cached} ok ({cached} cached), "
         f"{fail} failed"
     )
+    return rename_map
+
+
+def _apply_rename_map(
+    rename_map: Dict[str, str],
+    manifest: Dict[int, List[str]],
+    tile_catalog: Dict[str, dict],
+) -> None:
+    """Rewrite manifest + tile_catalog in place to reflect post-extraction filenames."""
+    if not rename_map:
+        return
+    for old, new in rename_map.items():
+        meta = tile_catalog.pop(old, None)
+        if meta is not None:
+            tile_catalog[new] = meta
+    for dam_id, filenames in manifest.items():
+        manifest[dam_id] = [rename_map.get(fn, fn) for fn in filenames]
 
 
 # ---------------------------------------------------------------------------
@@ -476,19 +506,26 @@ def main() -> None:
     print("=" * 60)
     print("Step 3 — Saving Manifest")
     print("=" * 60)
-    save_manifest(manifest, tile_catalog, flowline_results, staging_dir)
 
     if not args.skip_download:
+        # Save once now so a partial download still leaves a usable manifest,
+        # then re-save after extraction in case zipped tiles were unpacked.
+        save_manifest(manifest, tile_catalog, flowline_results, staging_dir)
         print()
         print("=" * 60)
         print("Step 4 — Downloading DEM Tiles")
         print("=" * 60)
-        download_all_tiles(
+        rename_map = download_all_tiles(
             tile_catalog, raw_dem_dir,
             workers=args.download_workers,
             force=args.force_tiles,
         )
+        if rename_map:
+            print(f"\nRewriting manifest for {len(rename_map)} extracted zipped tiles")
+            _apply_rename_map(rename_map, manifest, tile_catalog)
+            save_manifest(manifest, tile_catalog, flowline_results, staging_dir)
     else:
+        save_manifest(manifest, tile_catalog, flowline_results, staging_dir)
         print(f"\nSkipped tile download (--skip-download). {n_unique} unique tiles recorded.")
 
     print("\nDone.")
