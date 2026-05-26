@@ -43,6 +43,7 @@ if str(_BACKEND_ROOT) not in sys.path:
 
 from lhd_processor.lhd_arc import ArcDam
 from lhd_processor.analysis_classes import Dam
+from screening.height import estimate_dam_height
 from screening.width import estimate_weir_length
 
 _REPO_ROOT = _BACKEND_ROOT.parent
@@ -174,7 +175,7 @@ def _process_dam(
             _log(f"[{idx}/{total}] Dam {dam_id}: FAIL — ARC output missing ({attr})")
             return dam_id, f"arc-no-{attr}"
 
-    # ----- Weir length -----
+    # ----- Weir length (Method 2 — flat-zone crest sampler) -----
     try:
         width_info = estimate_weir_length(
             dam_lat=lat,
@@ -183,11 +184,23 @@ def _process_dam(
             vdt_path=arc.vdt_txt,
             xs_path=arc.xs_txt,
             curve_path=arc.curvefile_csv,
+            flowline_path=paths["flowline"],
         )
     except Exception as e:
         _log(f"[{idx}/{total}] Dam {dam_id}: FAIL weir length ({e})")
         return dam_id, f"weir-error:{e}"
     weir_length = float(width_info["weir_length"])
+
+    # ----- Dam height (Method B — ARC-slope flat-zone tailwater) -----
+    height_info = estimate_dam_height(
+        baseflow_cms=baseflow,
+        weir_length_m=weir_length,
+        reach=width_info["reach"],
+        crest_wse=float(width_info["crest_wse"]),
+    )
+    precomputed_P = (
+        float(height_info["P_height_m"]) if height_info is not None else None
+    )
 
     # ----- Local cross-sections at multiples of L -----
     try:
@@ -216,6 +229,7 @@ def _process_dam(
             streamflow_source="National Water Model",
             calc_mode="Simplified",
             nwm_id=comid,
+            precomputed_dam_height_m=precomputed_P,
         )
         xs_data_list, _hydro_results = dam.run_analysis()
     except Exception as e:
@@ -247,13 +261,21 @@ def _process_dam(
         "arc_wse": (float(width_info["arc_wse"])
                     if width_info.get("arc_wse") is not None else None),
         "ordinate_dist": float(width_info["ordinate_dist"]),
+        "crest_row": int(width_info["crest_row"]),
+        "crest_col": int(width_info["crest_col"]),
+        "crest_wse": float(width_info["crest_wse"]),
+        "crest_base": float(width_info["crest_base"]),
+        "crest_x_m": float(width_info["crest_x_m"]),
+        "dam_height_m": precomputed_P,
+        "height_info": (
+            {k: v for k, v in height_info.items()} if height_info is not None else None
+        ),
         "xs_results": xs_results,
     }
     with open(summary_path, "w") as f:
         json.dump(summary, f, indent=2)
 
-    p_vals = [r["P_height_m"] for r in xs_results if r.get("P_height_m") is not None]
-    p_str = (f"P̄={sum(p_vals)/len(p_vals):.2f} m" if p_vals else "P=–")
+    p_str = f"P={precomputed_P:.2f} m" if precomputed_P is not None else "P=–"
     _log(f"[{idx}/{total}] Dam {dam_id}: ok (L={weir_length:.1f} m, {p_str})")
     return dam_id, "ok"
 

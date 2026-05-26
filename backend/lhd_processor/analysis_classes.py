@@ -504,14 +504,23 @@ class Dam:
                  nwm_id=None,
                  geoglows_id=None,
                  incidents_df=None,
-                 fig_dir=None):
+                 fig_dir=None,
+                 precomputed_dam_height_m=None):
         """
         Args mirror the screening pipeline. `weir_length` is the value derived
         from the DEM water-surface width (see screening.width.estimate_weir_length).
         `baseflow` is the q_ep_50 value from the per-request streamflow table.
         `flow_series` is optional; if provided, get_flow_data() is bypassed
         (avoids a redundant GEOGLOWS retrospective fetch).
+        `precomputed_dam_height_m` is the single dam height P recovered by the
+        Method B (ARC-slope flat zone) sampler; when provided, run_analysis()
+        applies it to every downstream cross-section instead of solving its
+        own per-XS energy balance.
         """
+        self.precomputed_dam_height_m = (
+            float(precomputed_dam_height_m)
+            if precomputed_dam_height_m is not None else None
+        )
         self.id = int(lhd_id)
         self.db = None  # no Excel database in screening flow
         self.results_dir = os.path.normpath(base_results_dir)
@@ -665,29 +674,43 @@ class Dam:
                 'P_height': None
             }
             if xs != upstream_xs:
-                # the difference in water surface elevation
-                # going from the upstream cross-section to
-                # the current cross-section
-                delta_wse = upstream_xs.wse - xs.wse
-                y_i = xs.wse - xs.bed_elevation
-                try:
-                    # calculate the dam height and weir head at baseflow conditions
-                    H_i, P_i = solve_weir_geom(self.baseflow, self.weir_length,
-                                               y_i, delta_wse)
-
-                    # solve for y_1 to see if the weir is drowned
-                    y_1 = solve_y1(H_i, P_i)
-                    if y_1 > P_i:
-                        print(f"Warning: Dam {self.id} XS {i} appears drowned.")
-
-                    # save the dam height to the cross-section
+                if self.precomputed_dam_height_m is not None:
+                    # Method B (ASDSO 2026) gives a single dam height for the
+                    # whole structure — apply it to every downstream XS so
+                    # the dangerous-flow ranges below use the paper's P.
+                    P_i = self.precomputed_dam_height_m
+                    try:
+                        H_i = weir_H_simp(self.baseflow, self.weir_length)
+                    except Exception:
+                        H_i = None
                     xs.set_dam_height(P_i)
-                    xs.set_weir_head(H_i)
+                    if H_i is not None:
+                        xs.set_weir_head(H_i)
                     xs_info['P_height'] = P_i
+                else:
+                    # the difference in water surface elevation
+                    # going from the upstream cross-section to
+                    # the current cross-section
+                    delta_wse = upstream_xs.wse - xs.wse
+                    y_i = xs.wse - xs.bed_elevation
+                    try:
+                        # calculate the dam height and weir head at baseflow conditions
+                        H_i, P_i = solve_weir_geom(self.baseflow, self.weir_length,
+                                                   y_i, delta_wse)
 
-                except Exception as e:
-                    print(f"Solver failed for Dam {self.id} XS {i}: {e}")
-                    xs_info['P_height'] = None
+                        # solve for y_1 to see if the weir is drowned
+                        y_1 = solve_y1(H_i, P_i)
+                        if y_1 > P_i:
+                            print(f"Warning: Dam {self.id} XS {i} appears drowned.")
+
+                        # save the dam height to the cross-section
+                        xs.set_dam_height(P_i)
+                        xs.set_weir_head(H_i)
+                        xs_info['P_height'] = P_i
+
+                    except Exception as e:
+                        print(f"Solver failed for Dam {self.id} XS {i}: {e}")
+                        xs_info['P_height'] = None
 
                 if xs.P:
                     try:
