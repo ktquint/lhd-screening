@@ -460,27 +460,28 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
 
     const datasets = [];
     if (hasSafetyRange) {
-        // FIX: Replaced line boundaries with a single Red Filled Box for Dangerous Range
+        // Red filled box for the legend, bounded by a thicker, dashed line
         datasets.push({
             label: 'Dangerous Flow Range',
             data: Array(allFlow.length).fill(qMax), 
             borderColor: '#e74c3c', 
-            borderWidth: 1,
+            borderWidth: 3,             // Thicker line
+            borderDash: [8, 4],         // Dashed formatting
             pointRadius: 0, 
             fill: {
                 target: {value: qMin},
                 above: 'rgba(231, 76, 60, 0.25)',
                 below: 'rgba(231, 76, 60, 0.25)'
             },
-            backgroundColor: 'rgba(231, 76, 60, 0.25)', // Legend fill color
-            pointStyle: 'rect' // Forces rectangle box in legend
+            backgroundColor: 'rgba(231, 76, 60, 0.25)',
+            pointStyle: 'rect'
         });
     }
     
     datasets.push(
-        // FIX: Kept clean black line for the core forecast streamflow metric
+        // Core National Water Model Forecast Trend line (cfs removed from label)
         { 
-            label: 'NWM Forecast (cfs)', 
+            label: 'NWM Forecast', 
             data: allFlow, 
             borderColor: '#000000', 
             backgroundColor: '#000000', 
@@ -490,20 +491,21 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
             pointRadius: 0,
             pointStyle: 'line'
         },
-        // FIX: Replaced separate ensemble bounds with a single Blue Filled Box for Flow Uncertainty
+        // Upper Bound tracker representing Flow Uncertainty (Ensemble string stripped)
         { 
-            label: 'Flow Uncertainty (Ensemble Range)', 
+            label: 'Flow Uncertainty', 
             data: allUpper, 
             borderColor: '#3498db', 
             borderWidth: 1, 
             pointRadius: 0, 
-            fill: '-1', // Fills down to the dataset index immediately following it (Ensemble Lower)
+            fill: '+1', // FIX: Forces the blue fill to stretch all the way down to the next dataset (Lower Bound)
             backgroundColor: 'rgba(52, 152, 219, 0.25)', 
             tension: 0.2,
             pointStyle: 'rect'
         },
+        // Lower Bound tracker used explicitly to catch the bottom edge of the uncertainty fill
         { 
-            label: 'Ensemble Lower Bound', 
+            label: 'Uncertainty Lower Bound', 
             data: allLower, 
             borderColor: '#3498db', 
             borderWidth: 1, 
@@ -513,7 +515,7 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
             showLine: true,
             plugins: {
                 legend: {
-                    display: false // Suppress this entry from showing as a separate item in the legend
+                    display: false 
                 }
             }
         }
@@ -530,10 +532,10 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
                 filler: { propagate: true },
                 legend: {
                     labels: {
-                        usePointStyle: true, // Needed to let us customize shapes per dataset
+                        usePointStyle: true,
                         filter: function(item) {
-                            // Filter out the raw lower bound tracker from cluttering the panel list
-                            return item.text !== 'Ensemble Lower Bound';
+                            // Suppress the raw lower boundary line from appearing in the legend item array
+                            return item.text !== 'Uncertainty Lower Bound';
                         }
                     }
                 }
