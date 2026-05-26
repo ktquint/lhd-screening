@@ -293,6 +293,15 @@ function renderMarkers() {
             const qMaxVal = Math.round(parseFloat(dam.Qmax));
             const hasComid = dam.Reach_ID !== undefined && dam.Reach_ID !== null && String(dam.Reach_ID).trim() !== '';
             const hasSafetyData = !isNaN(qMinVal) && hasComid;
+            
+            // Determine marker color based on data priority tier
+            let markerColor = '#95a5a6'; // Default: Gray (Missing hydro link / screening safety data)
+            if (fatalities > 0) {
+                markerColor = '#e74c3c'; // Priority 1: Red (Fatality recorded)
+            } else if (hasSafetyData) {
+                markerColor = '#3498db'; // Priority 2: Blue (Live forecast + screening active)
+            }
+
 
             // River / stream name filter (searches GNIS_Name then River/Stream as fallback)
             const riverQ = activeRiverFilter.river.toLowerCase();
@@ -311,7 +320,7 @@ function renderMarkers() {
             
             const marker = L.circleMarker([lat, lng], {
                 radius: 6,
-                fillColor: fatalities > 0 ? '#e74c3c' : '#3498db',
+                fillColor: markerColor,
                 color: 'white',
                 weight: 2,
                 opacity: 1,
@@ -558,7 +567,8 @@ legend.onAdd = function (map) {
     div.innerHTML = `
         <strong>Dam Status</strong><br>
         <i style="background: #e74c3c"></i> Fatality Recorded<br>
-        <i style="background: #3498db"></i> No Recorded Fatalities<br>
+        <i style="background: #3498db"></i> Live Forecast Available<br>
+        <i style="background: #95a5a6"></i> Location Info Only<br>
         <div class="filter-section" style="border-top: 1px solid #ccc; margin-top: 8px; padding-top: 8px;">
             <label style="cursor: pointer;">
                 <input type="checkbox" id="fatalityFilter"> Show only fatality sites
