@@ -93,9 +93,7 @@ def run_rolling_pipeline():
                 dest_path = FINAL_EXPORT_DIR / f"{dam_id}_analysis_summary.json"
                 dest_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(summary_path, dest_path)
-
-            
-                
+     
         except subprocess.CalledProcessError as e:
             print(f"Pipeline broken at batch {batch_name}: {e}")
             break

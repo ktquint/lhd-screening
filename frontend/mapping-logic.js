@@ -353,6 +353,9 @@ function renderMarkers() {
 async function checkForecast(comid, qMin, qMax, damName) {
     const hasSafetyRange = qMin !== null && !isNaN(qMin) && qMax !== null && !isNaN(qMax);
 
+    // FIX: Clear out the old header immediately so it doesn't distract the user while loading
+    document.getElementById('statusDisplay').innerHTML = `<strong>${damName}</strong><br><span style="color:#888;">Loading forecast details...</span>`;
+
     // Show modal + spinner immediately
     document.getElementById('forecastSpinner').style.display = 'block';
     document.getElementById('forecastChart').style.display = 'none';
@@ -457,15 +460,63 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
 
     const datasets = [];
     if (hasSafetyRange) {
-        datasets.push(
-            { label: 'Max Dangerous Flow',   data: Array(allFlow.length).fill(qMax), borderColor: '#e74c3c', borderDash: [10, 5], borderWidth: 2, pointRadius: 0, fill: false },
-            { label: 'Dangerous Flow Range', data: Array(allFlow.length).fill(qMin), borderColor: '#e74c3c', borderDash: [10, 5], borderWidth: 2, pointRadius: 0, fill: 0, backgroundColor: 'rgba(231, 76, 60, 0.2)' }
-        );
+        // FIX: Replaced line boundaries with a single Red Filled Box for Dangerous Range
+        datasets.push({
+            label: 'Dangerous Flow Range',
+            data: Array(allFlow.length).fill(qMax), 
+            borderColor: '#e74c3c', 
+            borderWidth: 1,
+            pointRadius: 0, 
+            fill: {
+                target: {value: qMin},
+                above: 'rgba(231, 76, 60, 0.25)',
+                below: 'rgba(231, 76, 60, 0.25)'
+            },
+            backgroundColor: 'rgba(231, 76, 60, 0.25)', // Legend fill color
+            pointStyle: 'rect' // Forces rectangle box in legend
+        });
     }
+    
     datasets.push(
-        { label: 'NWM Forecast (cfs)', data: allFlow, borderColor: '#000000', backgroundColor: 'transparent', fill: false, tension: 0.2, borderWidth: 3, pointRadius: 0 },
-        { label: 'Ensemble Upper', data: allUpper, borderColor: 'rgba(52, 152, 219, 0.5)', borderWidth: 1, pointRadius: 0, fill: '+1', backgroundColor: 'rgba(52, 152, 219, 0.2)', tension: 0.2 },
-        { label: 'Ensemble Lower', data: allLower, borderColor: 'rgba(52, 152, 219, 0.5)', borderWidth: 1, pointRadius: 0, fill: false, tension: 0.2 }
+        // FIX: Kept clean black line for the core forecast streamflow metric
+        { 
+            label: 'NWM Forecast (cfs)', 
+            data: allFlow, 
+            borderColor: '#000000', 
+            backgroundColor: '#000000', 
+            fill: false, 
+            tension: 0.2, 
+            borderWidth: 3, 
+            pointRadius: 0,
+            pointStyle: 'line'
+        },
+        // FIX: Replaced separate ensemble bounds with a single Blue Filled Box for Flow Uncertainty
+        { 
+            label: 'Flow Uncertainty (Ensemble Range)', 
+            data: allUpper, 
+            borderColor: '#3498db', 
+            borderWidth: 1, 
+            pointRadius: 0, 
+            fill: '-1', // Fills down to the dataset index immediately following it (Ensemble Lower)
+            backgroundColor: 'rgba(52, 152, 219, 0.25)', 
+            tension: 0.2,
+            pointStyle: 'rect'
+        },
+        { 
+            label: 'Ensemble Lower Bound', 
+            data: allLower, 
+            borderColor: '#3498db', 
+            borderWidth: 1, 
+            pointRadius: 0, 
+            fill: false, 
+            tension: 0.2,
+            showLine: true,
+            plugins: {
+                legend: {
+                    display: false // Suppress this entry from showing as a separate item in the legend
+                }
+            }
+        }
     );
 
     const ctx = document.getElementById('forecastChart').getContext('2d');
@@ -475,7 +526,18 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
         data: { labels, datasets },
         options: {
             responsive: true,
-            plugins: { filler: { propagate: true } },
+            plugins: { 
+                filler: { propagate: true },
+                legend: {
+                    labels: {
+                        usePointStyle: true, // Needed to let us customize shapes per dataset
+                        filter: function(item) {
+                            // Filter out the raw lower bound tracker from cluttering the panel list
+                            return item.text !== 'Ensemble Lower Bound';
+                        }
+                    }
+                }
+            },
             scales: {
                 y: {
                     title: { display: true, text: 'Streamflow (cfs)' },
