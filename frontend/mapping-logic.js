@@ -648,3 +648,49 @@ loadDams();
         btn.addEventListener('click', () => activate(btn.dataset.tab));
     });
 })();
+
+// --- CFD Toolbox Sidebar Scroll-Spy Logic ---
+(function setupCFDScrollSpy() {
+    const tabContainer = document.getElementById('tab-cfd-toolbox');
+    if (!tabContainer) return;
+
+    // Listen for clicks on the sidebar to smooth scroll to the section
+    const navLinks = document.querySelectorAll('.cfd-sidebar a');
+    navLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const targetId = this.getAttribute('href').substring(1);
+            const targetElement = document.getElementById(targetId);
+            
+            if (targetElement) {
+                // Scroll the tab container to the element's offset
+                tabContainer.scrollTo({
+                    top: targetElement.offsetTop - 20, 
+                    behavior: 'smooth'
+                });
+            }
+        });
+    });
+
+    // Use Intersection Observer to highlight the active link as the user scrolls
+    const headings = document.querySelectorAll('.cfd-content h2');
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                // Remove active class from all links
+                navLinks.forEach(link => link.classList.remove('active'));
+                
+                // Add active class to the link matching this heading
+                const id = entry.target.getAttribute('id');
+                const activeLink = document.querySelector(`.cfd-sidebar a[href="#${id}"]`);
+                if (activeLink) activeLink.classList.add('active');
+            }
+        });
+    }, {
+        root: tabContainer,
+        rootMargin: '0px 0px -80% 0px', // Triggers when heading hits the top 20% of the screen
+        threshold: 0
+    });
+
+    headings.forEach(heading => observer.observe(heading));
+})();
