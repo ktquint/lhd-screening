@@ -129,34 +129,56 @@ const SearchControl = L.Control.extend({
         input.addEventListener('input', (e) => {
             const val = e.target.value.toLowerCase();
             resultsDiv.innerHTML = '';
+            
+            // Wait for at least 2 characters before querying
             if (val.length < 2) return;
 
+            // Find all matches across the dataset
             const matches = allDams.filter(d => {
                 const name = (d.Dam_Name || '').toLowerCase();
                 const city = (d.City || '').toLowerCase();
                 const state = (d['State Abbreviation'] || '').toLowerCase();
                 return name.includes(val) || city.includes(val) || state.includes(val);
-            }).slice(0, 10);
+            });
 
-            matches.forEach(dam => {
+            // --- UX UPGRADE: Search Results Counter & Empty State ---
+            const countHeader = document.createElement('div');
+            countHeader.style.cssText = 'font-size: 11px; font-weight: bold; color: #7f8c8d; padding: 4px 5px 6px; border-bottom: 1px solid #eee; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em;';
+            
+            if (matches.length === 0) {
+                countHeader.textContent = 'No matching dams found';
+                resultsDiv.appendChild(countHeader);
+                return;
+            } else {
+                const shown = Math.min(10, matches.length);
+                countHeader.textContent = `Showing top ${shown} of ${matches.length} results`;
+                resultsDiv.appendChild(countHeader);
+            }
+
+            // --- UX UPGRADE: Polished List Layout ---
+            matches.slice(0, 10).forEach(dam => {
                 const div = document.createElement('div');
-                div.style.padding = '5px';
+                div.style.padding = '6px 8px';
                 div.style.cursor = 'pointer';
-                div.style.borderBottom = '1px solid #eee';
+                div.style.borderBottom = '1px solid #f9f9f9';
                 div.style.fontSize = '12px';
+                div.style.borderRadius = '3px';
+                div.style.transition = 'background-color 0.15s ease';
 
                 const place = (dam.City && dam.City.trim()) || (dam['County Name'] && dam['County Name'].trim()) || '';
                 const loc = [place, dam['State Abbreviation']].filter(Boolean).join(', ');
-                div.innerHTML = `<strong>${dam.Dam_Name}</strong><br><span style="color:#666;">${loc}</span>`;
+                
+                div.innerHTML = `<strong>${dam.Dam_Name}</strong><br><span style="color:#7f8c8d; font-size: 11px;">${loc}</span>`;
 
-                div.onmouseover = () => div.style.backgroundColor = '#f0f0f0';
-                div.onmouseout = () => div.style.backgroundColor = 'white';
+                // Subtle blue hover effect instead of harsh gray
+                div.onmouseover = () => div.style.backgroundColor = '#f0f4f8';
+                div.onmouseout = () => div.style.backgroundColor = 'transparent';
 
                 div.onclick = () => {
                     const lat = parseFloat(dam.Latitude);
                     const lng = parseFloat(dam.Longitude);
                     if (!isNaN(lat) && !isNaN(lng)) {
-                        map.setView([lat, lng], 12);
+                        map.setView([lat, lng], 14); // Pushed zoom slightly tighter for context
                         markers.eachLayer(l => {
                             if (l.getLatLng().lat === lat && l.getLatLng().lng === lng) l.openPopup();
                         });
