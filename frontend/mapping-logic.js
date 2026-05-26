@@ -341,7 +341,7 @@ function renderMarkers() {
             let markerColor = '#95a5a6'; // Default: Gray (Missing hydro link / screening safety data)
             if (fatalities > 0) {
                 markerColor = '#e74c3c'; // Priority 1: Red (Fatality recorded)
-            } else if (hasSafetyData) {
+            } else if (hasComid) {
                 markerColor = '#3498db'; // Priority 2: Blue (Live forecast + screening active)
             }
 
