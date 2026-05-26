@@ -201,6 +201,27 @@ const SearchControl = L.Control.extend({
         const filterStatus = L.DomUtil.create('div', '', panel);
         filterStatus.style.cssText = 'font-size:11px;color:#666;min-height:15px;';
 
+        const filterDivider = L.DomUtil.create('hr', '', panel);
+        filterDivider.style.cssText = 'margin:8px 0;border:none;border-top:1px solid #ddd;';
+
+        const optionsLabel = L.DomUtil.create('div', '', panel);
+        optionsLabel.style.cssText = 'font-size:11px;font-weight:bold;color:#555;margin-bottom:5px;letter-spacing:0.03em;';
+        optionsLabel.textContent = 'FILTER OPTIONS';
+
+        const checkboxLabel = L.DomUtil.create('label', '', panel);
+        checkboxLabel.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;user-select:none;';
+
+        const fatalityCheckbox = L.DomUtil.create('input', '', checkboxLabel);
+        fatalityCheckbox.type = 'checkbox';
+        fatalityCheckbox.id = 'fatalityFilter';
+        fatalityCheckbox.style.cursor = 'pointer';
+
+        const checkboxText = document.createTextNode('Show only fatality sites');
+        checkboxLabel.appendChild(checkboxText);
+
+        // Listen directly to changes right here in the toolbar control loop
+        fatalityCheckbox.addEventListener('change', renderMarkers);
+
         function _damMatchesRiverFilter(d, rq, sq) {
             if (!d['State Abbreviation']) return false;
             if (rq) {
@@ -568,23 +589,10 @@ legend.onAdd = function (map) {
         <strong>Dam Status</strong><br>
         <i style="background: #e74c3c"></i> Fatality Recorded<br>
         <i style="background: #3498db"></i> Live Forecast Available<br>
-        <i style="background: #95a5a6"></i> Location Info Only<br>
-        <div class="filter-section" style="border-top: 1px solid #ccc; margin-top: 8px; padding-top: 8px;">
-            <label style="cursor: pointer;">
-                <input type="checkbox" id="fatalityFilter"> Show only fatality sites
-            </label>
-        </div>
+        <i style="background: #95a5a6"></i> Location Info Only
     `;
 
     L.DomEvent.disableClickPropagation(div);
-    
-    setTimeout(() => {
-        const filterCheckbox = document.getElementById('fatalityFilter');
-        if (filterCheckbox) {
-            filterCheckbox.addEventListener('change', renderMarkers);
-        }
-    }, 0);
-
     return div;
 };
 legend.addTo(map);
