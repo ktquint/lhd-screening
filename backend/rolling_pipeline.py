@@ -1,25 +1,31 @@
 """
-HUC8-batched LHD screening pipeline.
+HUC-batched LHD screening pipeline.
 
-For each HUC8 in frontend/data/full_lhd_website_huc8.csv:
+Dams are grouped by HUC code at a configurable level (--huc-level, default 6).
+HUC codes nest by prefix, so HUC6 = HUC8[:6], HUC4 = HUC8[:4]. Lower levels =
+fewer, larger batches. Bundle folders are named huc<level>_<KEY>/ (e.g.
+huc6_140600/).
+
+For each HUC group in frontend/data/full_lhd_website_huc8.csv:
   1. Free-space gate — if free disk on --local-staging-root is below
      --min-free-gb the loop stops cleanly so you can move a completed
-     huc8_XXXXXXXX/ directory off to an external drive, then rerun.
+     huc<level>_<KEY>/ directory off to an external drive, then rerun.
   2. (Optional) Symlink existing per-dam staging from --existing-data-dir
-     paths into the new HUC dir. Reuses prior DEM/STRM/LAND/FLOW/RESULTS
+     paths into the new bundle. Reuses prior DEM/STRM/LAND/FLOW/RESULTS
      dirs without copying. The external sources used are recorded in the
      ledger and in .READY_TO_ARCHIVE so you can locate them later.
-  3. Write a per-HUC dams subset CSV to <local>/huc8_<HUC8>/dams.csv.
-  4. Subprocess-chain the 6 pipeline steps targeting <local>/huc8_<HUC8>:
+  3. Write a per-batch dams subset CSV to <local>/huc<level>_<KEY>/dams.csv.
+  4. Subprocess-chain the 6 pipeline steps targeting that bundle:
         stage_nhd_dem → build_trimmed_dems → build_stream_rasters
         → build_streamflow_csv → run_arc_batch → run_analysis_batch
   5. Tally ok/failed dams by checking RESULTS/{dam_id}/arc_done.json and
-     RESULTS/{dam_id}/analysis_summary.json. Failures do NOT abort the loop.
-  6. Write <local>/huc8_<HUC8>/.READY_TO_ARCHIVE with counts, size, and the
-     external paths that need to come along when archiving.
+     RESULTS/{dam_id}/analysis_summary.json. Failures do NOT abort the loop;
+     a batch with failures is marked "partial" and retried on the next run.
+  6. Write <local>/huc<level>_<KEY>/.READY_TO_ARCHIVE with counts, size, and
+     the external paths that need to come along when archiving.
 
-Typical workflow
-----------------
+Typical workflow (HUC6 batches)
+-------------------------------
     # one-time
     python backend/assign_huc8.py
 
@@ -27,22 +33,23 @@ Typical workflow
     python backend/rolling_pipeline.py \\
         --local-staging-root /Users/me/staging \\
         --existing-data-dir /old/lhd_staging \\
-        --min-free-gb 600
+        --huc-level 6 --min-free-gb 600
 
-    # before archiving a HUC, collapse symlinks into real files:
+    # before archiving a batch, collapse symlinks into real files:
     python backend/rolling_pipeline.py \\
-        --local-staging-root /Users/me/staging --consolidate 14060003
+        --local-staging-root /Users/me/staging --consolidate 140600
 
     # then move and mark archived
-    mv /Users/me/staging/huc8_14060003 /Volumes/MyDrive/
+    mv /Users/me/staging/huc6_140600 /Volumes/MyDrive/
     python backend/rolling_pipeline.py \\
-        --local-staging-root /Users/me/staging --mark-archived 14060003
+        --local-staging-root /Users/me/staging --mark-archived 140600
 
 Other commands
 --------------
-    --huc8 <HUC8>       process only this HUC8 (8 digits, leading zeros optional)
-    --status            print the ledger and exit
-    --locate <dam_id>   print which HUC8 a dam belongs to + its ledger status
+    --huc-level {2,4,6,8}  batch granularity (default 6)
+    --huc8 <KEY>           process only this group key (at the active level)
+    --status               print the ledger and exit
+    --locate <dam_id>      print which HUC8 + batch a dam belongs to
 """
 from __future__ import annotations
 
@@ -62,8 +69,11 @@ _BACKEND_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _BACKEND_ROOT.parent
 DEFAULT_DAMS_CSV = _REPO_ROOT / "frontend" / "data" / "full_lhd_website_huc8.csv"
 
-# Statuses that mean "this HUC8 is done from the orchestrator's POV"
-_TERMINAL_STATUSES = {"ready_to_archive", "partial", "archived"}
+# A HUC is skipped on rerun only when it is fully done. "partial" is NOT here
+# on purpose: those HUCs get re-attempted so transient upstream failures (e.g. a
+# TNM outage) are retried — per-dam caches make re-runs cheap. Accept a partial
+# HUC by consolidating + --mark-archived, which flips it to terminal "archived".
+_SKIP_STATUSES = {"ready_to_archive", "archived"}
 
 # Per-dam subdirectories worth reusing from existing staging trees
 _REUSE_SUBDIRS = ("DEM", "STRM", "LAND", "FLOW", "RESULTS")
@@ -75,6 +85,11 @@ def _now() -> str:
 
 def _free_gb(path: Path) -> float:
     return shutil.disk_usage(path).free / 1e9
+
+
+def _huc_dirname(key: str) -> str:
+    """Bundle folder name for a HUC group key, e.g. '140600' -> 'huc6_140600'."""
+    return f"huc{len(key)}_{key}"
 
 
 def _dir_size_bytes(path: Path) -> int:
@@ -196,7 +211,7 @@ def _consolidate_huc(huc_dir: Path) -> Tuple[int, List[str]]:
 
 
 def _process_huc8(
-    huc8: str,
+    key: str,
     dams_subset: pd.DataFrame,
     local_root: Path,
     ledger: Dict[str, dict],
@@ -204,13 +219,15 @@ def _process_huc8(
     workers: int,
     existing_dirs: List[Path],
 ) -> None:
-    huc_dir = local_root / f"huc8_{huc8}"
+    label = f"HUC{len(key)} {key}"
+    huc_dir = local_root / _huc_dirname(key)
     huc_dir.mkdir(parents=True, exist_ok=True)
     dams_csv = huc_dir / "dams.csv"
-    dams_subset.to_csv(dams_csv, index=False)
+    dams_subset.drop(columns=["_GROUP"], errors="ignore").to_csv(dams_csv, index=False)
     dam_ids = [int(x) for x in dams_subset["OBJECTID"].tolist()]
 
-    entry = ledger.setdefault(huc8, {})
+    entry = ledger.setdefault(key, {})
+    entry["huc_level"] = len(key)
     entry["dam_ids"] = dam_ids
     entry["status"] = "staging"
     entry["staged_at"] = _now()
@@ -243,9 +260,11 @@ def _process_huc8(
         py, f"{backend}/build_stream_rasters.py",
         *staging_arg, *common_workers,
     ])
+    # NB: build_streamflow_csv parallelizes year-by-year internally and does
+    # NOT accept --workers, so it gets only the staging dir.
     _run_step("build_streamflow_csv", [
         py, f"{backend}/build_streamflow_csv.py",
-        *staging_arg, *common_workers,
+        *staging_arg,
     ])
 
     entry["status"] = "arc_running"
@@ -273,7 +292,8 @@ def _process_huc8(
     })
 
     marker = {
-        "huc8": huc8,
+        "huc": key,
+        "huc_level": len(key),
         "status": status,
         "dam_count": len(dam_ids),
         "ok": ok,
@@ -291,12 +311,12 @@ def _process_huc8(
     _save_ledger(ledger_path, ledger)
 
     print(
-        f"\nHUC8 {huc8}: {status}  "
+        f"\n{label}: {status}  "
         f"({len(ok)} ok / {len(failed)} failed, {marker['size_human']})"
     )
     if external_paths:
         print(f"  Uses {len(external_paths)} external symlink source(s). "
-              f"Run --consolidate {huc8} before moving the bundle.")
+              f"Run --consolidate {key} before moving the bundle.")
 
 
 # ---------------------------------------------------------------------------
@@ -319,7 +339,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
             f"Dam CSV not found: {args.dams_csv}\n"
             f"Run: python backend/assign_huc8.py"
         )
-    dams = pd.read_csv(args.dams_csv)
+    dams = pd.read_csv(args.dams_csv, low_memory=False)
     if "HUC8" not in dams.columns:
         sys.exit(
             f"{args.dams_csv} has no HUC8 column.\n"
@@ -332,58 +352,67 @@ def _cmd_run(args: argparse.Namespace) -> None:
         & dams["HUC8"].notna()
     ].copy()
     dams["OBJECTID"] = dams["OBJECTID"].astype(int)
-    dams["HUC8"] = dams["HUC8"].astype(str).str.zfill(8)
+    dams["HUC8"] = dams["HUC8"].astype(str).str.split(".").str[0].str.zfill(8)
     dams = dams[dams["HUC8"] != "00000000"]
 
-    huc8_groups = sorted(dams.groupby("HUC8"), key=lambda kv: kv[0])
+    # HUC codes nest by prefix: HUC6 = HUC8[:6], HUC4 = HUC8[:4], etc.
+    level = args.huc_level
+    dams["_GROUP"] = dams["HUC8"].str[: level]
+    groups = sorted(dams.groupby("_GROUP"), key=lambda kv: kv[0])
 
     if args.huc8:
-        target = args.huc8.zfill(8)
-        huc8_groups = [(h, g) for h, g in huc8_groups if h == target]
-        if not huc8_groups:
-            sys.exit(f"HUC8 {target} has no dams in {args.dams_csv}")
+        target = args.huc8
+        groups = [(h, g) for h, g in groups if h == target]
+        if not groups:
+            sys.exit(
+                f"No dams for group '{target}' at HUC level {level} in {args.dams_csv}"
+            )
 
-    skip = {"archived"} if args.huc8 else _TERMINAL_STATUSES
+    skip = {"archived"} if args.huc8 else _SKIP_STATUSES
     pending = [
-        (h, g) for h, g in huc8_groups
+        (h, g) for h, g in groups
         if ledger.get(h, {}).get("status") not in skip
     ]
+    n_partial = sum(
+        1 for h, _ in pending
+        if ledger.get(h, {}).get("status") == "partial"
+    )
 
     print(
-        f"HUC8s in CSV: {len(huc8_groups)} | "
-        f"skipped (already terminal): {len(huc8_groups) - len(pending)} | "
-        f"pending: {len(pending)}"
+        f"HUC{level} batches in CSV: {len(groups)} | "
+        f"done (ready/archived): {len(groups) - len(pending)} | "
+        f"pending: {len(pending)} (incl. {n_partial} partial being retried)"
     )
     if existing_dirs:
         print(f"Existing data dirs: {', '.join(str(d) for d in existing_dirs)}")
 
-    for huc8, group in pending:
+    for key, group in pending:
         free = _free_gb(local_root)
         if free < args.min_free_gb:
             print(
                 f"\nFree space on {local_root}: {free:.1f} GB "
                 f"< {args.min_free_gb} GB threshold."
             )
-            print("Archive a completed HUC8 to your external drive, then:")
+            print("Archive a completed HUC bundle to your external drive, then:")
             print(f"  python backend/rolling_pipeline.py "
-                  f"--local-staging-root {local_root} --consolidate <HUC8>")
-            print(f"  mv {local_root}/huc8_<HUC8> /Volumes/<drive>/")
+                  f"--local-staging-root {local_root} --consolidate <KEY>")
+            print(f"  mv {local_root}/huc{level}_<KEY> /Volumes/<drive>/")
             print(f"  python backend/rolling_pipeline.py "
-                  f"--local-staging-root {local_root} --mark-archived <HUC8>")
+                  f"--local-staging-root {local_root} --mark-archived <KEY>")
             print("…then rerun this command to continue.")
             return
 
         print(f"\n{'=' * 60}")
-        print(f"HUC8 {huc8}  ({len(group)} dams, {free:.1f} GB free)")
+        print(f"HUC{level} {key}  ({len(group)} dams, {free:.1f} GB free)")
         print(f"{'=' * 60}")
         try:
             _process_huc8(
-                huc8, group, local_root, ledger, ledger_path,
+                key, group, local_root, ledger, ledger_path,
                 args.workers, existing_dirs,
             )
         except subprocess.CalledProcessError as e:
-            print(f"\nFATAL: HUC8 {huc8} pipeline step failed: {e}")
-            entry = ledger.setdefault(huc8, {})
+            print(f"\nFATAL: HUC{level} {key} pipeline step failed: {e}")
+            entry = ledger.setdefault(key, {})
             entry["status"] = "errored"
             entry["error"] = str(e)
             entry["errored_at"] = _now()
@@ -398,27 +427,27 @@ def _cmd_mark_archived(args: argparse.Namespace) -> None:
     local_root: Path = args.local_staging_root
     ledger_path = local_root / "huc8_ledger.json"
     ledger = _load_ledger(ledger_path)
-    huc8 = args.mark_archived.zfill(8)
-    if huc8 not in ledger:
-        sys.exit(f"HUC8 {huc8} not found in ledger at {ledger_path}")
-    ledger[huc8]["status"] = "archived"
-    ledger[huc8]["archived_at"] = _now()
+    key = args.mark_archived
+    if key not in ledger:
+        sys.exit(f"HUC group '{key}' not found in ledger at {ledger_path}")
+    ledger[key]["status"] = "archived"
+    ledger[key]["archived_at"] = _now()
     _save_ledger(ledger_path, ledger)
-    huc_dir = local_root / f"huc8_{huc8}"
+    huc_dir = local_root / _huc_dirname(key)
     if huc_dir.exists():
         print(
             f"WARNING: {huc_dir} still exists locally — confirm the archive copy "
             f"is good, then `rm -rf {huc_dir}`."
         )
-    print(f"HUC8 {huc8} marked archived.")
+    print(f"HUC group {key} marked archived.")
 
 
 def _cmd_consolidate(args: argparse.Namespace) -> None:
     local_root: Path = args.local_staging_root
     ledger_path = local_root / "huc8_ledger.json"
     ledger = _load_ledger(ledger_path)
-    huc8 = args.consolidate.zfill(8)
-    huc_dir = local_root / f"huc8_{huc8}"
+    key = args.consolidate
+    huc_dir = local_root / _huc_dirname(key)
     if not huc_dir.is_dir():
         sys.exit(f"HUC dir not found: {huc_dir}")
 
@@ -430,7 +459,7 @@ def _cmd_consolidate(args: argparse.Namespace) -> None:
         for d in dangling:
             print(f"      {d}")
 
-    entry = ledger.setdefault(huc8, {})
+    entry = ledger.setdefault(key, {})
     entry["consolidated"] = True
     entry["consolidated_at"] = _now()
     entry["consolidated_moves"] = moved
@@ -475,7 +504,7 @@ def _cmd_status(args: argparse.Namespace) -> None:
             ext,
         ))
     print(f"Ledger: {ledger_path}\n")
-    print(f"{'HUC8':<10} {'status':<18} {'dams':>5} {'failed':>7} {'size':>10}  {'ext':<3}")
+    print(f"{'HUC':<10} {'status':<18} {'dams':>5} {'failed':>7} {'size':>10}  {'ext':<3}")
     print("-" * 60)
     for r in rows:
         print(f"{r[0]:<10} {r[1]:<18} {r[2]:>5} {r[3]:>7} {r[4]:>10}  {r[5]:<3}")
@@ -489,18 +518,28 @@ def _cmd_locate(args: argparse.Namespace) -> None:
     dams_csv: Path = args.dams_csv
     if not dams_csv.exists():
         sys.exit(f"Dam CSV not found: {dams_csv}")
-    dams = pd.read_csv(dams_csv)
+    dams = pd.read_csv(dams_csv, low_memory=False)
     if "HUC8" not in dams.columns:
         sys.exit(f"{dams_csv} has no HUC8 column. Run: python backend/assign_huc8.py")
     row = dams.loc[dams["OBJECTID"] == target]
     if row.empty:
         sys.exit(f"OBJECTID {target} not found in {dams_csv}")
-    huc8 = str(row.iloc[0]["HUC8"]).zfill(8)
-    print(f"Dam {target} → HUC8 {huc8}")
+    level = args.huc_level
+    raw = row.iloc[0]["HUC8"]
+    huc8 = str(raw).split(".")[0]
+    if pd.isna(raw) or not huc8.isdigit() or huc8.zfill(8) == "00000000":
+        print(f"Dam {target} has no valid HUC8 assignment (value={raw!r}).")
+        print(f"  This is expected if {dams_csv.name} is the un-enriched master. "
+              f"Run `python backend/assign_huc8.py` and point --dams-csv at "
+              f"frontend/data/full_lhd_website_huc8.csv.")
+        return
+    huc8 = huc8.zfill(8)
+    key = huc8[:level]
+    print(f"Dam {target} → HUC8 {huc8}  (HUC{level} batch {key}, folder {_huc_dirname(key)})")
 
     ledger_path = args.local_staging_root / "huc8_ledger.json"
     ledger = _load_ledger(ledger_path)
-    entry = ledger.get(huc8, {})
+    entry = ledger.get(key, {})
     if entry:
         print(f"  ledger status: {entry.get('status', '?')}")
         if entry.get("size_human"):
@@ -522,25 +561,30 @@ def main() -> None:
                         help="Local staging root (per-HUC subdirs created here)")
     parser.add_argument("--dams-csv", type=Path, default=DEFAULT_DAMS_CSV,
                         help=f"Dam CSV with HUC8 column (default: {DEFAULT_DAMS_CSV})")
+    parser.add_argument("--huc-level", type=int, choices=[2, 4, 6, 8], default=6,
+                        help="HUC digit level to batch by (codes nest by prefix: "
+                             "HUC6 = HUC8[:6]). Fewer/larger batches as the number "
+                             "drops. [default: 6]")
     parser.add_argument("--min-free-gb", type=float, default=600.0,
-                        help="Min free GB on staging root before starting a new HUC8 [default: 600]")
+                        help="Min free GB on staging root before starting a new batch [default: 600]")
     parser.add_argument("--workers", type=int, default=8,
                         help="Worker count forwarded to subprocess steps [default: 8]")
     parser.add_argument("--existing-data-dir", type=Path, action="append", default=None,
                         help="Path to an old staging dir whose per-dam subfolders "
                              "(DEM/STRM/LAND/FLOW/RESULTS) should be symlinked into "
                              "new HUC bundles. May be passed multiple times.")
-    parser.add_argument("--huc8", type=str, default=None,
-                        help="Process only this HUC8 (8-digit string, leading zeros optional)")
-    parser.add_argument("--mark-archived", type=str, default=None,
-                        help="Mark the given HUC8 as archived in the ledger and exit")
-    parser.add_argument("--consolidate", type=str, default=None,
-                        help="Replace every symlink in huc8_<HUC8>/ with the underlying "
+    parser.add_argument("--huc8", type=str, default=None, metavar="KEY",
+                        help="Process only this HUC group key, matching the active "
+                             "--huc-level (e.g. '140600' at level 6). Exact match.")
+    parser.add_argument("--mark-archived", type=str, default=None, metavar="KEY",
+                        help="Mark the given HUC group key as archived in the ledger and exit")
+    parser.add_argument("--consolidate", type=str, default=None, metavar="KEY",
+                        help="Replace every symlink in huc<level>_<KEY>/ with the underlying "
                              "files via shutil.move (makes the bundle self-contained "
                              "for moving). Existing sources are emptied. Exits after.")
-    parser.add_argument("--locate", type=str, default=None,
-                        help="Print the HUC8 (and ledger status, if any) for the "
-                             "given dam OBJECTID, then exit")
+    parser.add_argument("--locate", type=str, default=None, metavar="DAM_ID",
+                        help="Print the HUC8 + batch key (and ledger status, if any) "
+                             "for the given dam OBJECTID, then exit")
     parser.add_argument("--status", action="store_true",
                         help="Print ledger contents and exit")
     args = parser.parse_args()
