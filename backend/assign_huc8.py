@@ -106,11 +106,13 @@ def main() -> None:
     huc_col = next((c for c in ("huc8", "HUC8") if c in huc8.columns), None)
     if huc_col is None:
         sys.exit(f"No huc8/HUC8 column in layer '{layer}'. Columns: {list(huc8.columns)}")
-    huc8 = huc8[[huc_col, "geometry"]].rename(columns={huc_col: "HUC8"})
+    # Use a temp name so we don't collide with any pre-existing HUC8 column in
+    # the dam CSV (it already ships HUC2/HUC4/HUC6/HUC8, only ~65% populated).
+    huc8 = huc8[[huc_col, "geometry"]].rename(columns={huc_col: "__wbd_huc8"})
     print(f"  → {len(huc8)} HUC8 polygons (CRS = {huc8.crs})")
 
     print(f"Loading dams from {args.dams_csv} …")
-    dams = pd.read_csv(args.dams_csv)
+    dams = pd.read_csv(args.dams_csv, low_memory=False)
     n_raw = len(dams)
     dams = dams[dams["Latitude"].notna() & dams["Longitude"].notna()].copy()
     if len(dams) < n_raw:
@@ -127,8 +129,12 @@ def main() -> None:
     # A dam exactly on a HUC8 boundary can match more than once; keep first.
     joined = joined[~joined.index.duplicated(keep="first")]
 
-    joined["HUC8"] = joined["HUC8"].fillna("00000000").astype(str).str.zfill(8)
-    out = pd.DataFrame(joined.drop(columns=["geometry", "index_right"], errors="ignore"))
+    # Authoritative HUC8 comes from the WBD join — overwrite the partial column
+    # the CSV shipped with so every dam gets a clean, zero-padded 8-digit code.
+    joined["HUC8"] = joined["__wbd_huc8"].fillna("00000000").astype(str).str.zfill(8)
+    out = pd.DataFrame(
+        joined.drop(columns=["geometry", "index_right", "__wbd_huc8"], errors="ignore")
+    )
 
     n_missing = (out["HUC8"] == "00000000").sum()
     unique_hucs = out.loc[out["HUC8"] != "00000000", "HUC8"].nunique()
