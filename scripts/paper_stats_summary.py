@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "backend"))
 
 from compare_width_methods import (
-    _build_reach, _walk_width, method2_flat_zone, method3_inflection,
+    _build_reach, walk_width, method2_flat_zone, method3_inflection,
     RESULTS, VAL_CSV,
 )
 from compare_height_methods import (
@@ -90,8 +90,8 @@ def main():
             sub = xs_df[(xs_df["Row"] == r) & (xs_df["Col"] == c)]
             if sub.empty:
                 return None
-            return _walk_width(sub.iloc[0]["XS1_Profile"], sub.iloc[0]["XS2_Profile"],
-                               sub.iloc[0]["Ordinate_Dist"], wse)
+            return walk_width(sub.iloc[0]["XS1_Profile"], sub.iloc[0]["XS2_Profile"],
+                              sub.iloc[0]["Ordinate_Dist"], wse)
 
         r2, c2, wse2 = method2_flat_zone(merged)
         r3, c3, wse3 = method3_inflection(merged)

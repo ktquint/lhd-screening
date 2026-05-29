@@ -15,15 +15,19 @@ ROOT = Path(__file__).resolve().parents[1]
 CSV  = ROOT / "output" / "paper_stats_per_dam.csv"
 PNG  = ROOT / "output" / "width_method_comparison.png"
 
+# Dams later found not to be true low-head dams; dropped from the validation cohort.
+REMOVED_IDS = {23, 27, 33, 48}
+
 df = pd.read_csv(CSV)
 mask = df["P_method_b"].notna() & df["known_P"].notna() & df["known_L"].notna()
+mask &= ~df["dam_id"].isin(REMOVED_IDS)
 df = df[mask].copy()
 print(f"cohort n = {len(df)}")
 
 configs = [
-    ("L_baseline", "Baseline (snap cell)",   "steelblue"),
-    ("L_method2",  "Method 2 (flat zone)",   "darkorange"),
-    ("L_method3",  "Method 3 (inflection)",  "seagreen"),
+    ("L_baseline", "Method A (snap cell)",   "steelblue"),
+    ("L_method2",  "Method B (flat zone)",   "darkorange"),
+    ("L_method3",  "Method C (inflection)",  "seagreen"),
 ]
 
 
@@ -33,7 +37,7 @@ def outlier_mask(s: pd.Series) -> pd.Series:
     return (s < q1 - 1.5 * iqr) | (s > q3 + 1.5 * iqr)
 
 
-fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+fig, axes = plt.subplots(2, 3, figsize=(15, 13))
 
 for col_idx, (col, title, color) in enumerate(configs):
     ax_sc  = axes[0, col_idx]
@@ -60,24 +64,20 @@ for col_idx, (col, title, color) in enumerate(configs):
     ax_sc.legend(fontsize=8)
 
     sub["norm_resid"] = sub["resid"] / sub["known_L"]
-    is_out_n = outlier_mask(sub["norm_resid"])
-    bins = np.linspace(-2, 2, 33)
-    ax_res.hist(sub.loc[~is_out_n, "norm_resid"], bins=bins,
-                color=color, alpha=0.7, edgecolor="k", linewidth=0.4, label="Normal")
-    ax_res.hist(sub.loc[is_out_n, "norm_resid"], bins=bins,
-                color="crimson", alpha=0.8, edgecolor="k", linewidth=0.4, label="Outlier")
+    ax_res.boxplot(sub["norm_resid"].values, vert=False, widths=0.6,
+                   patch_artist=True,
+                   boxprops=dict(facecolor=color, alpha=0.7, edgecolor="k"),
+                   medianprops=dict(color="k", linewidth=1.5),
+                   whiskerprops=dict(color="k"), capprops=dict(color="k"),
+                   flierprops=dict(marker="o", markerfacecolor="crimson",
+                                   markersize=4, markeredgecolor="k",
+                                   markeredgewidth=0.4))
     ax_res.axvline(0, color="k", linewidth=1.0, linestyle="--")
-    ax_res.axvline(sub["norm_resid"].median(), color=color,
-                   linewidth=1.5, linestyle="-",
-                   label=f"median={sub['norm_resid'].median():.2f}")
     ax_res.set_xlabel("Normalised residual  (est − known) / known")
-    ax_res.set_ylabel("Count")
-    ax_res.set_title(f"Residuals — {title}")
-    ax_res.legend(fontsize=8)
+    ax_res.set_yticks([])
+    ax_res.set_title(f"Residuals — {title}  (median={sub['norm_resid'].median():.2f})")
 
 axes[0, 0].set_ylabel("Estimated width (m)")
-fig.suptitle("Crest width: sampling method comparison (n=72 cohort)  "
-             "(red = IQR outliers)", fontweight="bold")
 fig.tight_layout()
 fig.savefig(PNG, dpi=150)
 print(f"Saved → {PNG}")
