@@ -1,43 +1,169 @@
 # lhd-screening
 
-Public-facing low-head dam screening tool. Combines:
-- **Frontend** (forthcoming): Leaflet map for browsing known dams + submitting new lat/lon points (adapted from `lhd-screening-site`).
-- **Backend** (forthcoming): trimmed pipeline wrapping `lhd-processor` to run hydraulic analysis on a single user-submitted point, replacing the `weir_length` input with a value derived from the DEM water surface at the upstream cross-section.
+Public-facing low-head dam screening tool. Combines a Leaflet-based map of
+~20k known LHDs with an offline ARC-driven hydraulic screening pipeline that
+estimates each dam's crest length, height, and dangerous-flow range.
 
-## Status
-
-Pre-pipeline: validating the assumption that the upstream DEM water-surface width
-is a usable substitute for the known `weir_length`.
+- **Frontend** (`frontend/`): static Leaflet map (`index.html` +
+  `mapping-logic.js`) that reads `frontend/data/full_lhd_website.csv`.
+  Color-codes dams by hazard class and exposes filters by state, owner,
+  hazard, and HUC.
+- **Backend** (`backend/`): HUC6-batched ARC pipeline that stages NHD
+  flowlines + 3DEP DEMs, runs the Automated Rating Curve generator, then
+  derives geometry (weir length, dam height) and dangerous-flow range
+  (Qmin/Qmax) per dam.
 
 ## Setup
 
-This project depends on `lhd-processor` being importable. The env is a
-**micromamba** env (not conda), so:
+The env is a **micromamba** env (not conda):
 
 ```bash
 micromamba activate lhd-environment
-cd ../lhd-processor && pip install -e .   # if not already installed
+pip install -r backend/requirements.txt
 ```
 
-…or rely on the path-based fallback in the scripts (defaults to
-`~/Developer/lhd-processor`).
+The `backend/lhd_processor/` package is the in-repo successor to the old
+external `lhd-processor` package — no separate install needed.
 
-If activation fails in your terminal, invoke the env's Python directly:
+## Backend pipeline
+
+### One-time prep
+
+Spatial-joins every dam in `frontend/data/full_lhd_website.csv` against the
+USGS WBD national GPKG (auto-downloaded into `cache/wbd/`, ~2.5 GB) and
+overwrites the `HUC2/HUC4/HUC6/HUC8` columns with authoritative codes:
 
 ```bash
-/opt/homebrew/Cellar/micromamba/2.4.0/envs/lhd-environment/bin/python \
-    scripts/validate_water_width.py ...
+python backend/assign_huc8.py
 ```
 
-## Validation script
+### Main pipeline (`rolling_pipeline.py`)
+
+Groups dams by HUC6 (default; `--huc-level` accepts 2/4/6/8), writes a
+per-HUC bundle at `<staging-root>/huc6_<KEY>/`, and chains 6 steps per
+batch:
+
+1. `stage_nhd_dem.py` — NHD flowlines + 3DEP raw tile manifest.
+2. `build_trimmed_dems.py` — mosaic + clip per-dam DEMs.
+3. `build_stream_rasters.py` — STRM rasters for ARC.
+4. `build_streamflow_csv.py` — NWM zarr retrospective flow series.
+5. `run_arc_batch.py` — ARC (Automated Rating Curve).
+6. `run_analysis_batch.py` — weir length, dam height, Qmin/Qmax per XS.
 
 ```bash
-python scripts/validate_water_width.py \
-    --database /path/to/your_dams.xlsx \
-    --results /path/to/Results \
-    --output output/
+python backend/rolling_pipeline.py \
+    --local-staging-root /path/to/staging \
+    --existing-data-dir  /old/lhd_staging \   # optional, may repeat
+    --min-free-gb 600
 ```
 
-Produces `water_width_validation.csv` and a 1:1 scatter plot comparing the
-known `weir_length` (from the Sites sheet) to the upstream-XS water-surface
-width measured from the DEM + ARC's estimated WSE.
+`--existing-data-dir` symlinks already-staged per-dam folders
+(DEM/STRM/LAND/FLOW/RESULTS) from a prior scattered run into the new HUC
+bundle, so reruns don't refetch DEMs or rerun ARC.
+
+A ledger at `<staging-root>/huc8_ledger.json` tracks each batch's status:
+`staging → arc_running → ready_to_archive | partial | errored | archived`.
+Reruns only skip `ready_to_archive` and `archived`; `partial` and `errored`
+batches retry automatically (per-dam caches make retries cheap).
+
+### Disk gate and archiving
+
+When free disk drops below `--min-free-gb` (default 600), the loop halts
+cleanly with the archive recipe printed. To clear the queue in one shot:
+
+```bash
+python backend/rolling_pipeline.py \
+    --local-staging-root /path/to/staging \
+    --archive-to /Volumes/ExternalDrive
+```
+
+`--archive-to` walks the ledger, consolidates symlinks into real files,
+`mv`s every `ready_to_archive` bundle to the destination, and flips its
+ledger status to `archived`.
+
+### Master CSV refresh
+
+The pipeline auto-runs the aggregate step at the end of every run (and on
+disk-gate halt), which rolls per-dam `RESULTS/<id>/analysis_summary.json`
+into four columns on `frontend/data/full_lhd_website.csv`:
+
+- `Qmin_env` / `Qmax_env` — envelope across the 4 downstream XS.
+- `Qmin_stable` / `Qmax_stable` — XS nearest the slope-stabilization cell
+  used for the dam-height estimate.
+
+To trigger manually:
+
+```bash
+python backend/rolling_pipeline.py \
+    --local-staging-root /path/to/staging \
+    --existing-data-dir  /old/lhd_staging \
+    --aggregate
+```
+
+### Other commands
+
+```bash
+# inspect ledger
+python backend/rolling_pipeline.py --local-staging-root /path --status
+
+# find a specific dam's batch
+python backend/rolling_pipeline.py --local-staging-root /path --locate 1234
+
+# per-key manual archive (rare; --archive-to handles the queue)
+python backend/rolling_pipeline.py --local-staging-root /path --consolidate 140600
+python backend/rolling_pipeline.py --local-staging-root /path --mark-archived 140600
+```
+
+### Failure logging
+
+`run_arc_batch.py` and `run_analysis_batch.py` write
+`<huc-bundle>/failures_arc.json` and `failures_analysis.json` when any dam
+fails — `{dam_id: status_string}` with the specific reason
+(`missing-input`, `arc-error:…`, `localxs-error:…`, etc.). Files are
+cleaned up automatically on a rerun that resolves all failures.
+
+## Frontend
+
+Static site, no build step. Serve `frontend/` over any HTTP server and open
+`index.html`:
+
+```bash
+cd frontend && python -m http.server 8000
+```
+
+Reads `frontend/data/full_lhd_website.csv` (the same file the backend
+writes to). Map state, dam coloring, and filters all derive from CSV
+columns.
+
+## Repo layout
+
+```
+backend/
+  assign_huc8.py            # one-time WBD HUC assignment
+  rolling_pipeline.py       # HUC6-batched orchestrator
+  stage_nhd_dem.py          # step 1
+  build_trimmed_dems.py     # step 2
+  build_stream_rasters.py   # step 3
+  build_streamflow_csv.py   # step 4
+  run_arc_batch.py          # step 5
+  run_analysis_batch.py     # step 6
+  lhd_processor/            # in-repo hydraulic library
+  screening/                # shared helpers (reach, width, height)
+frontend/
+  index.html                # Leaflet map
+  mapping-logic.js
+  data/full_lhd_website.csv # master dam CSV (read by site + written by pipeline)
+cache/wbd/                  # WBD national GPKG (auto-downloaded)
+scripts/                    # analysis + paper scripts (compare_*, joint_error_propagation, …)
+```
+
+## Known gotchas
+
+- **TNM outages.** `stage_nhd_dem` hits `tnmaccess.nationalmap.gov`. When
+  it's down it returns HTTP 200 with a non-JSON `BadRequest …
+  RemoteDisconnected …` body, breaking `r.json()`. Dams without
+  prior-cached DEMs then get 0 tiles and fail downstream. Don't start a
+  full sweep during an outage; reruns retry only the failed dams.
+- **Windows file locks.** Antivirus / Search Indexer holding open
+  `RESULTS/<id>/Bathymetry/*.tif` can produce `Permission denied` on the
+  ARC cleanup step. Exclude the staging root from real-time scanning.
