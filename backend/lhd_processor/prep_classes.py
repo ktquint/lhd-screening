@@ -2,7 +2,8 @@ import gc
 import os
 import re
 import datetime
-import geoglows
+# geoglows is imported lazily inside the GEOGLOWS branches so the NWM-only
+# batch path doesn't need geoglows + its transitive deps installed.
 import rasterio
 import numpy as np
 import pandas as pd
@@ -103,6 +104,7 @@ class LowHeadDam:
 
         if source == 'GEOGLOWS' and self.geoglows_id:
             try:
+                import geoglows  # lazy: only the legacy GEOGLOWS path needs it
                 df = geoglows.data.retrospective(
                     river_id=int(self.geoglows_id),
                     start_date=date,
@@ -156,6 +158,7 @@ class LowHeadDam:
 
         if source == 'GEOGLOWS' and self.geoglows_id:
             try:
+                import geoglows  # lazy: only the legacy GEOGLOWS path needs it
                 df = geoglows.data.retrospective(river_id=int(self.geoglows_id))
                 if not df.empty:
                     return float(df.iloc[:, 0].median())

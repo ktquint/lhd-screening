@@ -1,7 +1,9 @@
 import os
 import ast
 import pyproj
-import geoglows
+# geoglows is imported lazily inside the GEOGLOWS-only branch of _fetch_flow_data
+# so the NWM-only batch path (rolling_pipeline) doesn't need geoglows + its
+# transitive deps (pytz, plotly, etc.) installed.
 import numpy as np
 import xarray as xr
 import pandas as pd
@@ -813,6 +815,7 @@ class Dam:
         elif self.hydrology == 'GEOGLOWS':
             if self.geoglows_id and not pd.isna(self.geoglows_id):
                 try:
+                    import geoglows  # lazy: only the legacy GEOGLOWS path needs it
                     df = geoglows.data.retrospective(river_id=int(self.geoglows_id),
                                                      resolution='daily',
                                                      bias_corrected=True)
