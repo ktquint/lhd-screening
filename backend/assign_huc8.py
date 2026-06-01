@@ -117,8 +117,17 @@ def main() -> None:
         joined["__wbd_huc8"].fillna("00000000").astype(str).str.zfill(8)
     )
 
-    # Authoritative WBD overwrites the partial HUC2/4/6/8 the CSV shipped with.
-    # Re-index back to the full frame so lat/lon-less rows stay aligned.
+    # Drop any pre-existing HUC columns: their dtype may be float64 (the
+    # original CSV had them mostly NaN, so pandas inferred numeric) which
+    # blocks setting string values into them. Recreating from scratch as
+    # string columns is cleaner than fighting dtype coercion.
+    dams = dams.drop(columns=[c for c in ("HUC2", "HUC4", "HUC6", "HUC8")
+                              if c in dams.columns])
+    for col in ("HUC2", "HUC4", "HUC6", "HUC8"):
+        dams[col] = pd.Series(pd.NA, index=dams.index, dtype="string")
+
+    # Authoritative WBD codes — re-index back to the full frame so
+    # lat/lon-less rows stay aligned (they keep <NA>).
     dams.loc[huc8_codes.index, "HUC8"] = huc8_codes.values
     dams.loc[huc8_codes.index, "HUC6"] = huc8_codes.str[:6].values
     dams.loc[huc8_codes.index, "HUC4"] = huc8_codes.str[:4].values

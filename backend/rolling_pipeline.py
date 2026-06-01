@@ -404,7 +404,15 @@ def _cmd_run(args: argparse.Namespace) -> None:
             print(f"  mv {local_root}/huc{level}_<KEY> /Volumes/<drive>/")
             print(f"  python backend/rolling_pipeline.py "
                   f"--local-staging-root {local_root} --mark-archived <KEY>")
+            print(f"…or batch-archive every ready bundle in one shot:")
+            print(f"  python backend/rolling_pipeline.py "
+                  f"--local-staging-root {local_root} --archive-to /Volumes/<drive>")
             print("…then rerun this command to continue.")
+            print("\nAuto-aggregating dangerous-flow columns into master CSV …")
+            try:
+                _cmd_aggregate(args)
+            except Exception as e:
+                print(f"  WARN aggregate step failed: {e}")
             return
 
         print(f"\n{'=' * 60}")
@@ -426,6 +434,15 @@ def _cmd_run(args: argparse.Namespace) -> None:
             return
 
     print("\nAll pending HUCs processed.")
+
+    # Refresh Qmin/Qmax columns on the master CSV from whatever analysis
+    # summaries now exist (across staging-root + each --existing-data-dir).
+    # Failure here shouldn't undo the pipeline run, so swallow exceptions.
+    print("\nAuto-aggregating dangerous-flow columns into master CSV …")
+    try:
+        _cmd_aggregate(args)
+    except Exception as e:
+        print(f"  WARN aggregate step failed: {e}")
 
 
 def _cmd_mark_archived(args: argparse.Namespace) -> None:
@@ -641,7 +658,8 @@ def _cmd_aggregate(args: argparse.Namespace) -> None:
 
     print(f"  → {len(seen)} dam summaries found")
     if not seen:
-        sys.exit("Nothing to aggregate.")
+        print("Nothing to aggregate.")
+        return
 
     rows: Dict[int, Dict[str, float]] = {}
     n_no_xs = 0
