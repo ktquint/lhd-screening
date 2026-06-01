@@ -1,0 +1,361 @@
+action,site_id,site_name,distance_m,OBJECTID,old_fatality,old_num,new_fatality,new_num
+fatality_update,226,Low Head Dam on Indian Creek,5.1,5641,,,Yes,1
+fatality_update,123,Great Crossings Dam near Great Crossing Park,0.0,7253,,2.0,Yes,3
+fatality_update,128,Bloede's Dam in Patapsco Valley State Park,0.0,15972,,,Yes,6
+fatality_update,83,Welch Dam,0.0,15964,,,Yes,4
+fatality_update,79,Red Lake River Dam just east of River View Health,30.4,8031,,,Yes,2
+fatality_update,243,Low Head Dam on Big Wills Creek,0.8,11656,,,Yes,4
+fatality_update,220,Dennett Dam,0.0,16025,,,Yes,3
+fatality_update,241,Low Head Divers Dam Near Mt. Shivano Fish Hatchery,13.6,8541,,,Yes,4
+fatality_update,28,Boone Water Works Low-head Dam,0.0,7197,,4.0,Yes,5
+fatality_update,30,Fort Dodge Little Dam,31.8,7198,,2.0,Yes,2
+fatality_update,215,Corn Belt Power Dam,0.0,15978,,,Yes,3
+fatality_update,137,Des Plaines River south of W 9th Street,0.0,16032,,,Yes,1
+fatality_update,47,Danville Dam east of S Gilbert St,3.4,5722,,,Yes,2
+fatality_update,113,Dam near Hammel Woods Kayak Launch,4.1,15298,,,Yes,3
+fatality_update,216,Markle Mill Dam on Otter Creek,0.0,7308,,1.0,Yes,1
+fatality_update,238,John Thompson Dam,0.0,7321,,1.0,Yes,2
+fatality_update,587,Rockford Dam,0.0,7427,,1.0,Yes,1
+fatality_update,119,Jim Beam Old Granddad Distillery Dam,0.0,15970,,,Yes,2
+fatality_update,240,"Greencastle Dam, Bowling Green",7.9,12733,,,Yes,3
+fatality_update,227,Kentucky Utility Low Head Dam,0.0,7315,,1.0,Yes,1
+fatality_update,151,Mill Street Dam next to railroad,3.0,14779,,,Yes,1
+fatality_update,153,Union Dam by Baltimore National Pike,0.0,15974,,,Yes,3
+fatality_update,134,Corunna Dam east of Mitchell Park,6.8,9502,,,Yes,1
+fatality_update,193,Shiatown Dam,2.2,9604,,,Yes,1
+fatality_update,75,Flandrau State Park dam,0.0,15963,,,Yes,2
+fatality_update,70,Minnesota Falls Dam (before removal),0.0,16030,,,Yes,1
+fatality_update,74,Dam in Buffalo River State Park,26.7,16028,,,Yes,2
+fatality_update,89,Rock River Dam SE of Luverne City Park,16.8,12281,,,Yes,1
+fatality_update,135,Dam SW of Lagoon Park,20.4,12068,,,Yes,3
+fatality_update,69,Willow River Dam on Willow River Reservoir,6.1,16887,,,Yes,2
+fatality_update,268,Dawt Mill Dam,5.6,3567,,,Yes,1
+fatality_update,142,Milburnie Dam on Neuse River,0.0,15976,,,Yes,11
+fatality_update,122,5th Avenue Dam near Ohio State University,0.0,15971,,,Yes,2
+fatality_update,178,Deleware Recycling Plant to Chapman Rd,0.0,15973,,,Yes,1
+fatality_update,156,Dam in Lancaster Township,0.0,16022,,,Yes,1
+fatality_update,98,Fishing Creek dam near Camp Creasy,0.0,15966,,,Yes,2
+fatality_update,110,Plymouth Dam south of I-476,0.0,15967,,,Yes,1
+fatality_update,197,Englewood low-head dam,2.8,7295,,1.0,Yes,2
+fatality_update,208,Woolen Mills Dam,0.0,15977,,,Yes,1
+fatality_update,53,Brantley Dam,0.0,16024,,,Yes,1
+fatality_update,55,Maury River Dam by Jordan's Point Park,28.0,7212,,1.0,Yes,1
+fatality_update,196,Linen Dam near Highway 113 bridge,48.5,5342,,,Yes,2
+fatality_update,51,Highland Dam near Hide A Way,0.0,16027,,,Yes,3
+fatality_update,247,Dam near Willow Grove Park,2.2,11034,,,Yes,3
+fatality_update,223,Robinson Dam,0.0,7313,,8.0,Yes,12
+fatality_update,125,Quinnipiac River near Cheshire town line,0.0,15968,,,Yes,1
+fatality_update,1,WCFCCS Drop Structure 2 at Bancroft Rd.,46.7,7182,,2.0,Yes,8
+fatality_update,2,Jordan River at 6500 South,33.5,17818,,,Yes,2
+fatality_update,3,Daguerre Point Dam,28.2,6586,,2.0,Yes,3
+fatality_update,4,Wanawish Dam / Horn Rapids Dam,19.1,7113,,,Yes,2
+fatality_update,5,Swackhammer Dam Fish Ladder,0.0,7183,,1.0,Yes,2
+fatality_update,6,Chester Dam on Henry's Fork,35.7,7184,,1.0,Yes,1
+fatality_update,7,Salt River near S McClintock Dr,0.0,7185,,2.0,Yes,3
+fatality_update,9,Price Stubs Diversion Dam,0.0,7186,,1.0,Yes,1
+fatality_update,11,Clear Creek Drop Structures in Adams County,30.0,2870,,1.0,Yes,2
+fatality_update,12,South Platte River crossing W Union Ave,19.4,8989,,,Yes,3
+fatality_update,13,Near Belle Fourche,0.0,7187,,1.0,Yes,3
+fatality_update,14,Dam near the Haven River Inn,0.0,7188,,1.0,Yes,1
+fatality_update,15,Cumming's Dam on the San Marco River,11.2,16577,,,Yes,2
+fatality_update,16,Martindale Dam off of Main Street,4.0,16573,,,Yes,1
+fatality_update,18,Trinity Falls Dam near Trinity River park,0.0,7189,,3.0,Yes,4
+fatality_update,19,Riverside Drive Dam south of W 23rd Street,0.0,5400,,2.0,Yes,4
+fatality_update,20,Dam on Kansas River near Topeka Water Treatment Plant,0.0,7190,,2.0,Yes,3
+fatality_update,21,Kansas River below Nelson Island,9.9,14990,,,Yes,1
+fatality_update,22,Dam located by Baltic River Park,0.0,7191,,1.0,Yes,1
+fatality_update,23,Flandreau Dam near 1st Ave and N Crescent St,0.0,7192,,1.0,Yes,1
+fatality_update,24,Shoal Creek Dam near Lime Kiln Dr,0.0,7193,,3.0,Yes,5
+fatality_update,25,Clarinda Dam near Clarinda Water Filter Plant,0.0,7194,,2.0,Yes,2
+fatality_update,26,Scott Street Dam south of SE 1st St,0.0,7195,,4.0,Yes,4
+fatality_update,27,Center Street Dam south of River Hills Park,0.0,7196,,5.0,Yes,12
+fatality_update,29,Fraser Dam near 1st St and 3rd St,34.9,8078,,,Yes,2
+fatality_update,31,Alden Dam right off of Main St,26.5,7199,,1.0,Yes,2
+fatality_update,32,Waverly Dam right off of E Bremer Ave,32.9,7200,,1.0,Yes,1
+fatality_update,33,Alcock Park Dam,0.0,7201,,1.0,Yes,1
+fatality_update,34,Littleton Mill Dam,11.6,14230,,,Yes,9
+fatality_update,35,Independence Lower Dam right off of 1st St W,0.0,7202,,1.0,Yes,1
+fatality_update,36,REA Dam near Winnebago Park,26.8,7203,,4.0,Yes,7
+fatality_update,38,Burlington Street Dam right off of W Burlington St,24.0,7205,,6.0,Yes,6
+fatality_update,40,Dresbach Dam right off of Interstate 90,0.0,7206,,2.0,Yes,5
+fatality_update,43,Sauk River Dam,0.0,7207,,1.0,Yes,2
+fatality_update,44,Snake River Dam west of Cross Lake Rd,0.0,7208,,1.0,Yes,1
+fatality_update,46,Wilmington Dam,20.5,7210,,6.0,Yes,12
+fatality_update,48,Eel River Dam in Stockdale,8.4,12067,,,Yes,1
+fatality_update,49,"White River Dam 3 miles north of Martinsville, IN / Indianapolis Power and Light Co. Dam",19.3,15381,,,Yes,2
+fatality_update,52,Blackwater River Dam near the intersection of S Main St and Scuffling Hill Rd,0.0,16023,,,Yes,2
+fatality_update,56,Riverton Dam south end of Bennys Beach Rd,35.8,7213,,3.0,Yes,3
+fatality_update,57,Dashields Lock and Dam,0.0,7214,,3.0,Yes,5
+fatality_update,58,Holtwood Dam west of Owl Bridge Rd,0.0,7215,,1.0,Yes,1
+fatality_update,59,Fishing Creek Dam south of Crickside Ln,13.1,7216,,1.0,Yes,1
+fatality_update,61,Island Farm Weir southeast of Cooper Street Park,17.7,7217,,1.0,Yes,2
+fatality_update,62,Rock Bottom Dam south of Columbus Park,29.8,15256,,,Yes,3
+fatality_update,63,Low-head dam in Claryville near Denning Rd and Red Hill Rd,0.0,7218,,1.0,Yes,2
+fatality_update,64,Androscoggin River Dam north of Androscoggin River Reservoir,0.0,7219,,1.0,Yes,1
+fatality_update,66,Dock Street Dam,0.0,7220,,18.0,Yes,29
+fatality_update,67,Small dam in Battle Creek Regional Park,0.0,7221,,1.0,Yes,1
+fatality_update,68,Platte River dam near Platte Lake,6.6,7222,,1.0,Yes,1
+fatality_update,71,Fargo-Moorhead Dam near 12th Ave. N / Midtown Dam,7.7,15902,,,Yes,2
+fatality_update,72,Kathio State Park Dam on Ogechie Lake / Buckmore Dam,1.1,12073,,,Yes,2
+fatality_update,73,Faribault Dam on Straight River,5.7,7223,,2.0,Yes,3
+fatality_update,76,Anoka Dam near Main St. and Ferry St.,0.0,7224,,1.0,Yes,1
+fatality_update,77,"Drayton Dam, NE of I-29 exit 187",6.9,19769,,,Yes,2
+fatality_update,80,Sunrise River dam SW of Long Lake,6.5,7225,,1.0,Yes,1
+fatality_update,81,Rochester Dam on Silver Lake,0.0,7226,,1.0,Yes,1
+fatality_update,82,Mississippi River Lock & Dam No. 5A,0.0,7227,,2.0,Yes,2
+fatality_update,84,Dam near 4th Ave. NE & 6th St. NE,5.6,12218,,,Yes,1
+fatality_update,85,Sauk Centre Dam on Sauk Lake,0.0,7228,,1.0,Yes,2
+fatality_update,87,Ann River Dam near Fish Lake,0.0,7229,,1.0,Yes,1
+fatality_update,88,Gorman Lake Dam,2.0,7230,,1.0,Yes,1
+fatality_update,90,Berning Mill Dam near 42nd St. NE &amp; N Aber Ave.,0.0,15965,,,Yes,5
+fatality_update,91,Williams Dam near Williams Dam Public Fishing Area,0.0,7231,,2.0,Yes,3
+fatality_update,92,Mississippi River Lock & Dam No. 1,30.4,7232,,1.0,Yes,1
+fatality_update,93,Riverside Dam near Riverside Park,7.8,8054,,,Yes,1
+fatality_update,94,Crow Wing River dam on Lake Placid,0.0,7233,,1.0,Yes,2
+fatality_update,95,Grindstone River Dam on Grindstone Reservoir,0.0,7234,,1.0,Yes,1
+fatality_update,97,Allegheny River Lock & Dam No. 2,0.0,7235,,2.0,Yes,4
+fatality_update,100,Bushkill Creek dam just north of Bushkill Dr &amp; Zucksville Rd,5.2,7237,,2.0,Yes,2
+fatality_update,101,Red Hill Dam near Three Mile Island,0.0,7238,,2.0,Yes,4
+fatality_update,102,Dam adjacent to the Musgrove Country Club,20.3,7239,,1.0,Yes,1
+fatality_update,103,Cypress Creek near Florence water treatment plant,18.3,11497,,,Yes,5
+fatality_update,104,Jonestown Dam,0.0,7240,,4.0,Yes,6
+fatality_update,105,Holtwood Dam,0.0,7241,,2.0,Yes,3
+fatality_update,106,York Haven Dam south of Three Mile Island,0.0,7242,,1.0,Yes,2
+fatality_update,108,B.F. Goodrich Dam,0.0,7243,,1.0,Yes,7
+fatality_update,109,Remmel Dam near McGuire Rd,0.0,7244,,1.0,Yes,1
+fatality_update,111,Dam under Pine Flat Road Bridge,0.0,7245,,2.0,Yes,2
+fatality_update,112,Opekiska Dam,0.0,7246,,1.0,Yes,1
+fatality_update,114,Adam T. Bower Memorial Dam,0.0,7247,,2.0,Yes,3
+fatality_update,115,Dam near Brandywine Picnic Park,0.0,7248,,1.0,Yes,2
+fatality_update,116,Allegheny River Lock & Dam No. 3,0.0,7249,,1.0,Yes,2
+fatality_update,117,South Connellsville Dam,0.0,7250,,1.0,Yes,1
+fatality_update,118,Point Marion Lock & Dam,0.0,7251,,1.0,Yes,1
+fatality_update,120,Vermilion River Dam near Lentman Lake,0.0,7252,,1.0,Yes,3
+fatality_update,121,Ellsworth Park Dam south of W Main St,3.8,5723,,,Yes,4
+fatality_update,124,Clear Creek near Golden,15.7,7254,,1.0,Yes,1
+fatality_update,126,Bridge in Cannondale to Mouth,0.0,7255,,1.0,Yes,2
+fatality_update,127,Upper Bondsville Dam,8.7,7256,,2.0,Yes,3
+fatality_update,129,Kimball Street Dam,0.0,7257,,2.0,Yes,3
+fatality_update,131,Barber Dam near Ann Morrison Park,40.7,6749,,1.0,Yes,1
+fatality_update,132,"Fox River Dam near Algonquin, IL",0.0,7258,,2.0,Yes,3
+fatality_update,133,Near Lowell on the Vermilion River,0.0,16026,,,Yes,2
+fatality_update,139,Silver Bullet Rapid diversion dam,0.0,7259,,1.0,Yes,2
+fatality_update,140,Pumphouse Rapids diversion dam,0.0,7260,,1.0,Yes,2
+fatality_update,141,Kentucky Dam near I-24 bridge,0.0,7261,,1.0,Yes,2
+fatality_update,144,East Berlin Dam near Highway 234 bridge,0.0,7262,,1.0,Yes,3
+fatality_update,146,Dam near Argonia River Park,0.0,7264,,1.0,Yes,1
+fatality_update,147,Lock 7 dam near Pleasant Hill,0.0,7265,,1.0,Yes,1
+fatality_update,148,Terry Dam on Kentucky's Licking River,0.0,7266,,3.0,Yes,4
+fatality_update,150,Z Dam,0.0,7267,,4.0,Yes,4
+fatality_update,152,Little Falls Dam / Brookmont Dam,0.0,7268,,8.0,Yes,16
+fatality_update,154,Yates Cider Mill,14.7,7269,,2.0,Yes,2
+fatality_update,155,Dam near Messiah College,12.4,17907,,,Yes,1
+fatality_update,157,Dam near Newark Water Treatment Plant,15.9,7270,,1.0,Yes,1
+fatality_update,158,Milltown Dam near Main St. Bridge,0.0,7271,,1.0,Yes,1
+fatality_update,159,Dam near Tips Park,0.0,9494,,,Yes,1
+fatality_update,160,Dam near Highway 127,0.0,7272,,1.0,Yes,1
+fatality_update,161,Huron River Dam near Milford,0.0,7273,,1.0,Yes,2
+fatality_update,162,Dam near Morganton Water Filter Plant,27.5,7274,,1.0,Yes,1
+fatality_update,163,Low head dam near Apple Creek Country Club,19.6,7275,,1.0,Yes,2
+fatality_update,166,Dam above Roosevelt Blvd.,11.1,7276,,3.0,Yes,4
+fatality_update,167,Town of High Bridge to confluence with North Branch of the Raritan,13.3,7277,,1.0,Yes,1
+fatality_update,168,Thompson Island Dam,0.0,7278,,1.0,Yes,1
+fatality_update,169,Starbuckville Dam south of Schroon Lake,0.0,7279,,1.0,Yes,2
+fatality_update,170,Wapato Diversion Dam; I-82 milepost 39,11.7,7169,,2.0,Yes,4
+fatality_update,171,"Newfoundland (Rte 513) to Alt Rt 511, Pompton Lakes",31.8,3755,,,Yes,1
+fatality_update,172,Dam near Rieglesville,0.0,15975,,,Yes,2
+fatality_update,173,Just north of the Boca Reservoir,0.0,7280,,1.0,Yes,1
+fatality_update,174,Daniels Park by I-90,0.0,7281,,2.0,Yes,3
+fatality_update,175,Idols Dam south of I-40,13.3,12283,,,Yes,1
+fatality_update,176,Bitterroot River Dam,8.4,7282,,2.0,Yes,2
+fatality_update,177,Dam north of Neilan Boulevard,0.0,7283,,1.0,Yes,2
+fatality_update,179,Lowhead dam near Dayton,0.0,7284,,1.0,Yes,1
+fatality_update,181,Dam north of W Freedom Ave,11.4,7285,,1.0,Yes,1
+fatality_update,182,Barberville Dam,3.6,7286,,1.0,Yes,2
+fatality_update,183,Rockford Manufacturing Company Dam near Little River Rd,13.2,7287,,1.0,Yes,2
+fatality_update,184,Ottline Dam south of Spring Lake,5.8,7765,,,Yes,1
+fatality_update,185,Dam near Riverview Plaza Dr. bridge,2.7,11938,,,Yes,1
+fatality_update,187,Geneva Dam just above Highway 38 bridge,0.0,7288,,2.0,Yes,3
+fatality_update,188,North Aurora Dam just above State St. bridge,0.0,7289,,1.0,Yes,1
+fatality_update,190,Milan Steel Dam,0.0,7290,,3.0,Yes,4
+fatality_update,191,Peery's Mill Dam,0.0,7291,,4.0,Yes,5
+fatality_update,192,Manson Pike Dam,20.4,7292,,1.0,Yes,1
+fatality_update,194,Upper Dam near River Rd.,0.0,7293,,1.0,Yes,1
+fatality_update,195,Dam near Handley Ederville Rd.,0.0,7294,,1.0,Yes,1
+fatality_update,198,Dam near Leslie County High School,10.3,7296,,1.0,Yes,3
+fatality_update,200,Dam on Pattaconk Brook,0.0,7297,,1.0,Yes,1
+fatality_update,201,Coon Rapids Dam,0.0,7298,,1.0,Yes,2
+fatality_update,203,Low Head Dam by W Monument Ave,17.2,5404,,1.0,Yes,1
+fatality_update,204,Black Rock Dam,29.4,7299,,2.0,Yes,2
+fatality_update,206,Dam on Cocalico Creek,0.0,7300,,1.0,Yes,1
+fatality_update,207,Kanz Dam,0.0,7301,,1.0,Yes,1
+fatality_update,209,Rocky Mount Water Treatment Plant diversion dam,0.0,7302,,2.0,Yes,2
+fatality_update,210,Waucoma Mill Dam,0.0,7303,,2.0,Yes,2
+fatality_update,211,Adel Island Park Dam,0.0,7304,,2.0,Yes,2
+fatality_update,212,Fertile Dam,0.0,7305,,2.0,Yes,2
+fatality_update,213,US Filter Dam,0.0,7306,,2.0,Yes,2
+fatality_update,214,Joe Reasoner Dam,0.0,7307,,1.0,Yes,2
+fatality_update,218,Antietam Creek Dam,0.0,7309,,1.0,Yes,1
+fatality_update,219,8th street Bridge Low-Water Dam,0.0,7310,,1.0,Yes,1
+fatality_update,221,Coffer Dam,0.0,7311,,1.0,Yes,1
+fatality_update,222,Caplinger Mills Dam,0.0,7312,,1.0,Yes,1
+fatality_update,224,Penny Lane Low Head Dam,30.7,6451,,,Yes,2
+fatality_update,225,Democrat Low Head Dam,0.0,7314,,1.0,Yes,1
+fatality_update,228,Big Rocks Park overfall Dam,0.5,17637,,,Yes,2
+fatality_update,229,Nice Mills Dam,0.0,7316,,1.0,Yes,1
+fatality_update,231,Linn Grove Dam,2.7,14521,,,Yes,3
+fatality_update,232,Dam on South Yadkin River,0.0,7317,,1.0,Yes,1
+fatality_update,235,6th Street Dam,0.0,7318,,2.0,Yes,2
+fatality_update,236,Little Dam in the Sheyenne River,0.0,7319,,2.0,Yes,2
+fatality_update,239,"Conewago Cr. Dam at Davidsburg Road, Detters Mill",0.0,7322,,2.0,Yes,2
+fatality_update,242,"Veteran, Schuyler, Catherine Creek",0.0,7323,,1.0,Yes,1
+fatality_update,245,"Brushy Creek at Chisolm Trail Rd, Round Rock, TX",6.4,7324,,1.0,Yes,1
+fatality_update,246,Dam Adjacent to Erie Canal Lock 24 - West of Syracuse Street Bridge,0.0,7325,,1.0,Yes,2
+fatality_update,248,Ketner's Mill Dam,0.0,7326,,4.0,Yes,6
+fatality_update,249,Dodridge Street Low Head Dam,0.0,7327,,1.0,Yes,2
+fatality_update,250,Hosey Dam,0.0,7328,,1.0,Yes,1
+fatality_update,253,Buffalo Creek in West Seneca,0.0,7329,,1.0,Yes,5
+fatality_update,254,Dam on Medina River,6.2,7330,,1.0,Yes,1
+fatality_update,255,Washington Aqueduct Dam,0.0,7331,,1.0,Yes,1
+fatality_update,256,Winchester Wasteway,0.0,7332,,1.0,Yes,1
+fatality_update,257,Upper Sandusky,4.2,7333,,1.0,Yes,2
+fatality_update,258,Wisconsin Dells Dam,29.6,5309,,1.0,Yes,1
+fatality_update,259,Rochester Dam,0.0,7334,,1.0,Yes,1
+fatality_update,260,Dravo Dam,0.0,7335,,1.0,Yes,1
+fatality_update,263,Elk River low head dam,0.0,7336,,4.0,Yes,5
+fatality_update,264,21st Street Bridge,4.8,3457,,1.0,Yes,3
+fatality_update,266,Percha Dam,0.0,7337,,1.0,Yes,2
+fatality_update,267,Argyle Power Plant Dam,3.7,2495,,1.0,Yes,2
+fatality_update,269,Main Street Lowhead Dam,0.0,7338,,1.0,Yes,1
+fatality_update,271,Demopolis Lock and Dam,30.3,4778,,1.0,Yes,1
+fatality_update,272,Dam By Manchester Bridge,0.0,7339,,1.0,Yes,1
+fatality_update,273,Greenlawn Avenue Low Head Reservoir,0.0,7340,,1.0,Yes,1
+fatality_update,274,Fall River Bridge,0.0,7341,,1.0,Yes,1
+fatality_update,275,Dam on South Platte River,37.4,7342,,2.0,Yes,2
+fatality_update,276,Flatrock River dam north of Noblitt Park,0.0,7343,,1.0,Yes,1
+fatality_update,277,Monkey Rock Low Head Dam,34.6,6026,,1.0,Yes,1
+fatality_update,278,Kankanee Dam,0.0,7344,,2.0,Yes,3
+fatality_update,279,Dam near Krape Park,7.0,3439,,,Yes,1
+fatality_update,281,Dam near Washington Street bridge,0.0,7345,,1.0,Yes,1
+fatality_update,282,Dam on Poudre River,19.0,16010,,,Yes,1
+fatality_update,283,Dam on Little West Fork,0.0,7347,,1.0,Yes,2
+fatality_update,303,Clermont Dam,0.0,7348,,1.0,Yes,2
+fatality_update,331,Troy Mills Dam,6.2,11693,,,Yes,1
+fatality_update,335,Dam on Cordorus Creek,0.6,3893,,,Yes,1
+fatality_update,341,Dam near Dan River Stream Station,0.0,7350,,1.0,Yes,5
+fatality_update,343,Dam near Brenke Fish Ladder,11.8,7351,,1.0,Yes,1
+fatality_update,347,Mason City 12th Street Dam,1.4,15052,,,Yes,2
+fatality_update,349,Little Sioux Dam,0.0,7352,,1.0,Yes,2
+fatality_update,351,Fontana Park Dam,0.0,7353,,1.0,Yes,2
+fatality_update,353,Steamboat Rock Dam,0.0,7354,,1.0,Yes,1
+fatality_update,355,Anamosa Dam,0.0,7355,,1.0,Yes,2
+fatality_update,357,Otranto Dam,9.0,9902,,,Yes,1
+fatality_update,359,Wagaman Mill Dam,0.0,7356,,1.0,Yes,2
+fatality_update,365,spillway dam for Guttenburg Lock & Dam 10,0.0,7357,,1.0,Yes,1
+fatality_update,367,Palisades-Kepler Dam,0.0,7358,,3.0,Yes,4
+fatality_update,369,Dam on North Platte River,0.0,7359,,1.0,Yes,1
+fatality_update,371,Emrichsville Dam,0.0,7360,,3.0,Yes,4
+fatality_update,375,Pueblo Whitewater Park,11.9,7361,,1.0,Yes,2
+fatality_update,379,Dam near Monroe Fire station 2,0.0,7362,,1.0,Yes,1
+fatality_update,381,Dam on Richland Creek,0.0,7363,,1.0,Yes,1
+fatality_update,383,South Platte River,0.0,7364,,2.0,Yes,2
+fatality_update,385,Dam near N Salem Hwy,22.3,6778,,1.0,Yes,1
+fatality_update,387,Dam near W Taylorsville Expressway ,32.4,12471,,,Yes,1
+fatality_update,389,War Eagle Mill,0.0,7365,,2.0,Yes,2
+fatality_update,391,Dam near Haven Road,0.0,7366,,1.0,Yes,1
+fatality_update,393,Dam on Bull Creek,0.0,7367,,1.0,Yes,2
+fatality_update,399,Crowhop dam,0.0,7368,,1.0,Yes,1
+fatality_update,401,Dam 4,0.0,7369,,1.0,Yes,2
+fatality_update,407,Calvary Dam,0.0,7370,,2.0,Yes,2
+fatality_update,411,Enka Low-Head Dam,0.0,7371,,1.0,Yes,1
+fatality_update,413,Dam on Laurel Creek,0.0,7372,,1.0,Yes,1
+fatality_update,425,Long Tom River,24.1,4821,,1.0,Yes,2
+fatality_update,435,Dam near Howell Island Conservation Area,19.7,9498,,,Yes,1
+fatality_update,437,Dam on Conasauga Creek,12.8,3926,,1.0,Yes,1
+fatality_update,443,Low Head Dam on Pearl River,0.0,7373,,1.0,Yes,2
+fatality_update,449,Low Head Dam near Empire Weir,0.0,16011,,,Yes,2
+fatality_update,453,Low Head Dam on Flint Creek,3.8,3828,,3.0,Yes,3
+fatality_update,455,Low Head Dam on Great Miami River,0.0,7374,,1.0,Yes,2
+fatality_update,457,Pearl River Sill,0.0,7375,,1.0,Yes,2
+fatality_update,461,Puritan Mill Dam,0.0,7376,,1.0,Yes,2
+fatality_update,463,Bleachery Dam,0.0,7377,,1.0,Yes,2
+fatality_update,465,Burlington City Dam,0.0,7378,,2.0,Yes,4
+fatality_update,467,Olmstead Diversion Dam,0.0,7379,,1.0,Yes,1
+fatality_update,471,Cheatham Dam,0.0,7380,,1.0,Yes,1
+fatality_update,473,Low Head Dam near Broken Bow Lake,48.0,7381,,1.0,Yes,1
+fatality_update,475,Spencer Mountain Dam,0.0,7382,,1.0,Yes,1
+fatality_update,477,Buckhorn Dam,0.0,7383,,1.0,Yes,1
+fatality_update,479,Loup Public Power Diversion Dam,0.0,7384,,1.0,Yes,1
+fatality_update,483,Low Head Dam on Stoner Creek,0.0,7385,,2.0,Yes,2
+fatality_update,485,Low Head Dam on St Joseph River,0.0,7386,,1.0,Yes,1
+fatality_update,487,Dam near Wabash River,2.0,3440,,1.0,Yes,1
+fatality_update,489,Low Head Dam on Henry's Fork,29.7,4310,,2.0,Yes,4
+fatality_update,491,"Low Head Dam near Henefer, UT",0.0,7387,,1.0,Yes,1
+fatality_update,493,Courtner's Mill Dam,0.0,7388,,1.0,Yes,1
+fatality_update,495,Ellis Lock,0.0,7389,,1.0,Yes,1
+fatality_update,497,Ager Falls,0.0,7390,,1.0,Yes,1
+fatality_update,499,Niles Dam,0.0,7391,,1.0,Yes,1
+fatality_update,501,Low Head Dam at Greencastle City Water Treatment Plant,0.0,7392,,1.0,Yes,1
+fatality_update,503,Low Head Dam near St Charles Rd,29.3,2871,,1.0,Yes,1
+fatality_update,505,Low Head Dam near Blue Buff Road,0.0,7393,,1.0,Yes,1
+fatality_update,507,New York Haven Hydro Station,0.0,7394,,1.0,Yes,1
+fatality_update,509,High Shoals Dam,40.1,6329,,1.0,Yes,1
+fatality_update,511,Grande Point Power Dam,26.4,3549,,2.0,Yes,2
+fatality_update,513,Osage Dam,0.0,7395,,4.0,Yes,4
+fatality_update,515,Mississippi River Lock and Dam 14,0.0,7396,,1.0,Yes,1
+fatality_update,519,Halls Mill Bridge,5.5,3927,,1.0,Yes,1
+fatality_update,521,Collamer Low Head Dam,3.2,5642,,,Yes,1
+fatality_update,529,Low Head Dam near Rist Canyon Road,0.0,7397,,1.0,Yes,1
+fatality_update,533,Low head dam near Prospect-Upper Sandusky Road,0.0,7398,,1.0,Yes,2
+fatality_update,535,Low head dam on Kalamazoo River,0.0,7399,,1.0,Yes,1
+fatality_update,539,Low head dam on House Creek,2.8,16018,,,Yes,1
+fatality_update,541,White's Mill Dam,0.0,7400,,1.0,Yes,1
+fatality_update,543,High Falls State Park dam,1.1,11149,,,Yes,2
+fatality_update,545,Low Head Dam Near Antrim Park,0.0,7401,,1.0,Yes,1
+fatality_update,549,Silver Creek Dam / Providence Mill Dam,0.0,7402,,1.0,Yes,1
+fatality_update,551,Low Head Dam connected to Ross Barnett Reservoir,0.0,7403,,2.0,Yes,2
+fatality_update,553,Court Street Bridge Dam,0.0,7404,,1.0,Yes,1
+fatality_update,555,Fairbury Dam,0.0,7405,,1.0,Yes,1
+fatality_update,557,Guide Rock Diversion Dam,0.0,7406,,1.0,Yes,2
+fatality_update,559,Tailrace Park Low Head Dam,0.0,7407,,1.0,Yes,1
+fatality_update,561,Hepburn Street Dam,0.0,7408,,4.0,Yes,4
+fatality_update,562,Neshaminy Weir Dam,0.0,7409,,3.0,Yes,5
+fatality_update,563,Low head dam two miles downstream of Lake Amistad Dam,8.7,1,Y,1.0,Yes,1
+fatality_update,564,Redfield Dam,0.0,7410,,1.0,Yes,3
+fatality_update,566,Dam near Woodland Park Bridge,0.0,7411,,1.0,Yes,1
+fatality_update,568,Patriot Hydropower Dam near 2490 State Route 12,0.0,7412,,1.0,Yes,1
+fatality_update,569,Upper Falls Dam,7.9,5343,,1.0,Yes,1
+fatality_update,570,Shawmut Dam,0.0,7413,,1.0,Yes,1
+fatality_update,571,Bristol Mills Dam,0.0,7414,,1.0,Yes,1
+fatality_update,573,B Street power dam,0.0,7415,,1.0,Yes,1
+fatality_update,574,Small dam in the buisness district,0.0,16019,,,Yes,4
+fatality_update,575,Mitchell Dam,0.0,7416,,1.0,Yes,1
+fatality_update,576,Ramsey Dam,0.0,7417,,1.0,Yes,1
+fatality_update,577,Low Head Dam near Anaheim Street,0.0,7418,,1.0,Yes,1
+fatality_update,578,Lochmere Dam,0.0,7419,,1.0,Yes,2
+fatality_update,579,Low head dam near Power House Park,0.0,7420,,1.0,Yes,1
+fatality_update,580,Low Level Dam,0.0,7421,,1.0,Yes,1
+fatality_update,581,Magalia Head Dam,0.0,7422,,1.0,Yes,1
+fatality_update,582,Third Street Dam,10.4,11466,,,Yes,2
+fatality_update,583,Scotts Mill Dam,0.0,7423,,1.0,Yes,1
+fatality_update,584,Broad Ripple Dam,0.0,7424,,1.0,Yes,1
+fatality_update,585,Fairmount Dam,0.0,7425,,1.0,Yes,1
+fatality_update,586,Coal Creek Low Head Dam,0.0,7426,,1.0,Yes,1
+fatality_update,588,Fort Ransom Low Head Dam,0.0,7428,,1.0,Yes,2
+fatality_update,589,Little River Dam near Fort Bragg,0.0,17581,,,Yes,1
+reported_update,-,Fairmount Weir,0.0,7425,Yes,1,Yes,2
+reported_update,-,Fort Ransom,0.0,7428,Yes,2,Yes,4
+reported_update,-,Upstream Water Treatment Facility,0.0,17581,Yes,1,Yes,2
+site_appended,45,Yorkville Dam / Glen D Palmer Dam,81.5,19863,,,Yes,7
+site_appended,37,Iowa River Power Co. Dam near 5th St Pl,74.8,19864,,,Yes,4
+site_appended,54,Bosher Dam just west of Edward E Willey Memorial Bridge,71.1,19865,,,Yes,5
+site_appended,86,Mississippi River St. Anthony Lock & Dam,,19866,,,Yes,1
+site_appended,99,New Hope Dam near S Main St & Windy Bush Rd,51.9,19867,,,Yes,2
+site_appended,145,Bowerstock Dam near Massachusetts Street,65.2,19868,,,Yes,1
+site_appended,149,Dam along San Gabriel River,53.2,19869,,,Yes,1
+site_appended,180,Seats Dam about a mile west of Rough and Read Botanical Wayside,56.0,19870,,,Yes,1
+site_appended,199,Coffeeville Lock and Dam,84.5,19871,,,Yes,10
+site_appended,237,Lehiah River Chain Dam,74.2,19872,,,Yes,1
+site_appended,319,Cedar Falls Dam,65.0,19873,,,Yes,3
+site_appended,373,Dam near Ohio Falls Power Plant,54.1,19874,,,Yes,2
+site_appended,572,Jay Power Dam,111.1,19875,,,Yes,3

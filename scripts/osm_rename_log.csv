@@ -1,0 +1,913 @@
+OBJECTID,old_dam_name,osm_name,distance_m,Latitude,Longitude
+51,,Stoneglen Dam Number 8,6.5,32.85844597,-97.30941877
+597,,Check Dam,9.7,50.75249825,-112.418147
+2317,,Upper Kezar Falls - Approach Channel Dam,9.1,43.80684236,-70.88847736
+2372,,Parker Road Bog Dam,33.0,41.59318513,-70.57124162
+2375,,Reed Number 1 Dam,8.4,42.05866472,-70.72796302
+2475,,Granite Reef Dam,39.7,33.51587193,-111.6915525
+2505,,Yellowstone Canal Diversion Dam,19.0,46.28129761,-107.3015338
+2984,,Woodward Mill Dam,14.8,34.058502,-83.99356
+4015,,Humble Dam,10.0,32.93228,-98.83209
+4837,,Trio Pond Western Dam,24.8,44.70915524,-71.36993212
+4882,,East Head Pond Dam,13.3,41.83888584,-70.68990851
+4883,,Besse Bog Reservoir Dam,14.6,41.80837614,-70.64277162
+4884,,Clifford Road Dam,3.1,41.9261041,-70.61353797
+4889,,North Harwich Reservoir Dam,12.1,41.68197882,-70.12218357
+4893,,Mill Pond Dam,11.5,41.76267599,-70.67614503
+4951,Control Structure #2,Control Structure #2,1.6,27.402906,-80.39885
+5195,LHD,Whiting Plover 2WP843 Dam,6.2,44.4805928,-89.57096406
+5394,Added-13,Holidays Bridge Dam,30.9,34.52918546,-82.37750652
+5396,Added-15,Piedmont Dam,2.1,34.70140277,-82.46268782
+5406,Added-02,Manns Dam,3.0,46.86514662,-102.8225825
+5417,Added-16,Silver Lake Dam,1.6,46.02683502,-97.57214521
+5421,Added-21,Tolna Coulee Control Structure,5.1,47.88601646,-98.5059264
+5759,LHD,Old Eileen Dam,15.0,48.7753256,-116.1553728
+5760,LHD,Twin Lakes Dam,1.3,47.8570549,-116.8665628
+6274,,Little Falls Dam,18.7,45.97536,-94.36835
+6326,Low-Head Dam (23937),Sellers Manufacturing Company Dam,21.7,35.9477748,-79.32568453
+6328,Low-Head Dam (23978),Hardins Dam,35.2,35.382,-81.185
+6485,WaDE Unspecified,James Canyon Dam,22.2,32.69088972,-108.1096267
+6498,WaDE Unspecified,San Bacino Dam,5.1,35.39678424,-105.4710629
+6528,WaDE Unspecified,Ribera Dam,4.1,35.3782174,-105.4550172
+6534,WaDE Unspecified,Los Luceros Diversion Dam,16.5,36.121,-106.044
+6540,WaDE Unspecified,Power Dam Lake,23.4,34.92677373,-104.6801274
+6552,,Brown Reservoir Dam,39.3,36.97865665,-103.6769034
+6555,Low-Head Dam (19025),San Jose Dam,9.3,35.4121868,-105.4903252
+6559,WaDE Unspecified,Taylor Weir,6.3,36.05504985,-119.4879874
+6573,WaDE Unspecified,Fleish Diversion Dam,7.9,39.45245207,-120.0055948
+6576,WaDE Unspecified,Cape Horn Dam,15.6,39.38609528,-123.1164034
+6659,WaDE Unspecified,Upper Idaho Falls Number Two Dam,18.9,43.55547669,-112.0455182
+6776,WaDE Unspecified,Buffalo River Dam,37.9,44.41452759,-111.3921879
+6809,WaDE Unspecified,Mann Creek Dam,48.8,44.39147435,-116.8949541
+6862,WaDE Unspecified,Galloway Dam,8.9,44.25042155,-116.7759945
+6869,WaDE Unspecified,Steamboat Canal Diversion Dam,4.6,39.46609334,-120.0025393
+7113,WaDE Unspecified,Horn Rapids Dam,20.6,46.37869993,-119.4175057
+7115,WaDE Unspecified,Chambers Creek Reservoir Dam,27.0,47.19111096,-122.5741821
+7117,WaDE Unspecified,Lacamas and Round Lakes Lower Dam,6.6,45.59908587,-122.4041231
+7129,WaDE Unspecified,Winslow Dike Dam,39.2,47.41278746,-117.5379995
+7142,WaDE Unspecified,Monroe Street Dam,44.0,47.66143794,-117.4248216
+7163,,Big Cliff Dam,25.1,44.75100526,-122.2832499
+7164,,Cazadero Dam,31.7,45.25203315,-122.2986734
+7166,,Prosser Dam,18.9,46.21267768,-119.7729706
+7431,Low-Head Dam (21391),Middlebury Lower Dam,3.1,44.02572759,-73.17774349
+7444,Low-Head Dam (22421),Tunnel Mill Dam,5.0,37.22824684,-97.00757543
+7457,Low-Head Dam (22983),Oregon Dam,16.0,42.01655,-89.32770109
+7458,Low-Head Dam (22982),Dixon Dam,16.7,41.84673,-89.48158462
+7459,Low-Head Dam (22986),Rockton Dam,4.4,42.45932,-89.08223069
+7461,Low-Head Dam (22984),Fordam Dam,31.7,42.26579,-89.09515223
+7489,Low-Head Dam (23266),Rockford Dam,19.1,43.120422,-85.562176
+7536,Low-Head Dam (23668),Oakdale Mill Dam,10.2,35.97964,-79.9284
+7547,Low-Head Dam (23801),Capitola Dam,25.3,35.79456,-82.6802
+7556,Low-Head Dam (22556),Platte Valley Canal,17.6,40.12752396,-104.8158766
+7570,Low-Head Dam (22694),Savage Dam,19.1,32.78871451,-109.76784613
+7574,Low-Head Dam (22743),Grand Valley Canal Diversion Dam,44.5,39.1033911,-108.3494049
+7594,Low-Head Dam (21502),Carver Falls Dam,30.5,43.62704725,-73.30677647
+7606,Low-Head Dam (21685),Waterloo Milldam,49.2,42.49694962,-92.33885662
+7663,Low-Head Dam (21035),Manhan River Dam,7.6,42.27446752,-72.67184716
+7670,Low-Head Dam (21184),Bassett Reservoir Dam,10.1,42.595637,-73.14547705
+7672,Low-Head Dam (21191),Rising Paper Company Dam,11.7,42.24233159,-73.35772978
+7673,Low-Head Dam (21210),Vergennes Center Spillway,0.8,44.16659498,-73.25614117
+7676,Low-Head Dam (21242),Green River Crib Dam,3.1,42.77563609,-72.66749678
+7694,Low-Head Dam (14980),Homestead Dam,3.3,44.596171,-86.080039
+7736,Low-Head Dam (16956),State Diverting Dam South,3.1,43.03730054,-74.86434287
+7743,Low-Head Dam (17027),City Lake Dam,1.1,36.118523,-85.443807
+7753,Low-Head Dam (17105),Milltown Dam,10.0,35.586512,-86.78438
+7754,Low-Head Dam (17118),Elmendorf Lake Dam,31.9,29.42489298,-98.53748835
+7795,Low-Head Dam (17654),Cartersville Diversion Dam,14.3,46.2756286,-106.6796403
+7799,Low-Head Dam (17695),Portland Municipal Dam,7.9,42.88924,-84.930841
+7819,Low-Head Dam (15220),Truesdale Lake Dam,16.4,41.28764761,-73.55710507
+7839,Low-Head Dam (15425),Brushy Creek Lake Dam,3.7,34.29222,-87.2734
+7891,Low-Head Dam (16001),Old Lock and Dam,20.4,38.47083,-92.031938
+7935,Low-Head Dam (16433),Taylor Dam,23.6,41.79455216,-99.46051631
+7953,Low-Head Dam (16628),Dun Dam,40.1,37.46486282,-95.73432012
+8011,Low-Head Dam (18262),Elkader Milldam,0.6,42.85569015,-91.40460586
+8013,Low-Head Dam (18312),Fairbank Dam,3.3,42.63962937,-92.05224204
+8015,Low-Head Dam (18339),Chickahominy Mill Dam,3.3,37.69471945,-77.49163622
+8029,Low-Head Dam (20221),McComas Dam,10.2,39.4563,-79.4648
+8046,Low-Head Dam (20467),Leech Dam,15.6,47.24779644,-94.22156447
+8049,Low-Head Dam (20483),Windom Dam,7.7,43.85985,-95.12033
+8057,Low-Head Dam (20591),Wild Rice Lake Dam,23.4,46.90917,-92.16242
+8064,Low-Head Dam (20671),Pennsylvania Railroad Dam,3.0,40.1600135,-75.10635035
+8067,Low-Head Dam (20995),New England Power Company Number 3 Dam,27.1,42.60200048,-72.73922117
+8078,Low-Head Dam (18453),Fraser Milldam,13.9,42.12591174,-93.97677143
+8084,Low-Head Dam (18483),Cockram Mill Dam,1.7,36.73669131,-80.38210214
+8088,Low-Head Dam (18550),Morrison West Chain Lake Level Control Structure Dam,23.0,42.013732,-85.061692
+8105,Low-Head Dam (18840),Rustford Dam,14.7,43.507047,-85.336814
+8119,Low-Head Dam (19020),Garanbuio Dam,31.7,35.3193,-105.415
+8142,Low-Head Dam (19230),Marble Rock Milldam,8.5,42.96539067,-92.87112942
+8158,Low-Head Dam (19408),Nora Springs Low Head Dam,7.1,43.14727605,-93.01416255
+8162,Low-Head Dam (19478),Stinson Weir 696,22.4,36.460705,-119.9936127
+8165,Low-Head Dam (19600),Pine Mountain State Park Lake Dam,9.5,36.74194161,-83.6930496
+8173,Low-Head Dam (19883),Baldwin Lake Dam,7.8,41.36307,-81.8555
+8227,Low-Head Dam (13335),Hendrickson Dam,3.9,26.98496,-81.93578
+8265,Low-Head Dam (14370),Philadelphia Dam,7.0,44.15780321,-75.70889716
+8266,Low-Head Dam (14419),The Old Mill Dam,0.7,35.788315,-83.554146
+8285,Low-Head Dam (13719),Beldens Pond Dam,8.5,42.72191,-73.6724
+8297,Low-Head Dam (13787),Glen Park Mill C Dam,8.7,43.99994,-75.9617
+8299,Low-Head Dam (13806),Lock Number 5,16.1,38.05198839,-84.83051671
+8325,Low-Head Dam (14080),Walter Hill Dam,9.0,35.942661,-86.376927
+8350,Low-Head Dam (12992),Osborne Diversion Dam,1.5,39.43505003,-98.71686221
+8359,Low-Head Dam (13156),Chittenango Creek Dam,13.1,43.05641,-75.8712
+8383,Low-Head Dam (24066),Cullowhee Dam,11.1,35.3152,-83.1759
+8388,Low-Head Dam (24090),Cox Lake Dam,17.0,35.75797,-79.7523
+8395,Low-Head Dam (24207),Weldons Pond Dam,23.7,36.2903,-78.3212
+8397,Low-Head Dam (24238),Hillsboro Dam,7.1,47.408,-97.0606
+8399,Low-Head Dam (24248),Burlington Dam 3,34.3,48.2891,-101.42
+8400,Low-Head Dam (24243),Mayville Dam,3.9,47.4965341,-97.3316651
+8402,Low-Head Dam (24222),Katz Dam,30.6,47.24307,-100.95
+8415,Low-Head Dam (13674),Mt Ida Falls Dam,10.6,42.72142,-73.6765
+8419,Low-Head Dam (13108),Chase-Hibbard Dam,33.6,42.08581,-76.81
+8425,Low-Head Dam (25367),Diversion Dam,28.6,40.383805,-109.859251
+8436,Low-Head Dam (25547),Livezey Dam,8.6,40.04923687,-75.21377481
+8530,Low-Head Dam (24445),Tierrecita Vallejo Dam,25.0,48.22815,-101.344
+8533,Low-Head Dam (23843),Washington Mills Dam,4.7,36.41839,-79.9624
+8549,Low-Head Dam (23964),Siler City Water Supply Lake Number One Dam,2.5,35.79546,-79.4775
+8550,Low-Head Dam (23955),US Lock and Dam Number 2,29.7,34.62694,-78.5773
+8558,Low-Head Dam (21291),Arcadia Diversion Dam,21.9,41.4903788,-99.23994272
+8578,Low-Head Dam (21357),Old Berkshire Mill Dam,5.0,42.47030376,-73.17613626
+8579,Low-Head Dam (21358),Pumping Station Dam,6.1,42.64683597,-72.62053488
+8580,Low-Head Dam (21369),Marble Dam,3.2,42.7081,-73.09280721
+8585,Low-Head Dam (21382),Kilpatrick Dam,23.8,40.47007146,-101.8364714
+8593,Low-Head Dam (25636),Yanceyville Dam,4.2,37.93825329,-77.98301151
+8602,Low-Head Dam (21265),Woods Pond Dam,12.0,42.34717144,-73.24493864
+8603,Low-Head Dam (21264),Mill Pond Dam,3.1,42.15883403,-73.42175457
+8605,Low-Head Dam (21271),Roberts Meadow Middle Reservoir Dam,12.6,42.35188146,-72.70989459
+8606,Low-Head Dam (21267),Crescent Mills Dam,4.8,42.22145067,-72.85912711
+8611,Low-Head Dam (21279),Windsor Reservoir Dam,8.1,42.48838118,-73.11000467
+8614,Low-Head Dam (21461),Columbia Mill Dam,6.1,42.31750482,-73.24740843
+8616,Low-Head Dam (21465),Bog Pond Dam,11.0,42.64037353,-73.03328156
+8617,Low-Head Dam (21464),Hayden Pond Dam,15.0,42.22995754,-73.1117184
+8618,Low-Head Dam (21472),Kearney Diversion Dam,12.1,40.68714988,-99.35149502
+8665,Low-Head Dam (25560),Woolen Mill Dam,9.3,41.5767,-75.28026111
+8677,Low-Head Dam (22365),Bowersock Dam,16.7,38.97518932,-95.23530981
+8678,Low-Head Dam (22370),Green River Lock and Dam 1,10.6,37.85849545,-87.41056895
+8681,Low-Head Dam (25657),Anderson-Cottonwood Diversion 51-000 Dam,4.3,40.59284058,-122.3942604
+8694,Low-Head Dam (21448),Stockbridge Bowl Dam,19.9,42.32031029,-73.32938753
+8699,Low-Head Dam (21449),Stevens Paper Company Lower Dam,2.0,42.1112575,-72.76634939
+8706,Low-Head Dam (20461),Scanlon East Channel Dam,7.6,46.70868568,-92.41695763
+8707,Low-Head Dam (19866),Union Cemetary Dam,2.3,40.02207,-83.0196
+8727,Low-Head Dam (22446),Irish-American Dam,3.3,40.21740726,-118.42438714
+8731,Low-Head Dam (22608),Citizens Water Company Dam,3.1,41.00041323,-79.33590562
+8740,Low-Head Dam (22425),Country Club Dam,1.1,40.2070085,-75.38629561
+8766,Low-Head Dam (15905),Grand Falls Dam,31.2,37.032462,-94.542095
+8778,Low-Head Dam (22476),Rodgers Dam,1.2,40.19871444,-118.44188427
+8784,Low-Head Dam (18238),Lake Rutledge Dam,46.7,33.63862,-83.5798
+8799,Low-Head Dam (22512),Plum Canyon 139 Dam,31.4,41.4416054,-120.3798134
+8807,Low-Head Dam (20680),Wetherills Dam,5.8,40.12287445,-75.44678367
+8811,Low-Head Dam (20078),Williamsport Power Plant Dam,2.1,39.59508591,-77.82936043
+8818,Low-Head Dam (20234),Ontario Millpond Dam,1.7,41.70720141,-85.37544381
+8851,Low-Head Dam (23048),Bard Springs Dam Number 2,3.5,34.39085,-94.0101
+8862,Low-Head Dam (23064),Big Weir Bridge,3.8,36.10649725,-115.02116849
+8969,Low-Head Dam (23322),weir dam,10.1,40.21214842,-105.392748
+8994,Low-Head Dam (23265),Prosser Dam,46.5,46.213188,-119.772811
+9007,Low-Head Dam (23480),Lock and Dam 3,5.5,38.12107358,-82.60994903
+9027,Low-Head Dam (23664),Randolph Mill Dam,11.8,35.74353,-79.7031
+9030,Low-Head Dam (23665),Hardys Mill Pond Dam,12.5,36.18162,-79.7092
+9031,Low-Head Dam (23670),Old Fort Water Supply Dam,9.4,35.6436,-82.2095
+9035,Low-Head Dam (23678),Reasonover Lake Dam,2.6,35.16305,-82.5984
+9111,Low-Head Dam (17026),Sutton Ford Dam,4.8,35.844366,-84.988401
+9114,Low-Head Dam (17028),Monterey Reservior Dam,15.8,36.116737,-85.186852
+9137,Low-Head Dam (14903),Beeds Lake Dam,1.1,42.76999704,-93.2359027
+9148,Low-Head Dam (14920),Stella Dam,3.4,46.39288405,-108.605763
+9171,Low-Head Dam (17055),Five-in-One Dam,46.1,41.97913734,-91.67270685
+9212,Low-Head Dam (17106),Riverside Dam,46.1,35.620339,-87.020806
+9216,Low-Head Dam (17107),McMinnville Water Supply Dam,2.0,35.674846,-85.777112
+9227,Low-Head Dam (14955),North Division Street Dam,15.6,42.93205647,-76.58477415
+9233,Low-Head Dam (14969),Camp McDowell Clear Creek Dam,2.1,34.01467,-87.3563
+9240,Low-Head Dam (14981),Grass Lake Dam,1.1,44.59199,-85.848359
+9242,Low-Head Dam (14979),Fishing Creek Dam,6.4,41.19441024,-76.38210708
+9246,Low-Head Dam (14983),Big Creek Terminal Dam,48.0,41.78170968,-93.7410855
+9254,Low-Head Dam (17115),Cane Creek Dam Number Fifteen,22.2,35.734419,-89.489097
+9285,Low-Head Dam (16746),Dahlstrom Metalic Door Co Dam,3.1,42.10628706,-79.2198763
+9332,Low-Head Dam (16761),Penfield Dam,1.7,43.33434403,-75.74909935
+9336,Low-Head Dam (16769),Victory Mills Dam,6.5,43.08713413,-73.59338476
+9340,Low-Head Dam (17160),Big Five Diversion Dam,3.4,40.05563759,-118.46741418
+9409,Low-Head Dam (15063),Upper Knickerbocker Dam,4.4,40.33094967,-75.48065175
+9411,Low-Head Dam (15062),Brey Dam,21.2,40.3251564,-75.47938429
+9413,Low-Head Dam (15068),Brinson Millpond Dam,8.7,32.96899,-81.9985
+9472,Low-Head Dam (16833),Blue Springs Power Plant Dam,6.0,40.13907527,-96.65461989
+9528,Low-Head Dam (21462),Willow Mill - Hurlbut Dam,8.4,42.27600231,-73.28473694
+9529,Low-Head Dam (21270),Vistron Dam,5.5,42.33021094,-72.67762868
+9567,Low-Head Dam (17270),California Crossing Dam,4.9,32.8689229999999,-96.923645
+9582,Low-Head Dam (21155),China Dam,9.5,41.92458665,-116.08668809
+9583,Low-Head Dam (21169),Onota Lake Dam,4.4,42.47621083,-73.26715053
+9584,Low-Head Dam (21170),Kendall Company Number 1 Dam,4.1,42.66244128,-72.71571441
+9616,Low-Head Dam (21193),Upper Spectacle Pond Dam,18.0,42.17705375,-73.11777661
+9619,Low-Head Dam (21194),Pontoosuc Lake Dam,2.5,42.48423301,-73.24645798
+9674,Low-Head Dam (21251),South Deerfield Water Supply Dam,10.8,42.46685602,-72.65349613
+9678,Low-Head Dam (16670),Korty Diversion,39.1,41.11572362,-101.473755
+9692,Low-Head Dam (17012),Issaqueena Lake Dam,3.0,34.7349763,-82.8642871
+9695,Low-Head Dam (17014),Upper Pacolet Dam,27.0,34.92179337,-81.74613594
+9699,Low-Head Dam (17016),Lower Pacolet Dam,13.7,34.920381,-81.7373597
+9720,Low-Head Dam (22726),Reed Dam,1.0,40.28076128,-75.16149178
+9725,Low-Head Dam (22733),Sycamore Mills Dam,4.1,39.94659618,-75.42359698
+9744,Low-Head Dam (22977),Rock Rapids Milldam,0.2,43.43710205,-96.16693488
+9777,Low-Head Dam (21767),Shawville Powerplant Dam,2.9,41.06895659,-78.36498922
+9805,Low-Head Dam (21042),Gardner Falls Main Dam,11.5,42.59156454,-72.73010955
+9810,Low-Head Dam (21546),Oakland Mills Dam,18.7,40.93494312,-91.61549454
+9816,Low-Head Dam (21549),Ocqueoc River Weir,4.6,45.480858,-84.109935
+9817,Low-Head Dam (21769),Wilborn Lake Dam,4.8,33.32369,-86.8574
+9818,Low-Head Dam (21771),Shell Rock Milldam,4.9,42.71188777,-92.58218158
+9849,Low-Head Dam (21873),Steers Dam,11.6,37.12966409,-77.48759455
+9858,Low-Head Dam (21557),Bugbee Pond Dam,24.8,42.88008395,-73.07756197
+9876,Low-Head Dam (21562),Brandon Falls,1.3,43.7993281,-73.08802645
+9899,Low-Head Dam (21611),O'Quinn Pond Dam,12.4,33.05008,-83.1014
+9902,Low-Head Dam (21616),Otranto Dam,9.0,43.4575775,-92.9815171
+9905,Low-Head Dam (21618),Otter Lake Dam,3.9,46.929773,-88.553663
+9907,Low-Head Dam (21619),Oxford Mill Dam,42.3,41.97168663,-90.96131829
+9917,Low-Head Dam (21973),Hickory Park Dam,43.1,40.31702841,-75.56777699
+9963,Low-Head Dam (21821),Buchanan Dam,21.0,41.839223,-86.351139
+9966,Low-Head Dam (21823),Constantine Dam,23.7,41.847266,-85.668427
+9967,Low-Head Dam (21825),Stacyville Dam,5.2,43.43467014,-92.77863986
+9992,Low-Head Dam (21681),Crystal Falls Dam,22.8,46.106585,-88.334306
+10006,Low-Head Dam (22061),Thompson Dam,4.3,40.16066455,-75.23652566
+10009,Low-Head Dam (22063),LaBarge Dam,16.6,42.810944,-85.484048
+10010,Low-Head Dam (22066),Four Mile Dam,32.5,45.093011,-83.502646
+10035,Low-Head Dam (22073),Smallwood Dam,7.5,43.959915,-84.335805
+10071,Low-Head Dam (23736),South Boulder Diversion Dam,10.2,39.8295,-105.2322
+10083,Low-Head Dam (22837),Billingsley Number Two Dam,11.3,34.22828368,-112.85719969
+10093,Low-Head Dam (21726),Mill Club Dam,21.5,40.03271508,-75.40159141
+10122,Low-Head Dam (23813),Stice Shoal Dam,21.9,35.39486,-81.5531
+10142,Low-Head Dam (22867),Standish Dam,3.7,42.014766,-83.933928
+10145,Low-Head Dam (22873),Brooklyn Dam,1.0,42.109492,-84.245668
+10165,Low-Head Dam (22878),Roach Lake Dam,24.6,30.33949749,-99.62461038
+10171,Low-Head Dam (21738),Titus Wing Dam,9.3,40.30627267,-75.9066702
+10177,Low-Head Dam (25688),Link River Dam,5.9,42.23392642,-121.8020383
+10245,Low-Head Dam (22961),Pohopoco Creek Dam,3.3,40.81773868,-75.67397355
+10246,Low-Head Dam (22963),Diversion Dam,2.0,42.51439204,-107.8787212
+10252,Low-Head Dam (22968),Robeson-Vandaren Mill Upper Dam,3.9,40.01647891,-75.20564829
+10253,Low-Head Dam (22970),Rock Creek Lake Dam,12.7,41.73698341,-92.85194656
+10289,Low-Head Dam (16236),Dam Number 12,4.3,37.67729603,-83.94807305
+10293,Low-Head Dam (16538),Stall Dam,2.6,40.95553961,-117.44627137
+10309,Low-Head Dam (15422),Browns Dam,40.0,39.9283259,-77.03310518
+10312,Low-Head Dam (15426),Lake Afton Dam,2.2,40.24312926,-74.84292011
+10328,Low-Head Dam (15842),Manchester Milldam,28.1,42.48186959,-91.45846483
+10347,Low-Head Dam (16265),C S Dam,1.5,41.00209954,-117.52599911
+10373,Low-Head Dam (15852),Ozark Beach Dam,5.9,36.65933,-93.124846
+10420,Low-Head Dam (15526),Kinnikinick Dam,36.8,34.89544336,-111.29716811
+10444,Low-Head Dam (16304),Kentucky River Lock & Dam 6,8.9,37.92676682,-84.82166307
+10459,Low-Head Dam (16346),Lyndon B Johnson State Park Dam,4.0,30.23979,-98.6320899999999
+10544,Low-Head Dam (14503),Culbertson Dam,9.7,40.36185821,-101.1026839
+10550,Low-Head Dam (14517),Nassau Lake Dam,4.6,42.53079117,-73.6021245
+10654,Low-Head Dam (23960),Rhodhiss Dam,23.2,35.773,-81.438
+10682,Low-Head Dam (16010),Tunnel Dam,7.2,37.937182,-92.85101
+10693,Low-Head Dam (16379),Spiers Dam,7.8,36.93078,-77.48765726
+10707,Low-Head Dam (16630),Dodson Dam,37.1,48.4122587,-108.3099244
+10717,Low-Head Dam (15681),Mill Dam,7.6,42.51223666,-76.35553095
+10724,Low-Head Dam (15694),Old Stone Fort Dam,3.5,35.48661,-86.103029
+10815,Low-Head Dam (15264),Soden Dam,1.3,38.38616155,-96.18205406
+10826,Low-Head Dam (16075),Montgomery Worsted Mills Dam,8.3,41.53096975,-74.22721785
+10880,Low-Head Dam (15734),Ithaca Falls Dam,20.2,42.45275986,-76.49106732
+10908,Low-Head Dam (15325),Kerite Dam,1.6,41.39606,-73.067
+11070,Low-Head Dam (16507),Mountain View Lake Dam,4.2,44.70390229,-74.13926052
+11082,Low-Head Dam (20313),Cooleemee Dam,43.2,35.81012,-80.5631
+11113,Low-Head Dam (17592),Sweek Dam,0.7,43.60155889,-119.0485157
+11187,Low-Head Dam (17707),Hollins Mill Dam,2.2,37.42456708,-79.15975278
+11243,Low-Head Dam (17688),Gose Mill Dam,2.4,37.12505058,-81.35647034
+11246,Low-Head Dam (17696),Grand Ledge Dam,10.9,42.763145,-84.762658
+11247,Low-Head Dam (17694),Wagar Dam,8.0,42.965811,-84.913818
+11248,Low-Head Dam (17697),East Sanitary Dam,6.2,42.514722,-84.653123
+11249,Low-Head Dam (17699),State Street Dam,1.9,42.508964,-84.655061
+11250,Low-Head Dam (17700),Smithville Dam,2.5,42.499684,-84.629199
+11263,Low-Head Dam (15133),Diamond Island Dam,40.0,43.97833456,-75.88608628
+11310,Low-Head Dam (17515),Mexican Dam,27.1,39.1194655,-119.70710734
+11336,Low-Head Dam (17518),Big Quilcene Diversion,3.0,47.784632,-122.980006
+11400,Low-Head Dam (18181),Concord Mills Dam;Black Dam,3.9,39.88749444,-75.510425
+11413,Low-Head Dam (18209),Camp Innabah Dam,19.8,40.15849802,-75.66132548
+11420,Low-Head Dam (20474),Fargo 4th Street South Dam,0.8,46.87113,-96.7819
+11423,Low-Head Dam (20476),Fargo Dam 2,7.5,46.83176,-96.7914
+11447,Low-Head Dam (18442),Batavia Dam,12.5,41.85519,-88.30854461
+11455,Low-Head Dam (18455),Phoenixville Dam,1.8,40.13590723,-75.5169941
+11477,Low-Head Dam (18228),Caro Dam,11.9,43.460144,-83.40912
+11485,Low-Head Dam (18236),Corte Madera Dam,26.3,32.77615973,-116.5781397
+11521,Low-Head Dam (20588),Skunk Creek Dam,26.8,47.27729,-92.20439
+11526,Low-Head Dam (18479),Club Dam,4.0,40.26316384,-75.41644261
+11605,Low-Head Dam (20624),Elk River Dam,3.8,45.30409249,-93.58591034
+11671,Low-Head Dam (20670),Verree Road Dam,3.3,40.08734087,-75.06093517
+11676,Low-Head Dam (18518),Fuzzys Dam,7.5,36.97753847,-79.50067921
+11693,Low-Head Dam (22088),Troy Mills Dam,5.7,42.28828349,-91.68264083
+11695,Low-Head Dam (18538),Gardy's Millpond Dam,32.9,38.00150896,-76.60214664
+11731,Low-Head Dam (18334),Rockdale Dam,4.5,39.89093193,-75.43058438
+11732,Low-Head Dam (18346),Barryton Dam,20.1,43.746448,-85.140657
+11750,Low-Head Dam (20714),Ripley Mills Dam,0.2,43.60293438,-72.99768462
+11755,Low-Head Dam (18547),Glen Gery Dam,4.6,40.43909077,-75.9254606
+11756,Low-Head Dam (18542),Blakemore Mill Dam,4.7,36.60699267,-83.57654906
+11797,Low-Head Dam (18378),Holloway Dam,25.0,43.1201,-83.493411
+11806,Low-Head Dam (19959),Old Zoar Dam Debris - RM 68.9,8.4,40.6115,-81.4289
+11809,Low-Head Dam (19965),Ivex Corporation Lower Lake Dam,4.8,41.4352,-81.3851
+11947,Low-Head Dam (14633),Rensselaer Dam #1,0.2,42.63419826,-73.73688251
+11951,Low-Head Dam (23796),Lake Powhatan Dam,4.2,35.48289,-82.6238
+11954,Low-Head Dam (18470),Cliftons Pond Dam,9.4,36.00106,-78.3456
+11957,Low-Head Dam (23819),Altamahaw Dam,20.9,36.18252,-79.511
+11996,Low-Head Dam (16123),Seven Step Dam,1.2,40.35943389,-75.87012311
+12069,Low-Head Dam (20183),Fargo 12th Avenue Dam,21.9,46.89096,-96.77116
+12071,Low-Head Dam (20186),Lower Saint Anthony Falls Dam,29.1,44.97952031,-93.24751043
+12075,Low-Head Dam (20996),New England Power Company Dam Number 2,23.3,42.57323146,-72.70645803
+12076,Low-Head Dam (20994),New England Power Number 4 Dam,19.2,42.61997945,-72.74522078
+12077,Low-Head Dam (21009),Strathmore Paper Company Dam,15.4,42.09898791,-72.64772184
+12119,Low-Head Dam (14560),Culbertson Dam,46.5,40.36160454,-101.102982
+12128,Low-Head Dam (20199),Soldier Lake Dam,45.2,39.0811,-76.7319
+12151,Low-Head Dam (24239),Valley City Park Dam,0.7,46.91591,-98.0099
+12215,Low-Head Dam (14640),High Shoals Dam,11.5,33.81774,-83.5058
+12236,Low-Head Dam (20443),North Vernon City Dam,4.3,39.01128542,-85.61754063
+12253,Low-Head Dam (14929),Deep River Dam,37.6,41.564875,-87.29394375
+12268,Low-Head Dam (14683),Roberts Meadow Lower Reservoir Dam,4.8,42.35376783,-72.70763434
+12283,Low-Head Dam (20311),Idols Dam,2.6,35.97431,-80.3994
+12290,Low-Head Dam (20328),Deep River Dam,12.7,41.56461698,-87.29361208
+12301,Low-Head Dam (21023),Springfield Water Works Intake Dam,11.5,42.11838213,-72.85742498
+12304,Low-Head Dam (21030),Woronoco Mills - North Dam,10.1,42.16680625,-72.82920938
+12306,Low-Head Dam (21029),Westfield River Paper Company Dam,10.2,42.18718287,-72.85068182
+12359,Low-Head Dam (14745),Moordener Kill Dam,4.8,42.53455795,-73.73410886
+12369,Low-Head Dam (20357),Saint Joseph River Dam,1.9,41.11252676,-85.11651431
+12381,Low-Head Dam (20388),Miller Lake Dam,3.4,38.86912907,-85.52227224
+12393,Low-Head Dam (18409),Clifton Mill Pond Number Two Dam D-3372,5.5,34.9791995,-81.8154076
+12449,Low-Head Dam (14781),Stylus Lake Dam,13.7,44.313855,-83.930492
+12475,Low-Head Dam (20439),Benton Dam,3.4,41.503562,-85.76487852
+12495,Low-Head Dam (19886),Morley Ford,2.3,41.45969,-81.8217
+12501,Low-Head Dam (21034),Paradise Pond Dam,4.3,42.31632138,-72.64078399
+12574,Low-Head Dam (15278),Fredericktown City Dam,2.8,37.577204,-90.309048
+12635,Low-Head Dam (13406),Blossom Dam,2.4,42.8536,-78.6326
+12657,Low-Head Dam (22670),Broken Tank Dam,2.3,34.7349583,-110.80680929
+12686,Low-Head Dam (13408),Diamond Island Diversion Dam,6.1,43.97784,-75.8854
+12717,Low-Head Dam (22844),Williscraft Dam,3.6,35.18841114,-112.59378059
+12759,Low-Head Dam (23870),Fort Lyon Diversion Dam,14.8,38.1174253,-103.8088145
+12802,Low-Head Dam (23984),Stateline Barrier,3.2,37.0147948,-113.68054509
+12812,Low-Head Dam (23677),Cliffside Dam,2.3,35.0793,-83.2356
+12820,Low-Head Dam (24210),Lake Wilson Dam,3.9,35.78907,-77.9204
+12853,Low-Head Dam (20922),Whitehouse Dam,9.1,40.70413247,-116.52076624
+12867,Low-Head Dam (24223),Warwick Dam,11.6,47.80514,-98.7164
+12869,Low-Head Dam (24258),Ueland Dam,9.8,47.43287,-98.028
+12874,Low-Head Dam (24391),Willow Valley Dam,5.0,34.68166667,-111.3363889
+12875,Low-Head Dam (24404),Enderlin Park Dam,0.6,46.6282,-97.6007
+12929,Low-Head Dam (23127),Rutland Milldam,8.0,42.75521162,-94.29637518
+12937,Low-Head Dam (17791),Kent Lake Dam,3.9,42.513055,-83.675863
+12947,Low-Head Dam (19037),Lylah's Marsh Dam,7.1,43.28452419,-92.47001479
+12953,Low-Head Dam (13346),Ruggles Dam,1.3,38.46871257,-96.24999596
+12995,Low-Head Dam (18301),Whipple Dam,28.0,40.68304629,-77.86544051
+13025,Low-Head Dam (22578),Union Ditch,17.4,40.31302513,-104.8163653
+13026,Low-Head Dam (22579),Plumb Ditch,5.7,40.40109295,-104.6198055
+13031,Low-Head Dam (22584),Beeman Ditch & Meadow Island Ditch 2,2.3,40.1695543,-104.8415355
+13032,Low-Head Dam (22583),Farmers Independent Ditch,17.3,40.20683305,-104.8276925
+13104,Low-Head Dam (18218),Last Chance Dam,13.2,42.6076645,-111.7064914
+13120,Low-Head Dam (22978),Sears Dam,2.8,41.46127,-90.57818585
+13136,Low-Head Dam (20596),Vermillion Dam,2.3,47.96096896,-92.47584106
+13137,Low-Head Dam (20566),Central Dam,7.5,46.28256424,-96.07317342
+13143,Low-Head Dam (15438),Bufallo Creek Lake Dam,1.2,42.28292451,-91.53219529
+13190,Low-Head Dam (24316),Gunnison Diversion Dam,4.5,38.52446149,-107.6493718
+13209,Low-Head Dam (18445),South Elgin Dam,6.0,41.9962,-88.29430408
+13227,Low-Head Dam (23869),Holbrook Diversion Dam,27.8,38.12278121,-103.8460033
+13228,Low-Head Dam (23867),Otero Canal Diversion,6.3,38.14150175,-104.0450436
+13229,Low-Head Dam (23868),Catlin Dam,7.5,38.12648187,-103.9440376
+13241,Low-Head Dam (24081),Taylors Millpond Dam,10.9,35.77963,-78.2484
+13244,Low-Head Dam (23663),Lake Myra Dam,15.3,35.75305,-78.43
+13246,Low-Head Dam (23798),Sims Pond Dam,20.3,36.14226,-81.7196
+13247,Low-Head Dam (23667),Murrays Pond Dam,34.0,35.86586,-78.1781
+13332,Low-Head Dam (19268),Belmont Diversion Dam,18.1,41.70136137,-103.2458362
+13349,Low-Head Dam (23535),Jackson Ditch,0.6,40.63261342,-105.1686379
+13461,Low-Head Dam (23079),Lake Catamount Dam,47.6,40.36542425,-106.8005706
+13473,Low-Head Dam (15433),Beaver Dam,7.7,39.9328273,-75.85382938
+13490,Low-Head Dam (19018),Lovato Dam,32.8,35.30894,-105.402
+13491,Low-Head Dam (19019),Sena Dam,4.8,35.31671,-105.41
+13493,Low-Head Dam (19021),Pueblo Dam,9.3,35.3397,-105.432
+13494,Low-Head Dam (19022),Los Trigos Dam,38.9,35.35493,-105.442
+13523,Low-Head Dam (22576),Latham Ditch,22.0,40.3618,-104.7036
+13525,Low-Head Dam (22696),Lebanon Reservoir Number Two Dam,36.6,32.74476934,-109.745767
+13534,Low-Head Dam (13866),Niagara Mohawk Power Dam,22.0,44.26981,-75.1985
+13540,Low-Head Dam (14116),Bronx Zoo Twin Dams,1.9,40.8542,-73.8748
+13543,Low-Head Dam (14119),Westover Dam,13.4,42.11089,-75.9778
+13553,Low-Head Dam (16321),Barker Dam,10.0,37.71956641,-95.45448508
+13561,Low-Head Dam (17017),Cherokee Falls,38.5,35.06331,-81.5488935
+13575,Low-Head Dam (14642),Steeles Mill Reservoir Dam,23.6,33.30837,-84.1368
+13584,Low-Head Dam (15420),Lower Appleton Dam,19.9,44.25885395,-88.39066328
+13602,Low-Head Dam (19221),Weidner Dam,1.5,40.30764269,-75.72759411
+13603,Low-Head Dam (21183),Greenwater Pond Dam,28.7,42.28993765,-73.15698988
+13614,Low-Head Dam (19373),Nash Mill Dam,2.1,36.60241393,-83.58328653
+13650,Low-Head Dam (19900),West Milton Low Head Dam,3.3,39.97698,-84.3251
+13653,Low-Head Dam (19903),Stark Lime Sludge Lagoon Dam,3.5,40.80837,-81.5274
+13654,Low-Head Dam (19223),Manchester Milldam,7.0,42.48217554,-91.45850878
+13660,Low-Head Dam (19231),Magarge Dam,1.2,40.0600339,-75.22097945
+13688,Low-Head Dam (17763),Neal Dam,4.9,44.80638045,-119.5169331
+13693,Low-Head Dam (17771),Opal Springs Hydro Dam,22.5,44.48618649,-121.2983601
+13694,Low-Head Dam (17773),North Unit Diversion Dam,13.4,44.0756954,-121.3068547
+13704,Low-Head Dam (19391),Lock Number 7,46.9,32.44330831,-96.48406321
+13717,Low-Head Dam (17789),Covered Bridge Dam,2.3,42.097249,-83.295262
+13720,Low-Head Dam (17790),Peninsular Paper Dam,5.4,42.256048,-83.624144
+13727,Low-Head Dam (17801),La Grange Dam,26.9,39.94065,-90.53280088
+13728,Low-Head Dam (17802),Peoria Dam,15.7,40.63292,-89.62583953
+13730,Low-Head Dam (14136),Gilbert Knitting Mills Dam,2.6,43.04089286,-74.85348166
+13734,Low-Head Dam (14399),Philadelphia Dam,15.9,44.15783287,-75.70917482
+13751,Low-Head Dam (17803),Tainter Gates,19.7,41.32165,-88.98594004
+13782,Low-Head Dam (19601),State Street Dam,4.9,43.375304,-84.662006
+13786,Low-Head Dam (19604),Central City Milldam,21.7,42.20465915,-91.52872247
+13797,Low-Head Dam (17912),Debris Dam,20.5,40.01636883,-75.09918142
+13810,Low-Head Dam (16522),Edwards Falls Dam,0.9,42.98926309,-75.96015061
+13822,Low-Head Dam (17835),Saint Croix Falls Dam,27.6,45.41250548,-92.6472726
+13823,Low-Head Dam (17836),Saxon Dam,18.9,46.539301,-90.374325
+13851,Low-Head Dam (17902),Kent Dam,22.2,39.93365508,-75.29404137
+13904,Low-Head Dam (17804),Spillway,44.8,41.3992,-88.28119978
+13906,Low-Head Dam (17810),Indian Head Park Dam,2.9,40.14598938,-75.44491802
+13970,Low-Head Dam (17864),Davis Creek Dam,0.9,47.071808,-123.934281
+13985,Low-Head Dam (24219),Fessenden Dam,20.5,47.69793,-99.6061
+13996,Low-Head Dam (19047),John Dees Pond Dam,3.8,41.55037,-73.0241
+14029,Low-Head Dam (16530),Thompson Island Dam,2.7,43.18908447,-73.58499704
+14074,Low-Head Dam (19761),Middletown Dam,7.1,39.54262,-84.3631
+14095,Low-Head Dam (19368),Myers Dam,3.8,40.43815864,-75.12520638
+14098,Low-Head Dam (19477),Kurtzs Dam,1.3,40.40653179,-75.52175506
+14105,Low-Head Dam (19766),Bear's Mill Dam,2.8,40.1054,-84.5433
+14106,Low-Head Dam (19770),Monroeville Low Head Dam,6.8,41.24193,-82.695
+14115,Low-Head Dam (19779),Leavittsburg Dam,2.8,41.23897,-80.882
+14175,Low-Head Dam (18800),Mill Creek Diversion Dam,5.5,46.079859,-118.254404
+14182,Low-Head Dam (18817),Silver Spring Lake Dam,3.0,42.434239,-83.480121
+14230,Low-Head Dam (18851),Littleton Dam,4.0,42.53056493,-92.02785998
+14231,Low-Head Dam (18853),Llano River Dam,33.4,30.75304658,-98.6762725
+14309,Low-Head Dam (18721),Marshalville ditch Diversion,5.4,39.9588679,-105.2333393
+14313,Low-Head Dam (18723),Mill Dam,44.9,40.7932561,-75.1908068
+14319,Low-Head Dam (18951),Villanueva Dam,10.1,35.27499,-105.382
+14324,Low-Head Dam (18957),Dam No. 14,9.7,41.57273121,-90.39854958
+14327,Low-Head Dam (18962),Mon-Maq Dam,10.0,42.24472069,-91.17220074
+14392,Low-Head Dam (18942),Pelzer Mills Dam,27.2,34.6170423,-82.4472799
+14521,Low-Head Dam (18795),Linn Grove Milldam,5.9,42.89566841,-95.24492118
+14540,Low-Head Dam (13977),El Duende Dam,16.9,36.08424091,-106.12624003
+14549,Low-Head Dam (13285),Grass Valley French Ditch Diversion,35.3,46.8688,-114.104
+14563,Low-Head Dam (13302),Pitt-Taylor Diversion Dam,8.5,40.70824393,-118.08000693
+14579,Low-Head Dam (13463),Thompson Weinman Dam,6.6,34.14527,-84.7836
+14619,Low-Head Dam (13470),Rhodes Pond Dam,10.0,33.33458,-82.1008
+14620,Low-Head Dam (13480),Roswell Mill Dam,5.6,34.01329,-84.3552
+14646,Low-Head Dam (17776),Bend Power Dam,12.8,44.06188978,-121.3140825
+14676,Low-Head Dam (13537),Eastman Weir,3.2,36.524557,-82.546319
+14703,Low-Head Dam (23969),Stice Shoals Dam,14.5,35.22323,-81.5891
+14707,Low-Head Dam (23842),Avalon Dam,12.4,36.42834,-79.9476
+14713,Low-Head Dam (24226),North Dakota No Name Dam 227,3.6,46.93218,-96.9253
+14720,Low-Head Dam (14044),J A Wells Upper Dam,4.0,42.63175616,-72.86875888
+14781,Low-Head Dam (13731),Egin Canal Diversion,12.9,43.96498908,-111.6795469
+14805,Low-Head Dam (14129),Lower Ausable Lake Dam,1.4,44.1184,-73.8251
+14808,Low-Head Dam (14133),Oatka Creek Dam,7.0,42.97737,-77.9886
+14810,Low-Head Dam (14131),Stewarts Landing Dam,11.0,43.14165,-74.593
+14812,Low-Head Dam (14135),Lake Abanakee Dam,3.7,43.79771567,-74.22924814
+14822,Low-Head Dam (13131),North Hoosick Dam,6.4,42.92419,-73.3433
+14839,Low-Head Dam (14327),Warnecke Rapids,8.1,29.70406,-98.1188
+14842,Low-Head Dam (14334),Mo-Ranch Dam,7.3,30.060131,-99.46968
+14868,Low-Head Dam (14150),Pine Hill Lake Dam,1.3,42.12842326,-74.47552949
+14902,Low-Head Dam (14372),Swandowns Mill Dam,1.6,42.64723684,-73.60025744
+14915,Low-Head Dam (14400),Kessinger Taberg Dam,0.4,43.33730102,-75.58169839
+14939,Low-Head Dam (14199),Lock Number 14,2.5,37.55232303,-83.76948921
+14960,Low-Head Dam (14431),Harms Mill Dam,7.3,35.150633,-86.648747
+14965,Low-Head Dam (13555),Lee & Gordon's Mills Dam,0.7,34.88331,-85.2664
+15001,Low-Head Dam (12913),Kentucky River Lock and Dam 1,12.9,38.65813174,-85.14447895
+15008,Low-Head Dam (12931),Lock and Dam Number 4,13.1,38.2117436,-84.87228642
+15016,Low-Head Dam (24077),Troy Town Reservoir Dam #1,30.8,35.38958,-79.8691
+15022,Low-Head Dam (24091),Randleman City Lake Dam,6.8,35.81575,-79.7766
+15023,Low-Head Dam (24092),D B Walker Shoe Company Dam,3.2,35.6395,-79.6173
+15031,Low-Head Dam (24093),Robert L. Reece Lake Dam,45.8,35.68123,-79.9699
+15034,Low-Head Dam (24096),Cone Mills Dam,13.4,35.23778,-81.7675
+15038,Low-Head Dam (18230),Lake Delhi Dam,46.2,42.40780267,-91.34511911
+15045,Low-Head Dam (13612),Murder Creek Dam,10.0,43.01615,-78.4951
+15054,Low-Head Dam (18235),Lake Oelwein Dam,1.4,42.64674034,-91.91579953
+15067,Low-Head Dam (19475),Brey Dam,32.4,40.32534589,-75.47900396
+15076,Low-Head Dam (12933),Lock Number 2,12.0,38.43844302,-84.96270641
+15077,Low-Head Dam (12945),Green River Lock and Dam 2,6.3,37.53106334,-87.26461784
+15080,Low-Head Dam (12939),Corbin Reservoir Dam,6.2,36.97003739,-84.12023691
+15087,Low-Head Dam (12951),Sleepy Hollow Lake Dam,8.0,38.3491263,-85.55519026
+15170,Low-Head Dam (13124),Delano Island Diversion Dam,1.3,43.97499,-75.8682
+15219,Low-Head Dam (17925),Tidlow Dam,1.8,41.1384829,-77.43312537
+15221,Low-Head Dam (17924),Grant Street Dam,4.7,40.01522034,-75.20662399
+15232,Low-Head Dam (17944),Kerns Dam,4.1,40.6334293,-75.60211266
+15233,Low-Head Dam (17945),Kesterson Mill Dam,1.6,36.62754898,-83.49353294
+15252,Low-Head Dam (14081),Walker Mill Dam,2.7,35.845684,-83.56905
+15294,Low-Head Dam (17988),Belvidere Dam,16.1,42.25473,-88.851918
+15347,Low-Head Dam (13895),Kentucky River Lock and Dam 3,5.2,38.41665186,-84.87976687
+15399,Low-Head Dam (23837),Blue Ridge Tissue Dam,8.1,36.00176,-81.5644
+15400,Low-Head Dam (23838),Worthville Lake Dam,4.9,35.80159,-79.7768
+15402,Low-Head Dam (23841),Fishing Creek Millpond Dam,15.7,36.1547,-77.7427
+15404,Low-Head Dam (23939),Lake Mackintosh Dam,13.8,36.04039,-79.5035
+15405,Low-Head Dam (23834),Eno West Point Dam,11.2,36.07142,-78.9111
+15406,Low-Head Dam (23941),Puryear Dam,34.9,36.0078,-79.3625
+15409,Low-Head Dam (23948),Little River Dam,5.7,35.81625,-81.3401
+15410,Low-Head Dam (23951),Blewett Falls Dam,23.9,34.98787,-79.8798
+15415,Low-Head Dam (23952),Sloop Dam,9.6,36.01085,-81.9235
+15453,Low-Head Dam (18074),Nilegan Dam,38.2,46.406086,-88.206455
+15455,Low-Head Dam (18079),Fitzgerald Dam,1.7,41.81476,-73.1232
+15571,Low-Head Dam (13275),Vandalia Dam,6.7,48.37282,-106.975
+15574,Low-Head Dam (13276),Ranchers Ditch Diversion,30.5,46.17748,-107.437
+15588,Low-Head Dam (13355),M-6A,34.7,28.64342,-81.87231618
+15779,Low-Head Dam (24603),Carson Diversion Dam,37.8,39.49277571,-118.99313832
+15884,Low-Head Dam (24208),Lake Benson Dam,10.6,35.66206,-78.6115
+15886,Low-Head Dam (24218),Lisbon Dam,8.4,46.44666,-97.6796
+15887,Low-Head Dam (24221),Vigness Dam,16.3,48.42604,-97.3989
+15888,Low-Head Dam (24224),Bourett Dam,18.7,47.86409,-98.9659
+15889,Low-Head Dam (24214),Grafton Dam,3.8,48.42469,-97.41
+15892,Low-Head Dam (24235),Brownlee Dam,1.9,46.86566,-97.1022
+15893,Low-Head Dam (24229),Wild Rice Dam,3.2,46.75059,-96.8095
+15894,Low-Head Dam (24236),Sheyenne Dam,1.6,47.83892,-99.1261
+15895,Low-Head Dam (24242),Minot Water Supply Dam,21.4,48.22814,-101.316
+15896,Low-Head Dam (24240),Hanson Dam,4.2,46.27803,-96.6912
+15898,Low-Head Dam (24232),LaMoure Dam,6.5,46.35445,-98.3067
+15899,Low-Head Dam (24252),Karey Dam,46.6,46.55222,-102.903
+15902,Low-Head Dam (24255),Fargo 12th Avenue Dam,2.1,46.89078719,-96.77108021
+15905,Low-Head Dam (24257),River Pool Dam,6.0,46.01405,-97.4181
+15906,Low-Head Dam (24267),Quasqueton Dam,11.5,42.39367391,-91.76225713
+16151,Low-Head Dam (25031),Overflow Parking 2,24.2,40.3248572,-111.64333192
+16167,Low-Head Dam (25293),Marble Bluff Dam,4.3,39.85522949,-119.39301749
+16284,Low-Head Dam (25116),Larson Dam,3.7,41.71699779,-111.08614935
+16295,Low-Head Dam (24411),Sheyenne River Diversion Dam,3.8,46.75162,-96.9258
+16447,Low-Head Dam (25238),Numana Dam,14.3,39.78954757,-119.34918815
+16477,Low-Head Dam (25276),Burnham Dam,1.5,40.8721409,-111.96501905
+16511,Low-Head Dam (23805),Capelsie Lake Dam,1.9,35.32036,-79.868
+16518,Low-Head Dam (25511),Whipkey Dam,8.0,39.92192191,-79.28009363
+16531,Low-Head Dam (24841),Last Chance Diversion Weir,6.4,39.51471833,-119.91975679
+16549,Low-Head Dam (22816),Millet Swale Dam,26.9,34.43062043,-110.04158297
+16609,Low-Head Dam (24869),Chalk Bluff Diversion Dam,2.5,39.51031945,-119.86625744
+16639,Low-Head Dam (25557),Woodberry Dam,15.3,37.58736939,-77.77744884
+16644,Low-Head Dam (24888),Hormigoso Diversion Dam,22.2,35.2226,-105.167
+16646,Low-Head Dam (24889),Tecolotito Diversion Dam,26.8,35.23704,-105.171
+16660,Low-Head Dam (24729),Gunnison Bend Dam,43.5,39.34043755,-112.61589469
+16691,Low-Head Dam (25439),Coleman Diversion Dam,2.2,39.48633863,-118.79966375
+16723,Low-Head Dam (24837),Washoe/Highland Diversion Dam,6.7,39.51964387,-119.96180043
+16730,Low-Head Dam (25496),Goodrich Dam,20.2,40.12902818,-75.47151807
+16757,Low-Head Dam (25656),Wehr's Dam,1.8,40.62847222,-75.5703
+16760,Low-Head Dam (25687),Lost River Diversion Dam,5.1,42.14280535,-121.6729919
+16775,Low-Head Dam (21972),Lake Aree Dam,36.0,40.27307328,-75.49801623
+16787,Low-Head Dam (22581),Patterson Ditch,9.3,40.3897088,-104.659828
+16803,Low-Head Dam (25696),Embreeville Dam,1.2,39.92639804,-75.73435476
+16805,Low-Head Dam (25704),Flowage Lake Dam,1.4,44.260329,-84.205614
+16812,Low-Head Dam (25702),Mill Dam,0.3,40.38839559,-75.55560727
+16820,Low-Head Dam (15449),Tulpehocken Dam,16.1,40.34631011,-75.95230945
+16836,Low-Head Dam (18449),William G. Stratton Dam,7.3,42.30918,-88.25079121
+16858,Low-Head Dam (21463),Eclipse Dam,5.8,42.70272975,-73.09726031
+16864,Low-Head Dam (22985),Rockton Dam,15.3,42.45975,-89.07977641
+16883,Low-Head Dam (20105),Frank Bentz Dam,11.4,39.62135558,-77.42409835
+16903,Low-Head Dam (14699),Dam 9,26.2,37.84320575,-84.44029684
+16929,Low-Head Dam (14787),Backbone Dam,1.5,42.6007042,-91.53676436
+16951,Low-Head Dam (17998),Eagle Lake Dam,14.3,36.4174316,-118.6050705
+16977,Low-Head Dam (14965),Guths Mill Dam,8.7,38.461575,-90.966458
+16998,Low-Head Dam (24249),Mott City Dam,1.9,46.36998,-102.321
+17044,Low-Head Dam (24060),Lake Rogers Dam,20.4,36.12956,-78.7053
+17079,Low-Head Dam (16196),Felts Mills Dam,39.6,44.02334252,-75.76258171
+17089,Low-Head Dam (14440),Bel Air Dam,7.7,42.47103562,-73.24832299
+17136,Low-Head Dam (20398),10th Street Dam,27.7,40.75972747,-86.35849698
+17145,Low-Head Dam (24217),Ypsilanti Dam,3.1,46.78348,-98.5706
+17154,Low-Head Dam (23518),Highline Diversion Dam,2.2,39.48283479,-105.1159828
+17157,Low-Head Dam (22540),Kathryn Dam,34.4,46.67523,-97.9448
+17257,Low-Head Dam (12920),Lock Number 11,8.7,37.78465124,-84.10327893
+17281,Low-Head Dam (23857),Rocky Ford Diversion Dam,38.3,38.11232896,-103.82611
+17288,Low-Head Dam (12956),Picketts Dam,2.5,38.13989381,-85.2955939
+17292,Low-Head Dam (13257),Cornell Dam,5.5,42.89686368,-100.4849455
+17293,Low-Head Dam (13152),Spicer Dam,2.6,43.9797,-75.6152
+17295,Low-Head Dam (24075),Redmon Dam,19.3,35.79314,-82.7103
+17299,Low-Head Dam (24227),Jamestown Ice House Dam,23.6,46.89966,-98.7116
+17301,Low-Head Dam (25474),Vernon Spring Dam,22.9,43.34745424,-92.13837995
+17303,Low-Head Dam (25466),Upper Pelzer Dam,6.4,34.6434487,-82.4548359
+17304,Low-Head Dam (24245),Minto Dam,5.8,48.28604,-97.3678
+17312,Low-Head Dam (23954),Lock and Dam Number One,16.5,34.40473,-78.2931
+17348,Low-Head Dam (23962),Old Mill Pond Dam,7.9,35.80055,-81.411
+17395,Low-Head Dam (23965),Siler City Water Supply Lake Number Three Dam,13.3,35.76279,-79.4557
+17396,Low-Head Dam (23966),Hackneys Millpond Dam,7.5,35.73695,-79.4246
+17397,Low-Head Dam (23967),Odell Pond Dam,6.4,35.77581,-79.1488
+17399,Low-Head Dam (23973),Smith Lake Dam,28.3,35.12798,-78.927
+17422,Low-Head Dam (21552),Sportsmen Dam,46.3,45.248747,-83.965988
+17440,Low-Head Dam (16422),Barneston Power Plant Dam,23.9,40.05282211,-96.58842944
+17461,Low-Head Dam (16077),Hoosick Falls Dam,33.5,42.91181324,-73.36007582
+17504,Low-Head Dam (18815),Waterford Dam,0.2,42.413999,-83.468847
+17512,Low-Head Dam (19539),Washington Crossing Dam,9.2,40.32688446,-74.9447295
+17523,Low-Head Dam (24095),Roberdel Pond Dam,20.9,34.97088,-79.7439
+17530,Low-Head Dam (13195),Nolichucky Dam,5.8,36.065224,-82.866707
+17565,Low-Head Dam (25141),Surplus Canal Diversion Dam,27.3,40.72672296,-111.92678739
+17578,Low-Head Dam (23532),Arthur's Ditch Diversion,4.7,40.61164775,-105.1129852
+17635,Low-Head Dam (18868),Mill Dam,5.5,40.77077386,-75.3136056
+17646,Low-Head Dam (20486),Dam Number Two,45.7,44.76099955,-92.86629864
+17660,Low-Head Dam (12937),Lock Number 13,1.4,37.60159188,-83.83268679
+17662,Low-Head Dam (24101),Cascade Lake Dam,10.5,35.21897,-82.6394
+17663,Low-Head Dam (12930),Lock 8,5.8,37.7458072,-84.58715989
+17681,Low-Head Dam (17874),Curwensville Timber Dam,4.4,40.96129161,-78.51730142
+17690,Low-Head Dam (13519),Groveville Dam,1.6,41.51355,-73.9448
+17721,Low-Head Dam (24082),Tar River Dam,32.7,35.89877,-77.8846
+17755,Low-Head Dam (22551),Merchant Valley Dam,2.2,38.28659714,-112.4440318
+17763,Low-Head Dam (22522),Lake Decatur Dam,0.4,39.82619,-88.95600723
+17766,Low-Head Dam (16724),Red Willow Creek Diversion Dam,3.7,40.2815781,-100.5420305
+17791,Low-Head Dam (22872),Norvell Dam,2.6,42.15651,-84.184271
+17829,Low-Head Dam (17424),Leidy Dam,1.1,40.27150004,-75.47017681
+17831,Low-Head Dam (18267),Cataract Dam,2.9,46.315803,-87.512944
+17854,Low-Head Dam (19989),Upper Falls,3.0,41.43168,-81.3915
+17917,Low-Head Dam (20976),Stevens Paper Company Upper Dam,1.6,42.11984842,-72.78574455
+17945,Low-Head Dam (24279),Old Raftsmen's Dam,5.6,41.02778525,-78.43800926
+17955,Low-Head Dam (23531),Larimer & Weld County Canal Diversion,2.3,40.61202905,-105.1068252
+17978,Low-Head Dam (16949),Whittelsey Dam,2.9,44.84746804,-74.29289902
+18000,Low-Head Dam (13468),Anderson Pond Dam (defunct),20.3,32.21969,-81.8036
+18017,Low-Head Dam (17975),Don Williams Lake Dam,46.7,42.11142271,-94.01796447
+18019,Low-Head Dam (12953),Howards Mill Dam,2.2,38.06300997,-83.84800563
+18021,Low-Head Dam (13651),Thompson Island Dam,6.7,43.1894,-73.5822
+18035,Low-Head Dam (18034),Greene Mill Dam,2.2,42.89516496,-92.80263073
+18041,Low-Head Dam (24247),East Broadway Dam,6.5,46.87633,-102.781
+18051,Low-Head Dam (13669),Beebee Island Main Dam,11.1,43.97711,-75.9065
+18052,Low-Head Dam (17262),Saffold Dam,3.3,29.551226,-97.97061
+18056,Low-Head Dam (17304),Snow Bird Lake Dam,2.7,43.45550661,-75.1519998
+18071,Low-Head Dam (22577),Bijou Dam,44.8,40.31736454,-104.3764529
+18074,Low-Head Dam (22612),Fire Mountain Canal Weir,9.9,38.92701131,-107.4780082
+18080,Low-Head Dam (13301),Fort Belknap Dam,32.5,48.60204,-109.405
+18085,Low-Head Dam (13099),Johnson Mill Dam,7.6,43.43073464,-71.86672502
+18094,Low-Head Dam (13400),Ice Pond Dam and Dike,5.0,43.0136523,-71.05155115
+18108,Low-Head Dam (13833),Whitney Pond Dam,2.6,42.61049699,-71.94104661
+18109,Low-Head Dam (13873),Goodfellow Pond Dam,11.1,42.54670849,-71.8098785
+18116,Low-Head Dam (13869),Greenfield Electric Light and Power Dam,4.1,42.58350493,-72.60488524
+18119,Low-Head Dam (13944),Lovell Reservoir Dam,2.4,42.6158878,-71.82115507
+18122,Low-Head Dam (14112),International Packings Corporation Upper Dam,29.2,43.60678781,-71.74201847
+18129,Low-Head Dam (14271),Upper Long Pond Dam,8.2,42.56555743,-71.54586343
+18132,Low-Head Dam (14304),Plow Shop Pond Dam,2.9,42.55745939,-71.59476064
+18133,Low-Head Dam (14316),Hebron Mill Pond Dam,42.3,41.90496902,-71.31997778
+18137,Low-Head Dam (14374),Mill Pond Dam,10.3,42.53496639,-71.49752286
+18148,Low-Head Dam (14519),Spindleville Pond Dam,20.7,42.11484943,-71.53054864
+18150,Low-Head Dam (14520),Rice City Pond Dam,13.8,42.0983182,-71.62229182
+18153,Low-Head Dam (14574),McTaggarts Pond Dam,13.6,42.57972345,-71.84175625
+18155,Low-Head Dam (14575),Green's Pond Dam,1.7,42.60434807,-71.80118219
+18157,Low-Head Dam (14578),Wading River Dam,13.2,41.98937817,-71.25465938
+18158,Low-Head Dam (14576),Simonds Pond Dam,30.5,42.54798752,-71.80332532
+18159,Low-Head Dam (14579),Dodgeville Pond Dam,2.4,41.92207504,-71.29641747
+18161,Low-Head Dam (14611),Paradise Diversion Dam,6.3,48.56622604,-109.1903031
+18162,Low-Head Dam (14582),Bare Hill Pond Dam,16.0,42.49731997,-71.59555129
+18164,Low-Head Dam (14635),West Main Street Dam,28.4,42.55284142,-71.61915622
+18165,Low-Head Dam (14644),Bolivar Pond Dam,2.9,42.15167043,-71.13995903
+18169,Low-Head Dam (14650),West Medway Dam,11.1,42.13908449,-71.42416822
+18171,Low-Head Dam (14651),Box Pond Dam,6.4,42.09475004,-71.4846088
+18173,Low-Head Dam (14678),Talbot Mills Dam,22.2,42.59188814,-71.28386434
+18175,Low-Head Dam (14677),New Pond Dam,27.8,42.02409065,-71.13722569
+18176,Low-Head Dam (14679),Mystic Dam,16.8,42.43058785,-71.14844731
+18177,Low-Head Dam (14681),Stony Brook Dam,3.8,42.6169217,-71.40331462
+18194,Low-Head Dam (14825),Sucker Brook Gaging Station Dam,1.3,43.00590958,-71.34912773
+18213,Low-Head Dam (15569),Bigelow Pond Dam,41.2,41.99187,-72.1323
+18219,Low-Head Dam (15742),Lower Flint Pond Dam,4.4,42.676411,-71.42353613
+18221,Low-Head Dam (15791),Lower Station Dam,8.2,45.10108652,-70.77824507
+18229,Low-Head Dam (16046),Ashland Mill Dam,13.4,43.69524587,-71.62974372
+18230,Low-Head Dam (15988),War Memorial Park Dam,29.2,42.01611989,-71.0094056
+18235,Low-Head Dam (16102),Paper Mill Dam,1.7,43.00578694,-71.92672118
+18242,Low-Head Dam (16134),Sawmill Dam,45.9,44.4789188,-71.16792818
+18266,Low-Head Dam (16575),Milton Three Ponds Dam,43.1,43.41282433,-70.98725736
+18275,Low-Head Dam (16718),Ironstone Reservoir Dam,33.7,42.02642534,-71.61141392
+18283,Low-Head Dam (16933),Allied Leather Auxiliary Dam,15.2,43.28517247,-71.59575812
+18291,Low-Head Dam (17124),Bristol Blake State Reservoir Dam,5.9,42.10899687,-71.31733845
+18293,Low-Head Dam (17175),Meadow Pond Dam,3.9,42.10877208,-71.66997263
+18296,Low-Head Dam (17176),Potter Road Dam,4.8,42.08329099,-71.72933853
+18298,Low-Head Dam (17217),Fisher Pond Dam,12.8,41.39766387,-70.69247014
+18304,Low-Head Dam (17244),Parker River Dam at Central Street,1.0,42.7500043,-70.92914241
+18305,Low-Head Dam (17243),Parker River Dam,1.8,42.74988691,-70.942284
+18306,Low-Head Dam (17242),Parker River Dam,0.9,42.75489855,-70.94700609
+18312,Low-Head Dam (17382),Merino Pond Dam,10.8,42.04939681,-71.89393149
+18313,Low-Head Dam (17379),Perryville Pond Dam,8.0,42.02508522,-71.88439248
+18314,Low-Head Dam (17383),Larner Pond Dam,11.1,42.05553562,-71.90401149
+18336,Low-Head Dam (17635),Garvins Falls Dam,17.0,43.16565048,-71.50923825
+18339,Low-Head Dam (17638),Pickpocket Dam,15.5,42.96978449,-71.00121917
+18343,Low-Head Dam (17643),Claremont Paper Company Dam,6.9,43.37434691,-72.34754958
+18347,Low-Head Dam (17646),Briar Pipe Dam,11.2,43.27275319,-71.60427074
+18369,Low-Head Dam (17994),Cascade Alpine Water Supply Dam,7.7,44.45032592,-71.17916672
+18421,Low-Head Dam (18433),Plants Dam,2.5,41.34505,-72.2602
+18422,Low-Head Dam (18460),Belden Dam,3.1,41.9692,-71.894
+18442,Low-Head Dam (18726),Payne's Pond Dam,2.8,41.65594043,-71.46427162
+18443,Low-Head Dam (18768),Meyers Falls Dam,6.5,48.595269,-118.058531
+18448,Low-Head Dam (18810),Springs Dam,2.8,41.95193,-72.3098
+18458,Low-Head Dam (18842),Fuller Dam,2.6,41.80585,-72.0568
+18460,Low-Head Dam (18844),Aqua Swamp Dam,1.2,41.80813,-72.0523
+18494,Low-Head Dam (19434),Bunganut Lake Dam,17.4,43.5107158,-70.71117052
+18509,Low-Head Dam (19448),East Madison Dam,5.2,44.84693623,-69.75886657
+18559,Low-Head Dam (19510),Bryant Pond Dam,3.8,44.36641733,-70.63974107
+18568,Low-Head Dam (19521),Cataract West Dam,22.1,43.49575242,-70.4522702
+18584,Low-Head Dam (19535),Hancock Pond Dam,3.6,43.93344315,-70.75878558
+18590,Low-Head Dam (19549),Lewiston Falls Dam,36.1,44.09990414,-70.22156595
+18598,Low-Head Dam (19559),Hobbs Pond Dam,0.8,43.35123187,-70.62105677
+18614,Low-Head Dam (19575),Carleton Pond Dam,9.5,44.34170335,-69.9160505
+18617,Low-Head Dam (19580),Automatic Dam,4.8,44.54732383,-69.64306822
+18619,Low-Head Dam (19577),Lower Wilson Stream Dam,8.9,44.27506807,-70.02807504
+18673,Low-Head Dam (19652),Manhanock Pond Lower Dam,8.0,45.16287323,-69.35552067
+18676,Low-Head Dam (19654),Kingsbury Dam,18.1,45.11708652,-69.64693591
+18683,Low-Head Dam (19690),Echo Lake Dam Number 1,7.9,44.4158479,-70.03873386
+18688,Low-Head Dam (19694),Brush Shop Dam,5.1,44.29003675,-70.36363967
+18689,Low-Head Dam (19693),Second Roach Pond Dam,11.4,45.67414449,-69.32374853
+18696,Low-Head Dam (19704),Boynton-Trask Dam,8.4,44.16572177,-69.53574503
+18725,Low-Head Dam (19731),Butterfield Brook Dam,10.4,46.96541287,-67.87112922
+18729,Low-Head Dam (19735),Third Wallagrass Lake Dam,2.8,47.10895338,-68.81472292
+18734,Low-Head Dam (19738),Water District Reservoir Dam,16.1,46.51762625,-67.95278452
+18738,Low-Head Dam (19799),Conic Flowage Dam,14.9,45.11390194,-67.31667588
+18740,Low-Head Dam (19798),Pleasant Pond Dam,5.4,45.24511738,-69.93227358
+18741,Low-Head Dam (19801),Cranberry Inlet Dam,6.3,45.08300924,-67.30443182
+18749,Low-Head Dam (19811),Pembroke Cottage Dam,6.8,44.96245499,-67.16151973
+18774,Low-Head Dam (19907),Alford Lake Dam,14.2,44.22622899,-69.21688942
+18781,Low-Head Dam (19916),Bridge Street Dam,7.5,43.46625696,-70.79525993
+18784,Low-Head Dam (19917),Goose Pond Dam,8.1,44.35436528,-68.80893154
+18809,Low-Head Dam (19940),Echo Lake Dam,48.4,46.62613725,-68.01126606
+18820,Low-Head Dam (19954),Little Falls Dam,40.5,43.73418699,-70.42497017
+18822,Low-Head Dam (19955),Peabody Lake Mill Dam,6.2,43.93026393,-70.69103899
+18823,Low-Head Dam (20007),Chickawaukie Pond Dam,8.2,44.13584238,-69.11974678
+18826,Low-Head Dam (20006),Rainbow Lake Dam,1.8,45.82065563,-69.16543929
+18829,Low-Head Dam (20011),Quantabacook Lake Dam,5.7,44.37009346,-69.18343701
+18840,Low-Head Dam (20022),Eel Weir Dam,13.4,43.8177416,-70.44961719
+18845,Low-Head Dam (20028),Cushman Pond Dam,3.6,44.22005993,-70.83610889
+18846,Low-Head Dam (20029),Dodge Pond Dam,1.1,44.972157,-70.71033626
+18859,Low-Head Dam (20042),Somes Pond Outlet Dam,0.3,44.36211233,-68.33375293
+18860,Low-Head Dam (20041),Bud Youngs Dam,6.2,44.43105905,-68.99308304
+18861,Low-Head Dam (20044),Norwood Cove Dam,12.9,44.28731443,-68.32091492
+18869,Low-Head Dam (20052),Big Island Pond Dam Number 4,1.4,45.28481007,-70.76095357
+18884,Low-Head Dam (20125),Bridge Street Dam,11.9,43.80165942,-70.18204542
+18896,Low-Head Dam (20140),Umbazooksus Dam,6.5,46.14696508,-69.35090932
+18898,Low-Head Dam (20142),Dole Pond Dam,39.6,46.01123873,-70.19341372
+18899,Low-Head Dam (20144),Penobscot Lake Dam,33.2,45.91064283,-70.22139415
+18900,Low-Head Dam (20143),Long Pond Dam,29.2,45.98416172,-70.16954026
+18904,Low-Head Dam (20150),Grand Lake Stream Dam,18.2,45.18131,-67.777798
+18907,Low-Head Dam (20151),Hodgdon Dam,6.6,46.0535921,-67.86857582
+18908,Low-Head Dam (20152),Mars Hill Dam,4.2,46.51837387,-67.86644499
+18910,Low-Head Dam (20156),Pattee Mill Dam,5.7,46.76473572,-67.81727278
+18911,Low-Head Dam (20154),Caribou Dam,5.3,46.8489499,-68.00146575
+18913,Low-Head Dam (20155),Millinocket Lake Dam,3.3,46.3040948,-68.82746503
+18915,Low-Head Dam (20157),Monson Pond Dam,1.4,46.70707932,-67.79935276
+18916,Low-Head Dam (20160),North Pond Dam,18.5,44.321705,-70.39501
+18918,Low-Head Dam (20162),Churchill Dam,13.7,46.49301732,-69.28818062
+18919,Low-Head Dam (20164),Great Works Dam,2.2,44.88361655,-67.27766296
+18923,Low-Head Dam (20169),Pleasant River Lake Water Dam,2.5,44.8351775,-67.96318149
+18925,Low-Head Dam (20245),Drews Lake Dam,7.7,46.09810196,-68.0027535
+18926,Low-Head Dam (20243),Pokey Dam,2.2,45.01231166,-67.58673955
+18928,Low-Head Dam (20244),Chase Mill Dam,3.4,44.75617951,-67.36040851
+18930,Low-Head Dam (20246),Songo Lock Dam,0.8,43.93238063,-70.57730316
+18931,Low-Head Dam (20248),Lower Dam,13.4,44.0310709,-70.1030598
+18933,Low-Head Dam (20250),Noyes Brook Dam,37.0,46.92773099,-67.84657697
+18939,Low-Head Dam (20259),Marshall Pond Dam,6.2,44.17040172,-70.4025243
+18945,Low-Head Dam (20258),Pleasant Pond Dam,40.4,44.30988941,-70.23160919
+18951,Low-Head Dam (20266),Mechanic Falls Dam,4.5,44.11116752,-70.3912269
+18953,Low-Head Dam (20270),Mattakeunk Pond Dam,0.1,45.35896672,-68.30079445
+18956,Low-Head Dam (20274),Hussey Plow Company Dam,3.1,43.3035858,-70.73885821
+18960,Low-Head Dam (20276),Staples Dam,1.8,43.31722992,-70.74446277
+18966,Low-Head Dam (20283),Lower Dam,6.5,44.91002672,-69.40869828
+18970,Low-Head Dam (20284),Mill Stream Dam,5.0,44.53882939,-69.44497932
+18972,Low-Head Dam (20290),French Stream Dam,2.2,44.95284767,-69.13854089
+19059,Low-Head Dam (20742),Bixby Pond Dam,4.8,43.22304902,-71.31705513
+19087,Low-Head Dam (20768),Howe Reservoir Dam,14.3,42.92660923,-72.12992381
+19094,Low-Head Dam (20788),Ashuelot River Dam,2.4,42.78569286,-72.48138403
+19119,Low-Head Dam (20812),Plant Number 1 Dam,6.4,43.63751263,-72.26690168
+19140,Low-Head Dam (20838),Milford Town Dam,9.6,42.83604233,-71.64567347
+19157,Low-Head Dam (20853),Gregg Mill Pond Dam,4.1,43.00703128,-71.6646824
+19162,Low-Head Dam (20861),Piscassic River Dam,3.4,43.08262788,-70.94790474
+19166,Low-Head Dam (20865),Upper Ammonoosuc Dam,2.0,44.61050909,-71.50605588
+19170,Low-Head Dam (20868),Mountain Brook Dam,2.0,43.08360312,-71.1739656
+19190,Low-Head Dam (20888),Mill Pond Dam,1.8,43.27034708,-70.97645927
+19208,Low-Head Dam (20908),New Dam,6.9,43.25983131,-70.85983723
+19210,Low-Head Dam (20911),Island Pond Dam,5.3,43.0621453,-72.08084719
+19211,Low-Head Dam (20912),Chandler Meadow Pond Dam,33.1,43.04191234,-72.15259833
+19220,Low-Head Dam (20920),Chocorua River Dam,7.6,43.87823639,-71.22129617
+19226,Low-Head Dam (20930),Branch River Dam Number 1,4.2,43.49202079,-71.02068385
+19233,Low-Head Dam (20936),Warner River Dam,5.9,43.28194334,-71.88823963
+19243,Low-Head Dam (20947),Abbott Memorial Trust Dam,9.8,42.844707,-71.73884111
+19264,Low-Head Dam (20972),Riceville Pond Dam,3.9,42.53147003,-72.22376045
+19265,Low-Head Dam (20974),Lake Warner Dam,1.6,42.38555254,-72.58142663
+19266,Low-Head Dam (20975),Factory Hollow Dam,0.6,42.4156743,-72.51926186
+19267,Low-Head Dam (20978),Ware River Diversion Dam,6.9,42.39044296,-72.06012655
+19269,Low-Head Dam (20979),Stone Diversion Dam,7.1,42.01538727,-71.55358399
+19272,Low-Head Dam (20984),Shawsheen River Dam,29.1,42.62712138,-71.1577118
+19273,Low-Head Dam (20982),Nagog Pond Dam,4.1,42.51000389,-71.43333305
+19276,Low-Head Dam (20988),Ipswich Mills Dam,14.1,42.67768882,-70.83789326
+19277,Low-Head Dam (20986),Gilboa Pond Dam,11.2,42.08358283,-71.69844272
+19279,Low-Head Dam (20991),Curtis Crossing Dam,31.0,42.10035718,-70.8236801
+19283,Low-Head Dam (20993),Washington Street Dam,2.7,42.39048825,-71.57041802
+19284,Low-Head Dam (21001),New Home Sewing Machine Company Dam,14.6,42.5892658,-72.31020823
+19285,Low-Head Dam (20998),Forge Pond Dam,6.4,42.27450494,-72.47080373
+19287,Low-Head Dam (21004),Forest Park Upper Dam,29.8,42.07384738,-72.56940939
+19289,Low-Head Dam (21005),Watershops Pond Dam,2.7,42.0973256,-72.56291451
+19291,Low-Head Dam (21007),Pratts Pond Dam,10.4,42.23666016,-71.70524319
+19292,Low-Head Dam (21006),Blackstone River Dam,15.4,42.17776048,-71.71195572
+19296,Low-Head Dam (21014),Connor Pond Dam,6.8,42.46105402,-72.16442706
+19297,Low-Head Dam (21018),Brown Pond Dam,3.8,42.49199756,-72.16722462
+19300,Low-Head Dam (21019),Wax Factory Pond Dam,1.7,42.47606887,-72.07630443
+19301,Low-Head Dam (21020),Sturbridge Village Pond Dam,9.0,42.10652591,-72.0952082
+19302,Low-Head Dam (21024),Chicopee Falls Dam,17.5,42.15992872,-72.58097967
+19303,Low-Head Dam (21026),Indian Orchard Dam,13.2,42.16202757,-72.50241009
+19304,Low-Head Dam (21025),Dwight Dam,8.3,42.14985326,-72.60024054
+19305,Low-Head Dam (21028),Western Mass Electric Dam,14.2,42.15633666,-72.48443353
+19307,Low-Head Dam (21033),Lower Canal Dam,1.2,42.2585551,-72.23871649
+19308,Low-Head Dam (21032),Mason Road Dam,3.4,42.67901742,-71.74016669
+19309,Low-Head Dam (21037),Milford Pond Dam,11.3,41.7512989,-71.20651686
+19311,Low-Head Dam (21038),Plimpton Pond Dam,6.0,42.159723,-71.231303
+19314,Low-Head Dam (21039),City Mills Pond Dam,24.6,42.10953782,-71.36213112
+19316,Low-Head Dam (21043),Tannery Pond Dam,8.1,42.68044122,-72.0532788
+19317,Low-Head Dam (21044),Luther's Reservoir Dam,5.4,41.93560332,-71.33652511
+19318,Low-Head Dam (21045),Ten Mile River Dam,3.3,41.8956438,-71.32767811
+19321,Low-Head Dam (21049),Whitin Pond Dam,3.1,42.0939675,-71.63743146
+19323,Low-Head Dam (21051),West Warren Mill Pond Dam,17.6,42.21187908,-72.23306975
+19324,Low-Head Dam (21052),Segreganset River Dam,24.9,41.88623487,-71.17523106
+19326,Low-Head Dam (21054),Riverdale Dam,7.9,42.13894623,-71.63984973
+19328,Low-Head Dam (21055),Sutton Falls Dam,6.8,42.10946593,-71.78195514
+19329,Low-Head Dam (21057),Gordon Dam,4.2,42.11645297,-71.89776168
+19331,Low-Head Dam (21066),Straits Pond Dam,15.2,42.26036546,-70.8446478
+19332,Low-Head Dam (21064),Tileston and Hollingsworth Dam,2.1,42.26104634,-71.11049128
+19336,Low-Head Dam (21068),Reservoir Number 1 Dam,33.2,42.29184232,-71.44232959
+19337,Low-Head Dam (21069),Fiddlers Green Dam,3.6,42.31262677,-71.41712725
+19340,Low-Head Dam (21072),Shepard Pond Dam,15.9,42.14479311,-71.14953761
+19341,Low-Head Dam (21073),Orrs Pond Dam,2.2,41.92722072,-71.34054079
+19342,Low-Head Dam (21074),Three Mile River Dam,2.8,41.86808113,-71.12970774
+19343,Low-Head Dam (21076),Lower Delaney Pond Dam,6.3,42.44224033,-71.54549335
+19344,Low-Head Dam (21075),Lackey Dam,5.0,42.10309338,-71.68906538
+19345,Low-Head Dam (21077),Duck Mill Dam,19.6,42.57025805,-71.78247567
+19352,Low-Head Dam (21085),Crescent Street Dam,16.5,42.59446166,-72.22671504
+19354,Low-Head Dam (21086),Cresticon Lower Dam,0.6,42.5969963,-72.22071696
+19355,Low-Head Dam (21087),South Barre Mill Pond Dam,11.6,42.38628336,-72.09559956
+19357,Low-Head Dam (21090),North Nashua River Dam,6.1,42.56593393,-71.84387239
+19360,Low-Head Dam (21091),Arden Mill Dam,5.0,42.57249292,-71.78706343
+19362,Low-Head Dam (21094),Quinebaug River Pond Dam,15.1,42.0504623,-71.9810643
+19372,Low-Head Dam (21113),Noquochoke Lake Dam,37.7,41.63885206,-71.04705581
+19383,Low-Head Dam (21126),Waste Water Treatment Plant Dam,5.9,42.56310309,-71.84454055
+19386,Low-Head Dam (21127),Hovey Dam,44.8,42.23076493,-71.71389303
+19390,Low-Head Dam (21134),Box Mill Dam,2.4,42.43139955,-71.50304614
+19392,Low-Head Dam (21138),Stillwater Pond Dam,2.0,41.77286395,-70.96324159
+19394,Low-Head Dam (21137),Brown Pond Dam,1.1,41.77449349,-70.9584374
+19401,Low-Head Dam (21146),Spillway Dam at Neponset Street,2.4,42.158779,-71.15433853
+19404,Low-Head Dam (21147),Mother Brook Diversion at Charles River,1.1,42.25493269,-71.17162768
+19405,Low-Head Dam (21150),Freeman Lake Dam,7.2,42.63178239,-71.38694332
+19409,Low-Head Dam (21157),Whitehall Reservoir Dam,39.0,42.23591191,-71.56522654
+19411,Low-Head Dam (21152),Cemter Falls Dam,10.3,42.45185482,-71.13584925
+19417,Low-Head Dam (21165),Fish Brook Dam,0.2,42.64611755,-70.98954876
+19418,Low-Head Dam (21166),Factory Village Pond Dam,10.5,42.62869657,-71.8897178
+19421,Low-Head Dam (21167),Lake Rohunta Dam,17.5,42.56891357,-72.27195403
+19422,Low-Head Dam (21171),Powder Mill Dam,16.8,42.38972104,-72.07911
+19424,Low-Head Dam (21174),Allen Dam,42.8,42.47781799,-71.41463464
+19425,Low-Head Dam (21173),Stoneville Pond Dam,5.9,42.2182578,-71.8454632
+19429,Low-Head Dam (21175),Murray Printing Company Dam,3.3,42.58007717,-71.4875902
+19430,Low-Head Dam (21179),Howes Pond Dam,9.4,42.65512173,-71.00023401
+19433,Low-Head Dam (21182),Pondville Pond Dam,6.7,42.19499547,-71.82298993
+19434,Low-Head Dam (21181),Sydneys Pond Dam,9.9,42.51577984,-70.94288844
+19436,Low-Head Dam (21188),North Canal Outlet Dam,12.5,42.70707791,-71.14827404
+19438,Low-Head Dam (21189),Great Stone Dam,13.6,42.7006365,-71.16615989
+19439,Low-Head Dam (21192),Lower Artichoke Reservoir Dam,6.5,42.8132589,-70.93167563
+19440,Low-Head Dam (21190),Pillings Pond Dam,5.7,42.52819031,-71.03189819
+19441,Low-Head Dam (21196),Waltham Dam,1.6,42.37302008,-71.23621088
+19442,Low-Head Dam (21195),Charles River Dam at South Natick,6.8,42.27153266,-71.31583035
+19443,Low-Head Dam (21197),Cleveland Pond Dam,23.5,42.11436691,-70.97865811
+19447,Low-Head Dam (21198),Pepperell Paper Company Dam,13.6,42.66509763,-71.57602366
+19469,Low-Head Dam (21247),Leonards Pond Dam,35.0,41.74817272,-70.80471278
+19472,Low-Head Dam (21248),Elm Street on Jones River Reservoir,27.0,41.99080522,-70.73476259
+19473,Low-Head Dam (21252),Hamilton Reservoir Dam,10.2,42.06885929,-72.15292944
+19475,Low-Head Dam (21250),Watertown Dam,4.0,42.36534941,-71.18931348
+19478,Low-Head Dam (21257),Silver Lake Dam,9.6,42.1902373,-71.65542956
+19479,Low-Head Dam (21254),Ware River Dam,2.9,42.18933231,-72.33144199
+19481,Low-Head Dam (21259),Mount Holyoke College Lower Pond Dam,3.3,42.25369505,-72.57281637
+19482,Low-Head Dam (21258),Mount Holyoke College Upper Pond Dam,1.5,42.25842312,-72.57112881
+19483,Low-Head Dam (21261),Brigham Pond Dam,28.5,42.46816421,-71.99997656
+19485,Low-Head Dam (21262),Wildwood Lake Dam,8.6,42.17382665,-71.6352691
+19486,Low-Head Dam (21272),Whitmans Pond Dam,9.2,42.21115048,-70.92936783
+19489,Low-Head Dam (21273),Shad Factory Pond Dam,10.5,41.80918033,-71.27878354
+19491,Low-Head Dam (21276),Pawtucket Dam,23.8,42.64876577,-71.33185817
+19492,Low-Head Dam (21278),Upper Pawtucket Canal Dam,7.2,42.64213414,-71.31517746
+19493,Low-Head Dam (21277),Lower Pawtucket Canal Dam,4.2,42.64415833,-71.30728539
+19497,Low-Head Dam (21282),Snows Mill Pond Dam,6.8,42.5620028,-71.84900784
+19511,Low-Head Dam (21306),Swanson Dam,5.5,44.98609894,-71.81674104
+19533,Low-Head Dam (21340),Greenville Pond Dam,20.2,42.20287553,-71.91746684
+19534,Low-Head Dam (21341),Allen Street Dam,2.6,42.32963904,-71.63016286
+19536,Low-Head Dam (21347),Horn Pond Dam,6.5,42.46540298,-71.15179683
+19537,Low-Head Dam (21344),Sanford Mill Dam,7.3,42.13858526,-71.39883417
+19538,Low-Head Dam (21345),Old Pond Dam,5.8,42.02484351,-71.13231988
+19539,Low-Head Dam (21348),Ipswich River Dam,3.4,42.57002733,-71.03099548
+19540,Low-Head Dam (21349),Bush Pond Dam Number Two,8.6,42.09863697,-71.35255036
+19541,Low-Head Dam (21350),Pikes Pond Dam,3.9,42.16229284,-71.93752534
+19542,Low-Head Dam (21351),Wamesit Power Company Dam,23.4,42.6290003,-71.2980789
+19545,Low-Head Dam (21354),Prichards Dam,38.2,42.6185983,-71.0156256
+19550,Low-Head Dam (21363),Fulton Pond Dam,2.4,42.02494968,-71.21995252
+19552,Low-Head Dam (21366),Memorial Pond Dam,1.8,42.14610044,-71.24899031
+19556,Low-Head Dam (21364),Perryville Pond Dam,6.1,41.86350734,-71.2586299
+19557,Low-Head Dam (21367),Quinapoxet Dam,7.9,42.3872139,-71.80264471
+19558,Low-Head Dam (21372),Hobbs Pond Dam,36.0,42.38967904,-71.2774984
+19562,Low-Head Dam (21377),Pleasant Street Dam,1.0,42.66459384,-71.32311647
+19584,Low-Head Dam (21429),Tisdale Pond Dam,1.6,41.79603485,-71.0659367
+19587,Low-Head Dam (21431),Lake Lashaway Dam,19.5,42.22618651,-72.05003312
+19589,Low-Head Dam (21432),North Webster Village Pond Dam,11.8,42.06363089,-71.88017934
+19590,Low-Head Dam (21437),Finlay Dam,6.9,42.32516149,-71.25848183
+19593,Low-Head Dam (21438),Ware Industries Main Upper Dam,4.1,42.26166977,-72.23513272
+19594,Low-Head Dam (21439),Ben Smith Dam,3.3,42.42731284,-71.46915092
+19601,Low-Head Dam (21451),Massapoag Pond Dam,5.1,42.65773153,-71.49640286
+19602,Low-Head Dam (21455),Fosters Pond Dam,3.2,42.61366494,-71.14145332
+19603,Low-Head Dam (21454),Tuxbury Pond Outlet Dam,15.6,42.86210342,-70.9840355
+19605,Low-Head Dam (21456),Langwater Pond Dam,0.8,42.06607944,-71.09505938
+19608,Low-Head Dam (21468),Saxonville Dam,3.9,42.32468127,-71.40190229
+19609,Low-Head Dam (21469),Hathaway Pond Dam,4.3,41.73394949,-70.79423787
+19611,Low-Head Dam (21471),Bonney Pond Dam,13.1,41.96391456,-70.81690767
+19631,Low-Head Dam (21453),Auburn Pond Dam,0.8,42.20481096,-71.8345309
+19638,Low-Head Dam (21523),Houghton Pond Dam,2.4,42.21166039,-71.42747338
+19639,Low-Head Dam (21526),D.F. Riley Grist Mill Dam,3.0,42.37151354,-72.60841765
+19641,Low-Head Dam (21527),Lake Wyola Dam,17.9,42.50207877,-72.43605242
+19643,Low-Head Dam (21533),Church Manufacturing Company Dam,0.8,42.12230162,-72.30841203
+19644,Low-Head Dam (21532),Marcalus Manufacturing Company Dam,5.3,42.24871772,-72.57952428
+19645,Low-Head Dam (21531),Fisherville Pond Dam,7.2,42.17926091,-71.68854507
+19647,Low-Head Dam (21535),Pine Hill Reservoir Dam,25.6,42.35100031,-71.90478842
+19648,Low-Head Dam (21537),Williamsville Pond Dam,1.4,42.48166948,-72.07820778
+19650,Low-Head Dam (21538),Lowes Pond Dam,4.2,42.10825397,-71.86447794
+19652,Low-Head Dam (21539),Diversion Dam,21.2,42.07179704,-72.01393764
+19658,Low-Head Dam (21571),West Charleston Dam,3.9,44.89520086,-72.05491527
+19662,Low-Head Dam (21588),Lake Elmore Dam,1.0,44.54118621,-72.52416455
+19689,Low-Head Dam (21670),Congdon Dam,6.0,41.44419,-72.1208
+19692,Low-Head Dam (21678),Sawmill Pond Dam,2.2,41.57735,-71.8678
+19707,Low-Head Dam (21734),Rockwell Dam,4.6,42.04461589,-72.38311605
+19742,Low-Head Dam (22484),Snake Meadow Pond Dam,25.0,41.76355,-71.8501
+19764,Low-Head Dam (23052),Little City Dam,7.0,41.46364,-72.5592
+19768,Low-Head Dam (24215),Cavalier City Dam,3.0,48.79844,-97.6269
+19769,Low-Head Dam (24216),Drayton Dam,1.3,48.59640763,-97.15273314
+19771,Low-Head Dam (24225),Pembina City Dam,5.6,48.96651,-97.2425
+19773,Low-Head Dam (24230),Crystal Dam,9.9,48.60086,-97.6728
+19778,Low-Head Dam (24237),Long Creek Dam,5.2,48.97525,-103.291
+19779,Low-Head Dam (24270),Bel-Hem Dam,6.6,41.92324,-71.9065
+19811,Low-Head Dam (25561),Rising Sun Dam,3.7,41.82210346,-71.44204652
+19817,Low-Head Dam (25572),Blow-Me-Down Pond Dam,6.1,43.49707362,-72.37549501
+19827,Low-Head Dam (25638),McGrath Dam,10.9,41.57358,-72.2052
+19840,Low-Head Dam (25715),Millyard Crib Dam,1.4,42.85756656,-70.93246855
+19842,Low-Head Dam (25718),Millpond Dam and Spillway,1.2,42.23614461,-71.79688128

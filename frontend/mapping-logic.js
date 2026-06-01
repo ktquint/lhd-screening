@@ -22,6 +22,23 @@ let _forecastState = null; // { allPoints, hasSafetyRange, qMin, qMax, damName }
 let markers = L.layerGroup();
 let activeRiverFilter = { river: '', state: '' };
 
+// Display-name resolver: prefer OSM_Name; fall back to Dam_Name; finally a placeholder.
+// Also returns whether the underlying Dam_Name was "generic" (so callers can decide
+// search/UI behavior).
+const GENERIC_NAME_RE = /^(wade unspecified|low-?head dam( \(\d+\))?|lhd|added-?\d*|control structure( ?#?\d+)?|dam|unnamed|n\/?a)$/i;
+function isGenericName(n) {
+    if (!n) return true;
+    return GENERIC_NAME_RE.test(String(n).trim());
+}
+function displayName(dam) {
+    const osm = (dam.OSM_Name || '').trim();
+    if (osm) return osm;
+    const orig = (dam.Dam_Name || '').trim();
+    if (orig && !isGenericName(orig)) return orig;
+    if (orig) return orig; // keep generic placeholder visible if no better option
+    return 'Unnamed Dam';
+}
+
 const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
 });
@@ -34,10 +51,25 @@ const terrain = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', 
     attribution: 'Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap (CC-BY-SA)'
 });
 
-const map = L.map('map', { 
+const map = L.map('map', {
     preferCanvas: true,
     layers: [osm] // Default layer
 }).setView([39.82, -98.57], 4);
+
+const NHD_BLUE = [0, 102, 204, 255];   // R,G,B,A 0-255
+const flowlineSymbol = (width) => ({
+    type: 'simple',
+    symbol: { type: 'esriSLS', style: 'esriSLSSolid', color: NHD_BLUE, width }
+});
+const nhdFlowlines = L.esri.dynamicMapLayer({
+    url: 'https://hydro.nationalmap.gov/arcgis/rest/services/nhd/MapServer',
+    dynamicLayers: [
+        { id: 104, source: { type: 'mapLayer', mapLayerId: 4 }, drawingInfo: { renderer: flowlineSymbol(2.0) } },
+        { id: 106, source: { type: 'mapLayer', mapLayerId: 6 }, drawingInfo: { renderer: flowlineSymbol(1.5) } }
+    ],
+    opacity: 1.0,
+    attribution: 'Hydrography &copy; USGS NHD'
+}).addTo(map);
 
 // Define base maps for the control toggle
 const baseMaps = {
@@ -136,9 +168,10 @@ const SearchControl = L.Control.extend({
             // Find all matches across the dataset
             const matches = allDams.filter(d => {
                 const name = (d.Dam_Name || '').toLowerCase();
+                const osm  = (d.OSM_Name || '').toLowerCase();
                 const city = (d.City || '').toLowerCase();
                 const state = (d['State Abbreviation'] || '').toLowerCase();
-                return name.includes(val) || city.includes(val) || state.includes(val);
+                return name.includes(val) || osm.includes(val) || city.includes(val) || state.includes(val);
             });
 
             // --- UX UPGRADE: Search Results Counter & Empty State ---
@@ -168,7 +201,7 @@ const SearchControl = L.Control.extend({
                 const place = (dam.City && dam.City.trim()) || (dam['County Name'] && dam['County Name'].trim()) || '';
                 const loc = [place, dam['State Abbreviation']].filter(Boolean).join(', ');
                 
-                div.innerHTML = `<strong>${dam.Dam_Name}</strong><br><span style="color:#7f8c8d; font-size: 11px;">${loc}</span>`;
+                div.innerHTML = `<strong>${displayName(dam)}</strong><br><span style="color:#7f8c8d; font-size: 11px;">${loc}</span>`;
 
                 // Subtle blue hover effect instead of harsh gray
                 div.onmouseover = () => div.style.backgroundColor = '#f0f4f8';
@@ -183,7 +216,7 @@ const SearchControl = L.Control.extend({
                             if (l.getLatLng().lat === lat && l.getLatLng().lng === lng) l.openPopup();
                         });
                     }
-                    input.value = dam.Dam_Name;
+                    input.value = displayName(dam);
                     panel.style.display = 'none';
                 };
                 resultsDiv.appendChild(div);
@@ -370,9 +403,10 @@ function renderMarkers() {
                 fillOpacity: 1
             });
 
+            const _displayName = displayName(dam);
             let popupContent = `
                 <div class="popup-content">
-                    <strong>${dam.Dam_Name}</strong><br>
+                    <strong>${_displayName}</strong><br>
                     <b>Location:</b> ${location}<br>
                     <b>Fatalities:</b> ${fatalities}<br>
                     <hr>`;
@@ -383,7 +417,7 @@ function renderMarkers() {
                 }
                 const safetyArgs = hasSafetyData ? `${qMinVal}, ${qMaxVal}` : `null, null`;
                 popupContent += `
-                    <button class="btn-check" onclick="checkForecast('${dam.Reach_ID}', ${safetyArgs}, '${dam.Dam_Name}')">
+                    <button class="btn-check" onclick="checkForecast('${dam.Reach_ID}', ${safetyArgs}, ${JSON.stringify(_displayName)})">
                         Check Live Forecast
                     </button>`;
             } else {
