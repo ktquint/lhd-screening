@@ -8,12 +8,13 @@ import numpy as np
 import xarray as xr
 import pandas as pd
 import geopandas as gpd
-import contextily as ctx
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.ticker import FixedLocator
-from matplotlib_scalebar.scalebar import ScaleBar
+# contextily and matplotlib_scalebar are imported lazily inside the basemap-
+# plotting method (only used by the legacy single-dam visualizer, not the
+# batch path), so the NWM-only pipeline doesn't need them installed.
 
 # Internal imports
 from .hydraulics import (solve_weir_geom,
@@ -857,6 +858,7 @@ class Dam:
         ax = fig.add_subplot(111)
         ax.set_xlim(minx - buffer * 2, maxx + buffer * 2)
         ax.set_ylim(miny - buffer, maxy + buffer)
+        import contextily as ctx  # lazy: only this plotter needs it
         ctx.add_basemap(ax, crs='EPSG:3857', source="Esri.WorldImagery", zorder=0)
 
         if 'Relative_Loc' in xs_gdf.columns:
@@ -881,6 +883,7 @@ class Dam:
 
         ax.set_title(f"Cross-Section Locations for LHD No. {self.id}")
         ax.legend(title="Cross-Section Location", loc='upper right')
+        from matplotlib_scalebar.scalebar import ScaleBar  # lazy: only this plotter needs it
         ax.add_artist(ScaleBar(1, units="m", dimension="si-length", location="lower left"))
 
         import matplotlib.patheffects as pe
