@@ -1,19 +1,17 @@
 """
-Assign WBD HUC8 to every dam in full_lhd_website.csv via spatial join.
+Assign WBD HUC codes to every dam in full_lhd_website.csv via spatial join.
 
 Downloads WBD_National_GPKG once into cache/wbd/ (~2.5 GB) if not present,
-loads the WBDHU8 layer, spatial-joins to dam points, and writes
-frontend/data/full_lhd_website_huc8.csv with a new HUC8 column appended.
+loads the WBDHU8 layer, spatial-joins to dam points, and overwrites the
+HUC2/HUC4/HUC6/HUC8 columns in full_lhd_website.csv in place.  HUC2/4/6
+are derived as prefixes of the authoritative WBD HUC8.
 
 Dams that fall outside every HUC8 polygon (offshore, non-CONUS) are tagged
-HUC8 == "00000000" and skipped by the HUC8 orchestrator.
-
-Idempotent: skips work if the output CSV already has a HUC8 column.
+HUC8 == "00000000" and skipped by the orchestrator.
 
 Usage
 -----
     python backend/assign_huc8.py
-    python backend/assign_huc8.py --force      # recompute even if cached
 """
 from __future__ import annotations
 
@@ -30,7 +28,6 @@ _BACKEND_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _BACKEND_ROOT.parent
 
 DEFAULT_DAMS_CSV = _REPO_ROOT / "frontend" / "data" / "full_lhd_website.csv"
-DEFAULT_OUTPUT_CSV = _REPO_ROOT / "frontend" / "data" / "full_lhd_website_huc8.csv"
 
 WBD_CACHE_DIR = _REPO_ROOT / "cache" / "wbd"
 WBD_ZIP_URL = (
@@ -85,18 +82,8 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--dams-csv", type=Path, default=DEFAULT_DAMS_CSV,
-                        help=f"Input dam CSV (default: {DEFAULT_DAMS_CSV})")
-    parser.add_argument("--output-csv", type=Path, default=DEFAULT_OUTPUT_CSV,
-                        help=f"Output CSV with HUC8 column (default: {DEFAULT_OUTPUT_CSV})")
-    parser.add_argument("--force", action="store_true",
-                        help="Recompute even if output CSV already has HUC8.")
+                        help=f"Dam CSV to update in place (default: {DEFAULT_DAMS_CSV})")
     args = parser.parse_args()
-
-    if args.output_csv.exists() and not args.force:
-        header = pd.read_csv(args.output_csv, nrows=0)
-        if "HUC8" in header.columns:
-            print(f"{args.output_csv} already has HUC8 column — pass --force to recompute.")
-            return
 
     gpkg = _ensure_wbd_gpkg()
     layer = _find_huc8_layer(gpkg)
@@ -106,42 +93,43 @@ def main() -> None:
     huc_col = next((c for c in ("huc8", "HUC8") if c in huc8.columns), None)
     if huc_col is None:
         sys.exit(f"No huc8/HUC8 column in layer '{layer}'. Columns: {list(huc8.columns)}")
-    # Use a temp name so we don't collide with any pre-existing HUC8 column in
-    # the dam CSV (it already ships HUC2/HUC4/HUC6/HUC8, only ~65% populated).
     huc8 = huc8[[huc_col, "geometry"]].rename(columns={huc_col: "__wbd_huc8"})
     print(f"  → {len(huc8)} HUC8 polygons (CRS = {huc8.crs})")
 
     print(f"Loading dams from {args.dams_csv} …")
     dams = pd.read_csv(args.dams_csv, low_memory=False)
     n_raw = len(dams)
-    dams = dams[dams["Latitude"].notna() & dams["Longitude"].notna()].copy()
-    if len(dams) < n_raw:
-        print(f"  Dropped {n_raw - len(dams)} row(s) missing lat/lon.")
+    dams_geo = dams[dams["Latitude"].notna() & dams["Longitude"].notna()].copy()
+    if len(dams_geo) < n_raw:
+        print(f"  {n_raw - len(dams_geo)} row(s) missing lat/lon — they'll get HUC* = NaN.")
     dams_gdf = gpd.GeoDataFrame(
-        dams,
-        geometry=gpd.points_from_xy(dams["Longitude"], dams["Latitude"]),
+        dams_geo,
+        geometry=gpd.points_from_xy(dams_geo["Longitude"], dams_geo["Latitude"]),
         crs="EPSG:4326",
     ).to_crs(huc8.crs)
 
     print("Spatial joining dams → HUC8 …")
     joined = gpd.sjoin(dams_gdf, huc8, how="left", predicate="within")
-
-    # A dam exactly on a HUC8 boundary can match more than once; keep first.
+    # Dams on a HUC8 boundary can match more than once; keep first.
     joined = joined[~joined.index.duplicated(keep="first")]
 
-    # Authoritative HUC8 comes from the WBD join — overwrite the partial column
-    # the CSV shipped with so every dam gets a clean, zero-padded 8-digit code.
-    joined["HUC8"] = joined["__wbd_huc8"].fillna("00000000").astype(str).str.zfill(8)
-    out = pd.DataFrame(
-        joined.drop(columns=["geometry", "index_right", "__wbd_huc8"], errors="ignore")
+    huc8_codes = (
+        joined["__wbd_huc8"].fillna("00000000").astype(str).str.zfill(8)
     )
 
-    n_missing = (out["HUC8"] == "00000000").sum()
-    unique_hucs = out.loc[out["HUC8"] != "00000000", "HUC8"].nunique()
-    out.to_csv(args.output_csv, index=False)
+    # Authoritative WBD overwrites the partial HUC2/4/6/8 the CSV shipped with.
+    # Re-index back to the full frame so lat/lon-less rows stay aligned.
+    dams.loc[huc8_codes.index, "HUC8"] = huc8_codes.values
+    dams.loc[huc8_codes.index, "HUC6"] = huc8_codes.str[:6].values
+    dams.loc[huc8_codes.index, "HUC4"] = huc8_codes.str[:4].values
+    dams.loc[huc8_codes.index, "HUC2"] = huc8_codes.str[:2].values
+
+    n_missing = (dams["HUC8"] == "00000000").sum()
+    unique_hucs = dams.loc[dams["HUC8"] != "00000000", "HUC8"].nunique()
+    dams.to_csv(args.dams_csv, index=False)
     print(
-        f"Wrote {args.output_csv}\n"
-        f"  {len(out)} dams across {unique_hucs} HUC8 basins  "
+        f"Updated {args.dams_csv} in place\n"
+        f"  {len(dams)} dams across {unique_hucs} HUC8 basins  "
         f"({n_missing} unassigned)"
     )
 

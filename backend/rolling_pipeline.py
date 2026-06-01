@@ -6,7 +6,7 @@ HUC codes nest by prefix, so HUC6 = HUC8[:6], HUC4 = HUC8[:4]. Lower levels =
 fewer, larger batches. Bundle folders are named huc<level>_<KEY>/ (e.g.
 huc6_140600/).
 
-For each HUC group in frontend/data/full_lhd_website_huc8.csv:
+For each HUC group in frontend/data/full_lhd_website.csv:
   1. Free-space gate — if free disk on --local-staging-root is below
      --min-free-gb the loop stops cleanly so you can move a completed
      huc<level>_<KEY>/ directory off to an external drive, then rerun.
@@ -50,6 +50,11 @@ Other commands
     --huc8 <KEY>           process only this group key (at the active level)
     --status               print the ledger and exit
     --locate <dam_id>      print which HUC8 + batch a dam belongs to
+    --archive-to <PATH>    batch-archive every ready_to_archive bundle:
+                           consolidate + mv to PATH + mark archived
+    --aggregate            roll per-dam analysis_summary.json into
+                           Qmin_env/Qmax_env + Qmin_stable/Qmax_stable
+                           columns on --dams-csv (drops legacy Qmin/Qmax)
 """
 from __future__ import annotations
 
@@ -67,7 +72,7 @@ import pandas as pd
 
 _BACKEND_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _BACKEND_ROOT.parent
-DEFAULT_DAMS_CSV = _REPO_ROOT / "frontend" / "data" / "full_lhd_website_huc8.csv"
+DEFAULT_DAMS_CSV = _REPO_ROOT / "frontend" / "data" / "full_lhd_website.csv"
 
 # A HUC is skipped on rerun only when it is fully done. "partial" is NOT here
 # on purpose: those HUCs get re-attempted so transient upstream failures (e.g. a
@@ -478,7 +483,7 @@ def _cmd_consolidate(args: argparse.Namespace) -> None:
         marker["consolidated_at"] = entry["consolidated_at"]
         marker_path.write_text(json.dumps(marker, indent=2))
 
-    print(f"HUC8 {huc8} consolidated. New size: {size_bytes / 1e9:.1f} GB. "
+    print(f"HUC group {key} consolidated. New size: {size_bytes / 1e9:.1f} GB. "
           f"Safe to `mv {huc_dir} /Volumes/<drive>/`.")
 
 
@@ -513,6 +518,198 @@ def _cmd_status(args: argparse.Namespace) -> None:
         print(f"  {s:<20} {counts[s]}")
 
 
+def _cmd_archive_to(args: argparse.Namespace) -> None:
+    """Batch-archive every ready_to_archive batch in the ledger to --archive-to.
+
+    For each batch with status == "ready_to_archive":
+      1. Consolidate symlinks into real files (so the bundle is self-contained).
+      2. Move huc<level>_<KEY>/ to <archive-to>/.
+      3. Flip ledger status to "archived".
+
+    Errors on one batch are reported but don't stop the loop — subsequent
+    batches still get archived.
+    """
+    local_root: Path = args.local_staging_root
+    dest: Path = args.archive_to.resolve()
+    if not dest.is_dir():
+        sys.exit(f"--archive-to directory does not exist: {dest}")
+
+    ledger_path = local_root / "huc8_ledger.json"
+    ledger = _load_ledger(ledger_path)
+    if not ledger:
+        sys.exit(f"No ledger at {ledger_path}")
+
+    ready = [k for k, v in ledger.items() if v.get("status") == "ready_to_archive"]
+    if not ready:
+        print("No batches in ready_to_archive state. Nothing to do.")
+        return
+
+    print(f"Archiving {len(ready)} batch(es) → {dest}")
+    archived: List[str] = []
+    failed: List[Tuple[str, str]] = []
+    for key in sorted(ready):
+        huc_dir = local_root / _huc_dirname(key)
+        if not huc_dir.is_dir():
+            failed.append((key, f"bundle missing at {huc_dir}"))
+            continue
+
+        try:
+            print(f"\n[{key}] consolidating symlinks …")
+            moved, dangling = _consolidate_huc(huc_dir)
+            print(f"  moved {moved} symlinked dir(s)"
+                  + (f"; {len(dangling)} dangling skipped" if dangling else ""))
+
+            entry = ledger.setdefault(key, {})
+            entry["consolidated"] = True
+            entry["consolidated_at"] = _now()
+            entry["consolidated_moves"] = moved
+            entry.pop("external_links", None)
+
+            size_bytes = _dir_size_bytes(huc_dir)
+            marker_path = huc_dir / ".READY_TO_ARCHIVE"
+            if marker_path.exists():
+                marker = json.loads(marker_path.read_text())
+                marker["size_bytes"] = size_bytes
+                marker["size_human"] = f"{size_bytes / 1e9:.1f} GB"
+                marker["uses_external_data"] = False
+                marker["external_paths"] = []
+                marker["consolidated_at"] = entry["consolidated_at"]
+                marker_path.write_text(json.dumps(marker, indent=2))
+
+            print(f"[{key}] moving {size_bytes / 1e9:.1f} GB → {dest}/{huc_dir.name} …")
+            shutil.move(str(huc_dir), str(dest / huc_dir.name))
+
+            entry["status"] = "archived"
+            entry["archived_at"] = _now()
+            entry["archived_to"] = str(dest / huc_dir.name)
+            _save_ledger(ledger_path, ledger)
+            print(f"[{key}] archived.")
+            archived.append(key)
+        except Exception as e:
+            # Persist whatever ledger updates we did make before the failure
+            _save_ledger(ledger_path, ledger)
+            print(f"[{key}] FAILED: {e}")
+            failed.append((key, str(e)))
+
+    print(f"\nDone. archived={len(archived)} failed={len(failed)}")
+    if failed:
+        for k, why in failed:
+            print(f"  ! {k}: {why}")
+
+
+def _cmd_aggregate(args: argparse.Namespace) -> None:
+    """Roll per-dam analysis_summary.json into Qmin/Qmax columns on the master CSV.
+
+    Searches the local staging root + every --existing-data-dir for
+    RESULTS/<dam_id>/analysis_summary.json files (rglob handles both the
+    huc<level>_<KEY>/RESULTS/ bundle layout and the flat RESULTS/ layout used
+    by legacy scattered staging). For each dam computes:
+
+      Qmin_env / Qmax_env       — min / max across the 4 downstream XS.
+      Qmin_stable / Qmax_stable — XS whose along-flowline distance
+                                  (xs_index * weir_length_m) is closest to
+                                  height_info.ds_x_m (slope-stabilization
+                                  cell from the dam-height estimator).
+
+    Drops any pre-existing Qmin / Qmax columns on the master CSV before
+    writing the new columns back in place.
+    """
+    dams_csv: Path = args.dams_csv
+    if not dams_csv.exists():
+        sys.exit(f"Dam CSV not found: {dams_csv}")
+
+    search_roots: List[Path] = [args.local_staging_root.resolve()]
+    for d in (args.existing_data_dir or []):
+        p = Path(d).resolve()
+        if not p.is_dir():
+            sys.exit(f"--existing-data-dir does not exist: {p}")
+        search_roots.append(p)
+
+    print(f"Scanning {len(search_roots)} root(s) for analysis_summary.json …")
+    seen: Dict[int, Path] = {}
+    for root in search_roots:
+        if not root.exists():
+            continue
+        for summary_path in root.rglob("analysis_summary.json"):
+            # Layout invariant: .../RESULTS/<dam_id>/analysis_summary.json
+            try:
+                dam_id = int(summary_path.parent.name)
+            except ValueError:
+                continue
+            # First hit wins — caller orders staging-root before existing dirs.
+            seen.setdefault(dam_id, summary_path)
+
+    print(f"  → {len(seen)} dam summaries found")
+    if not seen:
+        sys.exit("Nothing to aggregate.")
+
+    rows: Dict[int, Dict[str, float]] = {}
+    n_no_xs = 0
+    n_no_stable = 0
+    for dam_id, summary_path in seen.items():
+        try:
+            with open(summary_path) as f:
+                summary = json.load(f)
+        except (OSError, json.JSONDecodeError) as e:
+            print(f"  WARN dam {dam_id}: unreadable summary ({e})")
+            continue
+
+        xs_list = summary.get("xs_results") or []
+        weir_length_m = summary.get("weir_length_m")
+        ds_x_m = (summary.get("height_info") or {}).get("ds_x_m")
+
+        valid = [
+            xs for xs in xs_list
+            if xs.get("Qmin_cms") is not None
+            and xs.get("Qmax_cms") is not None
+            and xs.get("xs_index") is not None
+        ]
+        if not valid:
+            n_no_xs += 1
+            continue
+
+        qmin_env = min(float(xs["Qmin_cms"]) for xs in valid)
+        qmax_env = max(float(xs["Qmax_cms"]) for xs in valid)
+
+        qmin_stable = qmax_stable = None
+        if (weir_length_m and weir_length_m > 0
+                and ds_x_m is not None and ds_x_m > 0):
+            chosen = min(
+                valid,
+                key=lambda xs: abs(int(xs["xs_index"]) * float(weir_length_m)
+                                   - float(ds_x_m)),
+            )
+            qmin_stable = float(chosen["Qmin_cms"])
+            qmax_stable = float(chosen["Qmax_cms"])
+        else:
+            n_no_stable += 1
+
+        rows[dam_id] = {
+            "Qmin_env": qmin_env,
+            "Qmax_env": qmax_env,
+            "Qmin_stable": qmin_stable,
+            "Qmax_stable": qmax_stable,
+        }
+
+    print(f"  rolled up {len(rows)} dams "
+          f"({n_no_xs} skipped — no valid XS, {n_no_stable} missing stable pick)")
+
+    dams = pd.read_csv(dams_csv, low_memory=False)
+    for old_col in ("Qmin", "Qmax", "Qmin_env", "Qmax_env",
+                    "Qmin_stable", "Qmax_stable"):
+        if old_col in dams.columns:
+            dams = dams.drop(columns=[old_col])
+
+    add = pd.DataFrame.from_dict(rows, orient="index")
+    add.index.name = "OBJECTID"
+    add = add.reset_index()
+
+    merged = dams.merge(add, on="OBJECTID", how="left")
+    merged.to_csv(dams_csv, index=False)
+    print(f"Wrote 4 columns (Qmin_env, Qmax_env, Qmin_stable, Qmax_stable) "
+          f"to {dams_csv}")
+
+
 def _cmd_locate(args: argparse.Namespace) -> None:
     target = int(args.locate)
     dams_csv: Path = args.dams_csv
@@ -529,9 +726,8 @@ def _cmd_locate(args: argparse.Namespace) -> None:
     huc8 = str(raw).split(".")[0]
     if pd.isna(raw) or not huc8.isdigit() or huc8.zfill(8) == "00000000":
         print(f"Dam {target} has no valid HUC8 assignment (value={raw!r}).")
-        print(f"  This is expected if {dams_csv.name} is the un-enriched master. "
-              f"Run `python backend/assign_huc8.py` and point --dams-csv at "
-              f"frontend/data/full_lhd_website_huc8.csv.")
+        print(f"  Run `python backend/assign_huc8.py` to populate HUC codes "
+              f"in {dams_csv.name}.")
         return
     huc8 = huc8.zfill(8)
     key = huc8[:level]
@@ -585,6 +781,17 @@ def main() -> None:
     parser.add_argument("--locate", type=str, default=None, metavar="DAM_ID",
                         help="Print the HUC8 + batch key (and ledger status, if any) "
                              "for the given dam OBJECTID, then exit")
+    parser.add_argument("--archive-to", type=Path, default=None, metavar="PATH",
+                        help="Batch-archive: for every ledger entry with status "
+                             "ready_to_archive, consolidate symlinks, move "
+                             "huc<level>_<KEY>/ to PATH/, and mark archived. "
+                             "One command clears the entire queue.")
+    parser.add_argument("--aggregate", action="store_true",
+                        help="Walk RESULTS/<dam_id>/analysis_summary.json under the "
+                             "staging root + each --existing-data-dir and write "
+                             "Qmin_env/Qmax_env (envelope across 4 downstream XS) and "
+                             "Qmin_stable/Qmax_stable (XS nearest the slope-stabilization "
+                             "cell) back into --dams-csv. Drops legacy Qmin/Qmax first.")
     parser.add_argument("--status", action="store_true",
                         help="Print ledger contents and exit")
     args = parser.parse_args()
@@ -598,6 +805,10 @@ def main() -> None:
         _cmd_consolidate(args)
     elif args.mark_archived:
         _cmd_mark_archived(args)
+    elif args.archive_to:
+        _cmd_archive_to(args)
+    elif args.aggregate:
+        _cmd_aggregate(args)
     else:
         _cmd_run(args)
 
