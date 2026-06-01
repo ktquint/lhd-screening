@@ -220,6 +220,7 @@ def main() -> None:
     print(f"Running ARC for {total} dams (workers={args.workers})\n")
 
     counts: Dict[str, int] = {}
+    failures: Dict[int, str] = {}
     with ThreadPoolExecutor(max_workers=args.workers) as ex:
         futures = {
             ex.submit(
@@ -237,10 +238,24 @@ def main() -> None:
                 _log(f"  ! Dam {dam_id} worker error: {e}")
                 traceback.print_exc()
             counts[status] = counts.get(status, 0) + 1
+            if status != "ok":
+                failures[int(dam_id)] = status
 
     print("\nSummary:")
     for status in sorted(counts):
         print(f"  {status:<22} {counts[status]}")
+
+    failures_path = staging_dir / "failures_arc.json"
+    if failures:
+        with open(failures_path, "w") as f:
+            json.dump(
+                {str(k): v for k, v in sorted(failures.items())},
+                f, indent=2,
+            )
+        print(f"\nWrote per-dam failure reasons → {failures_path}")
+    elif failures_path.exists():
+        # Last run had failures, this one fixed them — clean up the stale file.
+        failures_path.unlink()
 
 
 if __name__ == "__main__":
