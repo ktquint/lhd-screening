@@ -455,7 +455,7 @@ async function checkForecast(comid, qMin, qMax, damName) {
     // Show modal + spinner immediately
     document.getElementById('forecastSpinner').style.display = 'block';
     document.getElementById('forecastChart').style.display = 'none';
-    document.getElementById('forecastModal').style.display = 'block';
+    document.getElementById('forecastModal').classList.add('is-open');
     if (forecastChart) { forecastChart.destroy(); forecastChart = null; }
 
     try {
@@ -624,7 +624,8 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
         data: { labels, datasets },
         options: {
             responsive: true,
-            plugins: { 
+            maintainAspectRatio: false,
+            plugins: {
                 filler: { propagate: true },
                 legend: {
                     labels: {
@@ -664,6 +665,126 @@ legend.onAdd = function (map) {
 legend.addTo(map);
 
 window.addEventListener('resize', () => { map.invalidateSize(); });
+
+// --- Draggable + resizable forecast panel ---
+function closeForecastPanel() {
+    document.getElementById('forecastModal').classList.remove('is-open');
+    document.getElementById('forecastSliderWrap').style.display = 'none';
+}
+window.closeForecastPanel = closeForecastPanel;
+
+(function enableForecastDrag() {
+    const panel  = document.getElementById('forecastModal');
+    const handle = document.getElementById('forecastModalHeader');
+    if (!panel || !handle) return;
+
+    let dragging = false;
+    let startX = 0, startY = 0, startLeft = 0, startTop = 0;
+
+    function pinAbsolute() {
+        // After the first drag/resize, replace `left:50%; transform:translateX(-50%)`
+        // with concrete pixel left/top so drag math is straightforward.
+        const r = panel.getBoundingClientRect();
+        panel.style.left = r.left + 'px';
+        panel.style.top  = r.top  + 'px';
+        panel.style.transform = 'none';
+        panel.style.margin = '0';
+    }
+
+    handle.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.close')) return;       // don't drag when clicking X
+        e.preventDefault();
+        pinAbsolute();
+        dragging = true;
+        startX = e.clientX; startY = e.clientY;
+        const r = panel.getBoundingClientRect();
+        startLeft = r.left; startTop = r.top;
+        document.body.style.userSelect = 'none';
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        const r = panel.getBoundingClientRect();
+        // clamp so the header stays on-screen
+        const minLeft = -r.width + 80;
+        const maxLeft = window.innerWidth - 80;
+        const minTop  = 0;
+        const maxTop  = window.innerHeight - 30;
+        panel.style.left = Math.max(minLeft, Math.min(maxLeft, startLeft + dx)) + 'px';
+        panel.style.top  = Math.max(minTop,  Math.min(maxTop,  startTop  + dy)) + 'px';
+    });
+
+    window.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        document.body.style.userSelect = '';
+    });
+
+    // Keep the Chart.js canvas in sync with the resizable panel.
+    if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(() => {
+            if (typeof forecastChart !== 'undefined' && forecastChart) forecastChart.resize();
+        });
+        ro.observe(panel);
+    }
+
+    // 8-direction resize via edge/corner handles
+    const MIN_W = 340, MIN_H = 260;
+    let resizing = null;   // { dir, startX, startY, startLeft, startTop, startW, startH }
+
+    panel.querySelectorAll('.resize-handle').forEach((h) => {
+        h.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            pinAbsolute();
+            const r = panel.getBoundingClientRect();
+            resizing = {
+                dir: h.dataset.dir,
+                startX: e.clientX, startY: e.clientY,
+                startLeft: r.left, startTop: r.top,
+                startW: r.width,  startH: r.height,
+            };
+            document.body.style.userSelect = 'none';
+        });
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (!resizing) return;
+        const dx = e.clientX - resizing.startX;
+        const dy = e.clientY - resizing.startY;
+        let { startLeft: L, startTop: T, startW: W, startH: H, dir } = resizing;
+
+        if (dir.includes('e')) W = Math.max(MIN_W, resizing.startW + dx);
+        if (dir.includes('s')) H = Math.max(MIN_H, resizing.startH + dy);
+        if (dir.includes('w')) {
+            const newW = Math.max(MIN_W, resizing.startW - dx);
+            L = resizing.startLeft + (resizing.startW - newW);
+            W = newW;
+        }
+        if (dir.includes('n')) {
+            const newH = Math.max(MIN_H, resizing.startH - dy);
+            T = resizing.startTop + (resizing.startH - newH);
+            H = newH;
+        }
+        // Clamp to viewport
+        L = Math.max(0, Math.min(window.innerWidth  - W, L));
+        T = Math.max(0, Math.min(window.innerHeight - H, T));
+
+        panel.style.left   = L + 'px';
+        panel.style.top    = T + 'px';
+        panel.style.width  = W + 'px';
+        panel.style.height = H + 'px';
+    });
+
+    window.addEventListener('mouseup', () => {
+        if (resizing) {
+            resizing = null;
+            document.body.style.userSelect = '';
+        }
+    });
+})();
 
 document.getElementById('forecastSlider').addEventListener('input', function () {
     const days = parseInt(this.value);
