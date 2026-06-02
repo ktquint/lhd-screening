@@ -73,8 +73,8 @@ class ArcDam:
                  name: str = None):
         """
         Args mirror the per-request screening pipeline (no Excel database).
-        `streamflow_csv` is built per-request by screening.streamflow_table —
-        no static reanalysis CSV is read.
+        `streamflow_csv` is the per-dam CSV built by build_streamflow_csv.py
+        (q_ep_50 baseflow + rp100 max flow, keyed by NHDPlus COMID).
         """
         def _p(p):
             return Path(p) if p is not None else None
@@ -101,7 +101,7 @@ class ArcDam:
 
         self.flowline_source = flowline_source
         self.streamflow_source = streamflow_source
-        self.rivid_field = 'LINKNO' if flowline_source == 'TDX-Hydro' else 'nhdplusid'
+        self.rivid_field = 'nhdplusid'
 
         # Which Flow_File columns ARC will read for baseflow / max flow
         self.baseflow_col = baseflow_col
@@ -229,9 +229,6 @@ class ArcDam:
         merged_geom = linemerge(flowline_gdf.geometry.tolist())
         if merged_geom.geom_type == 'MultiLineString':
             merged_geom = min(merged_geom.geoms, key=lambda g: g.distance(dam_point))
-
-        if self.flowline_source == 'TDX-Hydro':
-            merged_geom = LineString(list(merged_geom.coords)[::-1])
 
         start_dist = merged_geom.project(dam_point)
 

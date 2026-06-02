@@ -1,9 +1,6 @@
 import os
 import ast
 import pyproj
-# geoglows is imported lazily inside the GEOGLOWS-only branch of _fetch_flow_data
-# so the NWM-only batch path (rolling_pipeline) doesn't need geoglows + its
-# transitive deps (pytz, plotly, etc.) installed.
 import numpy as np
 import xarray as xr
 import pandas as pd
@@ -67,7 +64,6 @@ class CrossSection:
         self.hydrology = self.parent_dam.hydrology
         self.calc_mode = self.parent_dam.calc_mode
         self.nwm_id = self.parent_dam.nwm_id
-        self.geoglows_id = self.parent_dam.geoglows_id
 
         # geospatial info
         self.lat = xs_row['Lat']
@@ -501,11 +497,10 @@ class Dam:
                  baseflow,
                  base_results_dir,
                  flow_series=None,
-                 flowline_source='TDX-Hydro',
-                 streamflow_source='GEOGLOWS',
+                 flowline_source='NHDPlus',
+                 streamflow_source='National Water Model',
                  calc_mode='Simplified',
                  nwm_id=None,
-                 geoglows_id=None,
                  incidents_df=None,
                  fig_dir=None,
                  precomputed_dam_height_m=None):
@@ -513,8 +508,7 @@ class Dam:
         Args mirror the screening pipeline. `weir_length` is the value derived
         from the DEM water-surface width (see screening.width.estimate_weir_length).
         `baseflow` is the q_ep_50 value from the per-request streamflow table.
-        `flow_series` is optional; if provided, get_flow_data() is bypassed
-        (avoids a redundant GEOGLOWS retrospective fetch).
+        `flow_series` is optional; if provided, get_flow_data() is bypassed.
         `precomputed_dam_height_m` is the single dam height P recovered by the
         Method B (ARC-slope flat zone) sampler; when provided, run_analysis()
         applies it to every downstream cross-section instead of solving its
@@ -537,14 +531,12 @@ class Dam:
         self.weir_length = float(weir_length)
         self.baseflow = float(baseflow)
         self.nwm_id = nwm_id
-        self.geoglows_id = geoglows_id
 
         # No incidents in screening; preserve the legacy code paths by
         # supplying empty defaults.
         self.incidents_df = incidents_df if incidents_df is not None else pd.DataFrame()
-        flow_col = 'flow_nwm' if self.hydrology == 'National Water Model' else 'flow_geo'
-        if not self.incidents_df.empty and flow_col in self.incidents_df.columns:
-            self.fatal_flows = self.incidents_df[flow_col].dropna().tolist()
+        if not self.incidents_df.empty and 'flow_nwm' in self.incidents_df.columns:
+            self.fatal_flows = self.incidents_df['flow_nwm'].dropna().tolist()
         else:
             self.fatal_flows = []
 
@@ -738,10 +730,7 @@ class Dam:
                         print(f"Could not calc flow range for Dam {self.id} XS {export_idx}: {e}")
 
                 for _, inc_row in self.incidents_df.iterrows():
-                    if self.hydrology == 'National Water Model':
-                        Q = inc_row['flow_nwm']
-                    else:
-                        Q = inc_row['flow_geo']
+                    Q = inc_row['flow_nwm']
                     date = inc_row['date']
                     if pd.notna(Q) and xs.P:
                         try:
@@ -790,39 +779,20 @@ class Dam:
 
     def get_flow_data(self):
         flow_series = None
-        if self.hydrology == 'National Water Model':
-            if self.nwm_id and not pd.isna(self.nwm_id):
-                try:
-                    current_dir = os.path.dirname(os.path.abspath(__file__))
-                    project_root = os.path.dirname(current_dir)
-                    zarr_path = os.path.join(project_root, 'data', 'nwm_v3_daily_retrospective.zarr')
-                    if os.path.exists(zarr_path):
-                        ds = xr.open_zarr(zarr_path)
-                        if 'streamflow' in ds:
-                            # Assuming the zarr structure has feature_id as a dimension or coordinate,
-                            # and we want to select by it.
-                            # Adjust selection logic based on actual Zarr structure if needed.
-                            # Typically: ds.sel(feature_id=int(self.nwm_id)).streamflow.to_series()
-                            # But let's be safe and check if feature_id is a dim.
-                            
-                            # Note: xarray selection is lazy, so this is efficient.
-                            try:
-                                flow_series = ds.sel(feature_id=int(self.nwm_id))['streamflow'].to_series()
-                            except Exception as e:
-                                print(f"Error selecting ID {self.nwm_id} from Zarr: {e}")
-
-                except Exception as e:
-                    print(f"Error reading NWM Zarr data: {e}")
-        elif self.hydrology == 'GEOGLOWS':
-            if self.geoglows_id and not pd.isna(self.geoglows_id):
-                try:
-                    import geoglows  # lazy: only the legacy GEOGLOWS path needs it
-                    df = geoglows.data.retrospective(river_id=int(self.geoglows_id),
-                                                     resolution='daily',
-                                                     bias_corrected=True)
-                    flow_series = df.iloc[:, 0]
-                except Exception as e:
-                    print(f"Error fetching GEOGLOWS data: {e}")
+        if self.nwm_id and not pd.isna(self.nwm_id):
+            try:
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                project_root = os.path.dirname(current_dir)
+                zarr_path = os.path.join(project_root, 'data', 'nwm_v3_daily_retrospective.zarr')
+                if os.path.exists(zarr_path):
+                    ds = xr.open_zarr(zarr_path)
+                    if 'streamflow' in ds:
+                        try:
+                            flow_series = ds.sel(feature_id=int(self.nwm_id))['streamflow'].to_series()
+                        except Exception as e:
+                            print(f"Error selecting ID {self.nwm_id} from Zarr: {e}")
+            except Exception as e:
+                print(f"Error reading NWM Zarr data: {e}")
         return flow_series
 
     def plot_rating_curves(self):

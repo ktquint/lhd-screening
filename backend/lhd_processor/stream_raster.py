@@ -2,8 +2,7 @@
 Flowline → stream raster helpers used by ARC.
 
 Kept in their own module (numpy + geopandas + rasterio + gdal only) so
-staging scripts can import them without pulling pandas / xarray / geoglows
-through prep_classes.
+staging scripts can import them without pulling pandas / xarray transitively.
 """
 from __future__ import annotations
 

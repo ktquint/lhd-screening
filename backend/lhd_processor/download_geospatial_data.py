@@ -4,14 +4,13 @@ import shutil
 import tempfile
 import zipfile
 import rasterio
-import numpy as np
 import pandas as pd
 import pynhd as nhd
 from pynhd import NLDI
 import geopandas as gpd
 from pyproj import Transformer
 from shapely.ops import transform
-from shapely.geometry import Point, box
+from shapely.geometry import box
 from datetime import datetime, timedelta
 import time
 import traceback
@@ -100,7 +99,7 @@ def sanitize_filename(filename):
 
 
 # =================================================================
-# 1. FLOWLINE FUNCTIONS (NHDPlus & TDX-Hydro)
+# 1. FLOWLINE FUNCTIONS (NHDPlus)
 # =================================================================
 
 def download_nhd_flowline(lat: float, lon: float, flowline_dir: str, distance_km: Union[float, Tuple[float, float], List[float]] = (1, 2), site_id=None, vaa_df=None):
@@ -239,208 +238,6 @@ def download_nhd_flowline(lat: float, lon: float, flowline_dir: str, distance_km
         print(f"Unexpected error in download_nhd_flowline: {e}")
         traceback.print_exc()
         return None, None
-
-
-def navigate_tdx_network(dam_point: Point, gpkg_path: str, distance_km: Union[float, Tuple[float, float], List[float]] = (1, 2), site_id=None):
-    """
-        Navigates GEOGLOWS (TDX-Hydro) network using LengthGeodesicMeters.
-        At junctions, it follows the main stem (highest strmOrder).
-    """
-    # 1. Determine CRS and Buffer Size
-    try:
-        # Read metadata to check CRS (reading 1 row is usually sufficient and fast)
-        meta = gpd.read_file(gpkg_path, rows=1)
-        file_crs = meta.crs
-    except Exception as e:
-        print(f"Error reading VPU file {gpkg_path} for Site {site_id}: {e}")
-        return None, -1
-
-    # Default settings (assuming EPSG:4326)
-    search_point = dam_point
-    buffer_size = 0.005  # ~500m in degrees
-
-    if file_crs:
-        # Adjust buffer size based on CRS type
-        if file_crs.is_projected:
-            buffer_size = 500.0  # 500m in projected units
-        
-        # Reproject dam_point (assumed EPSG:4326) to file CRS if needed
-        try:
-            transformer = Transformer.from_crs("EPSG:4326", file_crs, always_xy=True)
-            search_point = transform(transformer.transform, dam_point)
-        except Exception as e:
-            print(f"Warning: CRS transformation failed ({e}). Using original point.")
-
-    # Create search area
-    search_area = search_point.buffer(buffer_size)
-
-    try:
-        streams = gpd.read_file(gpkg_path, bbox=search_area)
-    except Exception as e:
-        print(f"Error reading VPU file {gpkg_path} for Site {site_id}: {e}")
-        return None, -1
-
-    if streams.empty:
-        print(f"No streams found in VPU file near dam location. File: {gpkg_path}, Site: {site_id}")
-        return None, -1
-
-    # Check for active geometry to avoid "active geometry column to use has not been set" error
-    try:
-        if streams.geometry is None:
-             raise AttributeError
-    except AttributeError:
-        print(f"No active geometry column in streams file. File: {gpkg_path}, Site: {site_id}")
-        return None, -1
-
-    # 2. Find the starting reach
-    try:
-        # Use search_point (which matches streams CRS) for nearest neighbor
-        nearest_idx = streams.sindex.nearest(search_point, return_all=False)[1]
-        
-        # Handle potential Series return from nearest() if multiple indices are returned
-        if isinstance(nearest_idx, pd.Series):
-             nearest_idx = nearest_idx.iloc[0]
-        elif isinstance(nearest_idx, (np.ndarray, list)):
-             nearest_idx = nearest_idx[0]
-
-        start_reach = streams.iloc[nearest_idx]
-        start_id = start_reach['LINKNO']
-    except Exception as e:
-        print(f"Error finding nearest stream: {e}")
-        return None, -1
-
-    # Handle tuple distance (upstream, downstream)
-    if isinstance(distance_km, (tuple, list)):
-        if len(distance_km) == 2:
-            threshold_m_us = distance_km[0] * 1000.0
-            threshold_m_ds = distance_km[1] * 1000.0
-        elif len(distance_km) > 0:
-            threshold_m_us = distance_km[0] * 1000.0
-            threshold_m_ds = distance_km[0] * 1000.0
-        else:
-            threshold_m_us = 1000.0
-            threshold_m_ds = 2000.0
-    else:
-        threshold_m_us = distance_km * 1000.0
-        threshold_m_ds = distance_km * 1000.0
-
-    def trace_network(current_id, direction='downstream'):
-        found_reaches = []
-        visited = {current_id}
-        queue = [(current_id, 0.0)]
-
-        threshold_m = threshold_m_ds if direction == 'downstream' else threshold_m_us
-
-        while queue:
-            cid, accumulated_m = queue.pop(0)
-            reach_data = streams[streams['LINKNO'] == cid]
-            if reach_data.empty: continue
-
-            found_reaches.append(reach_data)
-
-            seg_len_m = reach_data['LengthGeodesicMeters'].values[0]
-            total_m = accumulated_m + seg_len_m
-
-            if total_m < threshold_m:
-                if direction == 'downstream':
-                    next_ids = reach_data['DSLINKNO'].values
-                else:
-                    # UPSTREAM JUNCTION LOGIC
-                    # Find all reaches that flow into this one
-                    upstream_candidates = streams[streams['DSLINKNO'] == cid]
-
-                    if upstream_candidates.empty:
-                        next_ids = []
-                    elif len(upstream_candidates) > 1:
-                        # Pick the "Main Stem" based on highest stream order
-                        main_stem = upstream_candidates.sort_values('strmOrder', ascending=False).iloc[0]
-                        next_ids = [main_stem['LINKNO']]
-                        # print(f"Junction at LINKNO {cid}: Following main stem (Order {main_stem['strmOrder']})")
-                    else:
-                        next_ids = upstream_candidates['LINKNO'].values
-
-                for nid in next_ids:
-                    if nid not in visited and nid != -1:
-                        visited.add(nid)
-                        queue.append((nid, total_m))
-
-        return found_reaches
-
-    # 3. Execute and Combine
-    ds = trace_network(start_id, direction='downstream')
-    us = trace_network(start_id, direction='upstream')
-
-    combined_list = ds + us
-    if not combined_list:
-        return None, -1
-
-    combined = pd.concat(combined_list).drop_duplicates(subset='LINKNO')
-    return gpd.GeoDataFrame(combined, crs=streams.crs), start_id
-
-
-def download_tdx_flowline(latitude: float, longitude: float, flowline_dir: str, vpu_map_path: str, distance_km: Union[float, Tuple[float, float], List[float]] = (1, 2), site_id=None):
-    """
-        Downloads GEOGLOWS/TDX-Hydro flowlines based on VPU boundaries.
-    """
-    # 1. read in the vpu map to figure out which vpu flowlines to download
-    try:
-        vpu_gdf = gpd.read_file(vpu_map_path)
-    except Exception as e:
-        print(f"Error reading VPU map {vpu_map_path}: {e}")
-        return None, None
-
-    if vpu_gdf.crs.to_epsg() != 4326:
-        vpu_gdf = vpu_gdf.to_crs(epsg=4326)
-
-    dam_point = Point(longitude, latitude)
-    vpu_polygon = vpu_gdf[vpu_gdf.contains(dam_point)]
-
-    if vpu_polygon.empty:
-        return None, None
-    # 2. extract the vpu to download
-    vpu_col = [c for c in vpu_polygon.columns if c.lower() in ['vpu', 'vpucode']][0]
-    vpu_code = str(vpu_polygon.iloc[0][vpu_col])
-    
-    # 3. download the streams_vpu.gpkg (Keep this in the main flowline_dir to share across sites)
-    raw_tdx_dir = os.path.join(flowline_dir, "raw_tdx")
-    os.makedirs(raw_tdx_dir, exist_ok=True)
-    flowline_vpu = os.path.join(raw_tdx_dir, f"streams_{vpu_code}.gpkg")
-    
-    if not os.path.exists(flowline_vpu):
-        try:
-            import s3fs
-            fs = s3fs.S3FileSystem(anon=True)
-            s3_path = f"geoglows-v2/hydrography/vpu={vpu_code}/streams_{vpu_code}.gpkg"
-            with fs.open(s3_path, 'rb') as f_in, open(flowline_vpu, 'wb') as f_out:
-                f_out.write(f_in.read())
-        except Exception as e:
-            print(f"Error downloading VPU {vpu_code}: {e}")
-            return None, None
-
-    # Pass the distance_km argument
-    flowline_gdf, linkno = navigate_tdx_network(dam_point, flowline_vpu, distance_km=distance_km, site_id=site_id)
-    
-    if flowline_gdf is None or flowline_gdf.empty:
-        return None, None
-
-    # Save the clipped flowline in a site-specific subdirectory
-    if site_id:
-        site_flowline_dir = os.path.join(flowline_dir, str(site_id))
-    else:
-        site_flowline_dir = flowline_dir
-        
-    os.makedirs(site_flowline_dir, exist_ok=True)
-    output_path = os.path.join(site_flowline_dir, f"tdx_flowline_{linkno}.gpkg")
-
-    if not os.path.exists(output_path):
-        try:
-            flowline_gdf.to_file(output_path, driver="GPKG", layer="TDXFlowline")
-            print(f"Flowlines saved to: {output_path}")
-        except Exception as e:
-            print(f"Error saving flowline to {output_path}: {e}")
-            return None, None
-
-    return output_path, flowline_gdf
 
 
 # =================================================================

@@ -2,7 +2,7 @@
 Constant-value land cover raster helper.
 
 Kept in its own module (rasterio + numpy only) so staging scripts can import
-it without pulling in pandas / xarray / geoglows via prep_classes.
+it without pulling in pandas / xarray transitively.
 """
 from __future__ import annotations
 
