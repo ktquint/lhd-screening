@@ -340,6 +340,20 @@ const SearchControl = L.Control.extend({
         L.DomEvent.on(riverInput, 'keydown', (e) => { if (e.key === 'Enter') applyRiverFilter(); });
         L.DomEvent.on(stateInput, 'keydown', (e) => { if (e.key === 'Enter') applyRiverFilter(); });
 
+        // Expose function globally to open the panel
+        window.openSearchPanel = () => {
+            if (panel.style.display !== 'block') {
+                panel.style.display = 'block';
+                setTimeout(() => input.focus(), 0);
+            }
+        };
+
+        window.closeSearchPanel = () => {
+            if (panel.style.display === 'block') {
+                panel.style.display = 'none';
+            }
+        };
+
         return container;
     }
 });
@@ -903,8 +917,14 @@ async function loadStateBoundaries(url) {
                             // Adjust zoom to state boundary or reset
                             if (stateInput.value !== '') {
                                 setTimeout(() => { map.fitBounds(layer.getBounds()); }, 50);
+                                if (typeof window.openSearchPanel === 'function') {
+                                    window.openSearchPanel();
+                                }
                             } else {
                                 map.setView([39.82, -98.57], 4);
+                                if (typeof window.closeSearchPanel === 'function') {
+                                    window.closeSearchPanel();
+                                }
                             }
                         }
                     }
