@@ -25,8 +25,14 @@ jobs:
         with:
           lfs: true
       - uses: actions/configure-pages@v5
+      - name: Stage frontend + shared data
+        run: |
+          mkdir -p _site
+          cp -r frontend/. _site/
+          rm -rf _site/data
+          cp -r data _site/data
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: frontend
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4

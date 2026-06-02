@@ -6,7 +6,7 @@ HUC codes nest by prefix, so HUC6 = HUC8[:6], HUC4 = HUC8[:4]. Lower levels =
 fewer, larger batches. Bundle folders are named huc<level>_<KEY>/ (e.g.
 huc6_140600/).
 
-For each HUC group in frontend/data/full_lhd_website.csv:
+For each HUC group in data/full_lhd_website.csv:
   1. Free-space gate — if free disk on --local-staging-root is below
      --min-free-gb the loop stops cleanly so you can move a completed
      huc<level>_<KEY>/ directory off to an external drive, then rerun.
@@ -72,7 +72,7 @@ import pandas as pd
 
 _BACKEND_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _BACKEND_ROOT.parent
-DEFAULT_DAMS_CSV = _REPO_ROOT / "frontend" / "data" / "full_lhd_website.csv"
+DEFAULT_DAMS_CSV = _REPO_ROOT / "data" / "full_lhd_website.csv"
 
 # A HUC is skipped on rerun only when it is fully done. "partial" is NOT here
 # on purpose: those HUCs get re-attempted so transient upstream failures (e.g. a

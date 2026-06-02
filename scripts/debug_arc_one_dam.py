@@ -24,7 +24,7 @@ if str(_BACKEND) not in sys.path:
 
 from lhd_processor.lhd_arc import ArcDam
 
-DEFAULT_DAMS_CSV = _REPO_ROOT / "frontend" / "data" / "full_lhd_website.csv"
+DEFAULT_DAMS_CSV = _REPO_ROOT / "data" / "full_lhd_website.csv"
 
 
 def _resolve(staging_dir: Path, dam_id: int):

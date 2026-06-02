@@ -44,7 +44,7 @@ if str(_BACKEND_ROOT) not in sys.path:
 from lhd_processor.lhd_arc import ArcDam
 
 _REPO_ROOT = _BACKEND_ROOT.parent
-DEFAULT_DAMS_CSV = _REPO_ROOT / "frontend" / "data" / "full_lhd_website.csv"
+DEFAULT_DAMS_CSV = _REPO_ROOT / "data" / "full_lhd_website.csv"
 
 _print_lock = threading.Lock()
 

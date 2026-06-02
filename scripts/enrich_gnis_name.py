@@ -30,7 +30,7 @@ import geopandas as gpd
 import pandas as pd
 from shapely.geometry import box
 
-CSV_DEFAULT = Path(__file__).resolve().parent.parent / "frontend" / "data" / "full_lhd_website.csv"
+CSV_DEFAULT = Path(__file__).resolve().parent.parent / "data" / "full_lhd_website.csv"
 
 # Nearest-neighbor search radius in degrees (~2 km at mid-latitudes).
 # Dams further than this from any NHDPlus flowline will get an empty GNIS_Name.

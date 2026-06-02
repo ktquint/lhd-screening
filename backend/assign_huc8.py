@@ -27,7 +27,7 @@ import pandas as pd
 _BACKEND_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _BACKEND_ROOT.parent
 
-DEFAULT_DAMS_CSV = _REPO_ROOT / "frontend" / "data" / "full_lhd_website.csv"
+DEFAULT_DAMS_CSV = _REPO_ROOT / "data" / "full_lhd_website.csv"
 
 WBD_CACHE_DIR = _REPO_ROOT / "cache" / "wbd"
 WBD_ZIP_URL = (

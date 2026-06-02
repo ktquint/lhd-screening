@@ -16,7 +16,7 @@ from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path('/Users/kennyquintana/Developer/lhd-screening')
-SRC = ROOT / 'frontend' / 'data' / 'full_lhd_website.csv'
+SRC = ROOT / 'data' / 'full_lhd_website.csv'
 LOG_CSV = ROOT / 'scripts' / 'osm_rename_log.csv'
 PROGRESS = ROOT / 'scripts' / 'osm_rename_progress.log'
 CACHE_DIR = ROOT / 'cache' / 'osm_dams'

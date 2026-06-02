@@ -20,7 +20,7 @@ Usage
     python backend/stage_nhd_dem.py --staging-dir /data/lhd_staging
 
 Optional flags
-    --dams-csv PATH       path to dam CSV  [default: frontend/data/full_lhd_website.csv]
+    --dams-csv PATH       path to dam CSV  [default: data/full_lhd_website.csv]
     --limit N             process only the first N dams (for smoke-testing)
     --force-flowlines     refetch NHD flowlines even if a cached .gpkg exists
     --force-tiles         re-download DEM tiles even if already on disk
@@ -55,7 +55,7 @@ from lhd_processor.download_geospatial_data import (
 )
 
 _REPO_ROOT = _BACKEND_ROOT.parent
-DEFAULT_DAMS_CSV = _REPO_ROOT / "frontend" / "data" / "full_lhd_website.csv"
+DEFAULT_DAMS_CSV = _REPO_ROOT / "data" / "full_lhd_website.csv"
 
 # NHD reach window: 1 km upstream, 1.5 km downstream
 _FLOWLINE_DISTANCE_KM = (1.0, 1.5)

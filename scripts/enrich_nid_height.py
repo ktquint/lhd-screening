@@ -33,7 +33,7 @@ import numpy as np
 import pandas as pd
 from sklearn.neighbors import BallTree
 
-CSV_DEFAULT = Path(__file__).resolve().parent.parent / "frontend" / "data" / "full_lhd_website.csv"
+CSV_DEFAULT = Path(__file__).resolve().parent.parent / "data" / "full_lhd_website.csv"
 NID_CACHE_DEFAULT = Path(__file__).resolve().parent.parent / "frontend" / "data" / "nid_nation.csv"
 NID_URL = "https://nid.sec.usace.army.mil/api/nation/csv"
 EARTH_RADIUS_M = 6_371_000.0

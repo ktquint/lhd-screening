@@ -17,7 +17,7 @@ Phase B
 
 Output
     Overwrites `Reach_ID` and adds `GNIS_Name` in
-    frontend/data/full_lhd_website.csv.
+    data/full_lhd_website.csv.
 
 Usage
     python backend/assign_nhd_comid.py
@@ -46,7 +46,7 @@ NLDI_URL = "https://labs-beta.waterdata.usgs.gov/api/nldi/linked-data/comid/posi
 
 _BACKEND_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _BACKEND_ROOT.parent
-DEFAULT_CSV = _REPO_ROOT / "frontend" / "data" / "full_lhd_website.csv"
+DEFAULT_CSV = _REPO_ROOT / "data" / "full_lhd_website.csv"
 DEFAULT_CHECKPOINT = _BACKEND_ROOT / "data" / "nhd_comid_checkpoint.json"
 
 _print_lock = threading.Lock()

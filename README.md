@@ -5,7 +5,7 @@ Public-facing low-head dam screening tool. Combines a Leaflet-based map of
 estimates each dam's crest length, height, and dangerous-flow range.
 
 - **Frontend** (`frontend/`): static Leaflet map (`index.html` +
-  `mapping-logic.js`) that reads `frontend/data/full_lhd_website.csv`.
+  `mapping-logic.js`) that reads `data/full_lhd_website.csv`.
   Color-codes dams by hazard class and exposes filters by state, owner,
   hazard, and HUC.
 - **Backend** (`backend/`): HUC6-batched ARC pipeline that stages NHD
@@ -29,7 +29,7 @@ external `lhd-processor` package — no separate install needed.
 
 ### One-time prep
 
-Spatial-joins every dam in `frontend/data/full_lhd_website.csv` against the
+Spatial-joins every dam in `data/full_lhd_website.csv` against the
 USGS WBD national GPKG (auto-downloaded into `cache/wbd/`, ~2.5 GB) and
 overwrites the `HUC2/HUC4/HUC6/HUC8` columns with authoritative codes:
 
@@ -85,7 +85,7 @@ ledger status to `archived`.
 
 The pipeline auto-runs the aggregate step at the end of every run (and on
 disk-gate halt), which rolls per-dam `RESULTS/<id>/analysis_summary.json`
-into four columns on `frontend/data/full_lhd_website.csv`:
+into four columns on `data/full_lhd_website.csv`:
 
 - `Qmin_env` / `Qmax_env` — envelope across the 4 downstream XS.
 - `Qmin_stable` / `Qmax_stable` — XS nearest the slope-stabilization cell
@@ -131,9 +131,11 @@ Static site, no build step. Serve `frontend/` over any HTTP server and open
 cd frontend && python -m http.server 8000
 ```
 
-Reads `frontend/data/full_lhd_website.csv` (the same file the backend
-writes to). Map state, dam coloring, and filters all derive from CSV
-columns.
+Reads `data/full_lhd_website.csv` via the relative URL `data/...`. The CSV
+is canonically at the repo-root `data/` dir; a symlink at
+`frontend/data/full_lhd_website.csv` makes the relative URL resolve in
+local dev, and `.github/workflows/pages.yml` stages `data/` alongside
+`frontend/` so the same URL works on GitHub Pages.
 
 ## Repo layout
 
@@ -149,10 +151,12 @@ backend/
   run_analysis_batch.py     # step 6
   lhd_processor/            # in-repo hydraulic library
   screening/                # shared helpers (reach, width, height)
+data/
+  full_lhd_website.csv      # master dam CSV (read by site + written by pipeline)
 frontend/
   index.html                # Leaflet map
   mapping-logic.js
-  data/full_lhd_website.csv # master dam CSV (read by site + written by pipeline)
+  data/                     # local-dev symlink to ../data (gitignored)
 cache/wbd/                  # WBD national GPKG (auto-downloaded)
 scripts/                    # analysis + paper scripts (compare_*, joint_error_propagation, …)
 ```

@@ -47,7 +47,7 @@ from screening.height import estimate_dam_height
 from screening.width import estimate_weir_length
 
 _REPO_ROOT = _BACKEND_ROOT.parent
-DEFAULT_DAMS_CSV = _REPO_ROOT / "frontend" / "data" / "full_lhd_website.csv"
+DEFAULT_DAMS_CSV = _REPO_ROOT / "data" / "full_lhd_website.csv"
 
 _print_lock = threading.Lock()
 
