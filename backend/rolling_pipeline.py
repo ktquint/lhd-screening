@@ -60,7 +60,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -69,6 +68,8 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 import pandas as pd
+import xarray as xr
+from backend.build_streamflow_csv import open_nwm_zarr, process_streamflow_with_ds
 
 _BACKEND_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _BACKEND_ROOT.parent
@@ -223,6 +224,7 @@ def _process_huc8(
     ledger_path: Path,
     workers: int,
     existing_dirs: List[Path],
+    nwm_dataset: xr.Dataset | None = None,
 ) -> None:
     label = f"HUC{len(key)} {key}"
     huc_dir = local_root / _huc_dirname(key)
@@ -265,12 +267,17 @@ def _process_huc8(
         py, f"{backend}/build_stream_rasters.py",
         *staging_arg, *common_workers,
     ])
-    # NB: build_streamflow_csv parallelizes year-by-year internally and does
-    # NOT accept --workers, so it gets only the staging dir.
-    _run_step("build_streamflow_csv", [
-        py, f"{backend}/build_streamflow_csv.py",
-        *staging_arg,
-    ])
+
+    print(f"\n → build_streamflow_csv (In-Memory Shared Zarr Connection)")
+    if nwm_dataset is not None:
+        # Reuse the persistent opened dataset passed from the main runner loop
+        process_streamflow_with_ds(ds=nwm_dataset, staging_dir=huc_dir)
+    else:
+        # Fallback to subprocess if run stand-alone or context isn't passed
+        _run_step("build_streamflow_csv", [
+            py, f"{backend}/build_streamflow_csv.py",
+            *staging_arg,
+        ])
 
     entry["status"] = "arc_running"
     entry["arc_at"] = _now()
@@ -390,6 +397,19 @@ def _cmd_run(args: argparse.Namespace) -> None:
     )
     if existing_dirs:
         print(f"Existing data dirs: {', '.join(str(d) for d in existing_dirs)}")
+    
+    # open zarr once globally here
+    nwm_ds = None
+    if pending:
+        print("\nOpening global NWM Retrospective Zarr connection once for the entire pipeline session...")
+        # Reuses the default target path configuration variable inside the streamflow script
+        from backend.build_streamflow_csv import _DEFAULT_NWM_URL
+        try:
+            nwm_ds = open_nwm_zarr(_DEFAULT_NWM_URL)
+            print("Global NWM dataset loaded successfully.")
+        except Exception as e:
+            print(f"Warning: Failed to globally establish shared Zarr connection: {e}. Falling back to standard pipeline behavior.")
+
 
     for key, group in pending:
         free = _free_gb(local_root)
@@ -422,6 +442,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
             _process_huc8(
                 key, group, local_root, ledger, ledger_path,
                 args.workers, existing_dirs,
+                nwm_dataset=nwm_ds
             )
         except subprocess.CalledProcessError as e:
             print(f"\nFATAL: HUC{level} {key} pipeline step failed: {e}")
