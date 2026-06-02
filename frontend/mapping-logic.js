@@ -883,7 +883,7 @@ async function loadStateBoundaries(url) {
                 // Click to filter by state
                 layer.on('click', function(e) {
                     // Extract state abbreviation (Census shapefiles usually use STUSPS)
-                    const stateAbbr = feature.properties.STUSPS || feature.properties.STUSAB || feature.properties.STATE;
+                    const stateAbbr = feature.properties.stusps || feature.properties.STUSPS || feature.properties.STUSAB || feature.properties.STATE;
                     if (stateAbbr) {
                         const upperAbbr = stateAbbr.toUpperCase();
                         const stateInput = document.getElementById('globalStateInput');
