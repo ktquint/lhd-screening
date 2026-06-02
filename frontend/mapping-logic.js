@@ -465,6 +465,10 @@ function renderMarkers() {
     });
     
     map.addLayer(markers); 
+
+    if (typeof window.updateBoundaryZOrder === 'function') {
+        window.updateBoundaryZOrder();
+    }
 }
 
 // 4. National Water Model Forecast (NOAA NWPS API, NHDPlus V2 COMID = Reach_ID)
@@ -887,6 +891,17 @@ loadDams();
 // --- Load State Boundaries JSON ---
 async function loadStateBoundaries(url) {
     try {
+        window.updateBoundaryZOrder = () => {
+            if (window.stateBoundaryLayer) {
+                if (map.getZoom() <= 4) {
+                    window.stateBoundaryLayer.bringToFront();
+                } else {
+                    window.stateBoundaryLayer.bringToBack();
+                }
+            }
+        };
+        map.on('zoomend', window.updateBoundaryZOrder);
+
         const response = await fetch(url);
         const data = await response.json();
         
@@ -934,31 +949,30 @@ async function loadStateBoundaries(url) {
                 
                 // Double click to zoom back out (deselect)
                 layer.on('dblclick', function(e) {
+                    // Prevent the default map double-click zoom from interfering on canvas
+                    map.doubleClickZoom.disable();
+                    setTimeout(() => map.doubleClickZoom.enable(), 500);
+
                     // Prevent the default map double-click zoom
                     if (e.originalEvent) {
                         L.DomEvent.stopPropagation(e.originalEvent);
                     }
-                    const stateAbbr = feature.properties.stusps || feature.properties.STUSPS || feature.properties.STUSAB || feature.properties.STATE;
-                    if (stateAbbr) {
-                        const upperAbbr = stateAbbr.toUpperCase();
-                        const stateInput = document.getElementById('globalStateInput');
-                        const applyBtn = document.getElementById('globalApplyFilterBtn');
-                        
-                        if (stateInput && applyBtn && stateInput.value.toUpperCase() === upperAbbr) {
-                            stateInput.value = ''; // Toggle off
-                            if (selectedStateLayer === layer) {
-                                layer.setStyle(defaultStyle);
-                                selectedStateLayer = null;
-                            }
-                            
-                            // Trigger the UI's existing filter logic
-                            applyBtn.click();
-                            
-                            map.setView([39.82, -98.57], 4);
-                            if (typeof window.closeSearchPanel === 'function') {
-                                window.closeSearchPanel();
-                            }
-                        }
+                    
+                    if (selectedStateLayer !== layer) {
+                        return; // Only act if it's the currently selected state
+                    }
+
+                    const stateInput = document.getElementById('globalStateInput');
+                    const applyBtn = document.getElementById('globalApplyFilterBtn');
+                    
+                    if (stateInput && applyBtn) {
+                        stateInput.value = ''; // Clear state filter
+                        applyBtn.click();      // Trigger the UI's existing filter logic
+                    }
+                    
+                    map.setView([39.82, -98.57], 4);
+                    if (typeof window.closeSearchPanel === 'function') {
+                        window.closeSearchPanel();
                     }
                 });
 
@@ -996,14 +1010,58 @@ async function loadStateBoundaries(url) {
             }
         });
         
+        window.stateBoundaryLayer = stateBoundaryLayer;
+
         // Add it to the top-right layer control menu
         layerControl.addOverlay(stateBoundaryLayer, "State Boundaries");
         
         // If you want the boundaries to be visible immediately on load, uncomment the next line:
         stateBoundaryLayer.addTo(map);
+        window.updateBoundaryZOrder();
     } catch (error) {
         console.error(`Failed to load JSON from ${url}:`, error);
     }
 }
 
 loadStateBoundaries('data/cb_2025_us_state_20m.json');
+
+// --- Global Escape Key Handler ---
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        // Clear all filters if they are applied
+        const stateInput = document.getElementById('globalStateInput');
+        const riverInput = document.getElementById('globalRiverInput');
+        const fatalityCheckbox = document.getElementById('fatalityFilter');
+        const applyBtn = document.getElementById('globalApplyFilterBtn');
+        
+        let filtersChanged = false;
+        if (stateInput && stateInput.value !== '') {
+            stateInput.value = '';
+            filtersChanged = true;
+        }
+        if (riverInput && riverInput.value !== '') {
+            riverInput.value = '';
+            filtersChanged = true;
+        }
+        if (fatalityCheckbox && fatalityCheckbox.checked) {
+            fatalityCheckbox.checked = false;
+            filtersChanged = true;
+        }
+        
+        if (filtersChanged && applyBtn) {
+            applyBtn.click();
+        }
+        
+        // Zoom out to national view
+        map.setView([39.82, -98.57], 4);
+        
+        // Close any open panels or popups
+        if (typeof window.closeSearchPanel === 'function') {
+            window.closeSearchPanel();
+        }
+        if (typeof window.closeForecastPanel === 'function') {
+            window.closeForecastPanel();
+        }
+        map.closePopup();
+    }
+});
