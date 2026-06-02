@@ -38,6 +38,16 @@ function displayName(dam) {
     if (orig) return orig; // keep generic placeholder visible if no better option
     return 'Unnamed Dam';
 }
+// Safely embed a JS string literal inside an HTML double-quoted attribute (onclick=...).
+// JSON.stringify handles JS-string escaping (\, ", control chars), then we HTML-encode
+// any chars that would break the attribute.
+function jsAttrLiteral(s) {
+    return JSON.stringify(String(s))
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
 
 const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
@@ -417,7 +427,7 @@ function renderMarkers() {
                 }
                 const safetyArgs = hasSafetyData ? `${qMinVal}, ${qMaxVal}` : `null, null`;
                 popupContent += `
-                    <button class="btn-check" onclick="checkForecast('${dam.Reach_ID}', ${safetyArgs}, ${JSON.stringify(_displayName)})">
+                    <button class="btn-check" onclick="checkForecast('${dam.Reach_ID}', ${safetyArgs}, ${jsAttrLiteral(_displayName)})">
                         Check Live Forecast
                     </button>`;
             } else {
