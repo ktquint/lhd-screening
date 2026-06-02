@@ -308,6 +308,10 @@ const SearchControl = L.Control.extend({
             activeRiverFilter = { river: rq, state: sq };
             renderMarkers();
 
+            if (typeof window.highlightStateBoundary === 'function') {
+                window.highlightStateBoundary(sq);
+            }
+
             if (!rq && !sq) {
                 filterStatus.textContent = '';
                 return;
@@ -335,6 +339,9 @@ const SearchControl = L.Control.extend({
             activeRiverFilter = { river: '', state: '' };
             filterStatus.textContent = '';
             renderMarkers();
+            if (typeof window.clearStateHighlight === 'function') {
+                window.clearStateHighlight();
+            }
         });
 
         L.DomEvent.on(riverInput, 'keydown', (e) => { if (e.key === 'Enter') applyRiverFilter(); });
@@ -883,17 +890,78 @@ async function loadStateBoundaries(url) {
         const response = await fetch(url);
         const data = await response.json();
         
+        let selectedStateLayer = null;
+        let stateLayersMap = {};
+        const defaultStyle = { color: 'black', weight: 2, fillOpacity: 0.05 };
+        const hoverStyle = { color: 'black', weight: 3, fillOpacity: 0.2 };
+        const selectedStyle = { color: '#3498db', weight: 4, fillOpacity: 0.2 };
+
+        window.clearStateHighlight = () => {
+            if (selectedStateLayer) {
+                selectedStateLayer.setStyle(defaultStyle);
+                selectedStateLayer = null;
+            }
+        };
+
+        window.highlightStateBoundary = (stateAbbr) => {
+            window.clearStateHighlight();
+            if (stateAbbr && stateLayersMap[stateAbbr]) {
+                const layer = stateLayersMap[stateAbbr];
+                layer.setStyle(selectedStyle);
+                selectedStateLayer = layer;
+            }
+        };
+
         const stateBoundaryLayer = L.geoJSON(data, {
-            style: { color: 'black', weight: 2, fillOpacity: 0.05 },
+            style: defaultStyle,
             onEachFeature: function(feature, layer) {
+                const stateAbbr = feature.properties.stusps || feature.properties.STUSPS || feature.properties.STUSAB || feature.properties.STATE;
+                if (stateAbbr) {
+                    stateLayersMap[stateAbbr.toUpperCase()] = layer;
+                }
+
                 // Visual feedback on hover
                 layer.on('mouseover', function() {
-                    layer.setStyle({ fillOpacity: 0.2, weight: 3 });
+                    if (selectedStateLayer !== layer) {
+                        layer.setStyle(hoverStyle);
+                    }
                 });
                 layer.on('mouseout', function() {
-                    layer.setStyle({ fillOpacity: 0.05, weight: 2 });
+                    if (selectedStateLayer !== layer) {
+                        layer.setStyle(defaultStyle);
+                    }
                 });
                 
+                // Double click to zoom back out (deselect)
+                layer.on('dblclick', function(e) {
+                    // Prevent the default map double-click zoom
+                    if (e.originalEvent) {
+                        L.DomEvent.stopPropagation(e.originalEvent);
+                    }
+                    const stateAbbr = feature.properties.stusps || feature.properties.STUSPS || feature.properties.STUSAB || feature.properties.STATE;
+                    if (stateAbbr) {
+                        const upperAbbr = stateAbbr.toUpperCase();
+                        const stateInput = document.getElementById('globalStateInput');
+                        const applyBtn = document.getElementById('globalApplyFilterBtn');
+                        
+                        if (stateInput && applyBtn && stateInput.value.toUpperCase() === upperAbbr) {
+                            stateInput.value = ''; // Toggle off
+                            if (selectedStateLayer === layer) {
+                                layer.setStyle(defaultStyle);
+                                selectedStateLayer = null;
+                            }
+                            
+                            // Trigger the UI's existing filter logic
+                            applyBtn.click();
+                            
+                            map.setView([39.82, -98.57], 4);
+                            if (typeof window.closeSearchPanel === 'function') {
+                                window.closeSearchPanel();
+                            }
+                        }
+                    }
+                });
+
                 // Click to filter by state
                 layer.on('click', function(e) {
                     // Extract state abbreviation (Census shapefiles usually use STUSPS)
@@ -904,26 +972,22 @@ async function loadStateBoundaries(url) {
                         const applyBtn = document.getElementById('globalApplyFilterBtn');
                         
                         if (stateInput && applyBtn) {
-                            // Toggle filter on/off
-                            if (stateInput.value.toUpperCase() === upperAbbr) {
-                                stateInput.value = ''; // Toggle off if already selected
-                            } else {
+                            // Only apply if it is not already the selected state
+                            if (stateInput.value.toUpperCase() !== upperAbbr) {
                                 stateInput.value = upperAbbr; // Toggle on
-                            }
+                                if (selectedStateLayer) {
+                                    selectedStateLayer.setStyle(defaultStyle);
+                                }
+                                layer.setStyle(selectedStyle);
+                                selectedStateLayer = layer;
                             
-                            // Trigger the UI's existing filter logic
-                            applyBtn.click();
-                            
-                            // Adjust zoom to state boundary or reset
-                            if (stateInput.value !== '') {
+                                // Trigger the UI's existing filter logic
+                                applyBtn.click();
+                                
+                                // Adjust zoom to state boundary
                                 setTimeout(() => { map.fitBounds(layer.getBounds()); }, 50);
                                 if (typeof window.openSearchPanel === 'function') {
                                     window.openSearchPanel();
-                                }
-                            } else {
-                                map.setView([39.82, -98.57], 4);
-                                if (typeof window.closeSearchPanel === 'function') {
-                                    window.closeSearchPanel();
                                 }
                             }
                         }
