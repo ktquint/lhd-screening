@@ -242,11 +242,13 @@ const SearchControl = L.Control.extend({
         riverLabel.textContent = 'FILTER BY RIVER';
 
         const riverInput = L.DomUtil.create('input', '', panel);
+        riverInput.id = 'globalRiverInput';
         riverInput.type = 'text';
         riverInput.placeholder = 'River name (e.g. South Platte)';
         riverInput.style.cssText = 'width:100%;padding:6px;box-sizing:border-box;border:1px solid #ccc;border-radius:3px;margin-bottom:4px;font-size:12px;';
 
         const stateInput = L.DomUtil.create('input', '', panel);
+        stateInput.id = 'globalStateInput';
         stateInput.type = 'text';
         stateInput.maxLength = 2;
         stateInput.placeholder = 'State abbr. (e.g. CO)';
@@ -256,6 +258,7 @@ const SearchControl = L.Control.extend({
         btnRow.style.cssText = 'display:flex;gap:4px;margin-bottom:4px;';
 
         const applyBtn = L.DomUtil.create('button', '', btnRow);
+        applyBtn.id = 'globalApplyFilterBtn';
         applyBtn.textContent = 'Apply Filter';
         applyBtn.style.cssText = 'flex:1;padding:6px;background:#3498db;color:white;border:none;border-radius:3px;cursor:pointer;font-size:12px;font-weight:600;';
 
@@ -343,7 +346,7 @@ const SearchControl = L.Control.extend({
 map.addControl(new SearchControl());
 
 // Add the background maps button (Layers Control)
-L.control.layers(baseMaps).addTo(map);
+const layerControl = L.control.layers(baseMaps).addTo(map);
 
 
 // 2. Load Dam Data
@@ -859,3 +862,64 @@ loadDams();
 
     headings.forEach(heading => observer.observe(heading));
 })();
+
+// --- Load State Boundaries JSON ---
+async function loadStateBoundaries(url) {
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        const stateBoundaryLayer = L.geoJSON(data, {
+            style: { color: 'black', weight: 2, fillOpacity: 0.05 },
+            onEachFeature: function(feature, layer) {
+                // Visual feedback on hover
+                layer.on('mouseover', function() {
+                    layer.setStyle({ fillOpacity: 0.2, weight: 3 });
+                });
+                layer.on('mouseout', function() {
+                    layer.setStyle({ fillOpacity: 0.05, weight: 2 });
+                });
+                
+                // Click to filter by state
+                layer.on('click', function(e) {
+                    // Extract state abbreviation (Census shapefiles usually use STUSPS)
+                    const stateAbbr = feature.properties.STUSPS || feature.properties.STUSAB || feature.properties.STATE;
+                    if (stateAbbr) {
+                        const upperAbbr = stateAbbr.toUpperCase();
+                        const stateInput = document.getElementById('globalStateInput');
+                        const applyBtn = document.getElementById('globalApplyFilterBtn');
+                        
+                        if (stateInput && applyBtn) {
+                            // Toggle filter on/off
+                            if (stateInput.value.toUpperCase() === upperAbbr) {
+                                stateInput.value = ''; // Toggle off if already selected
+                            } else {
+                                stateInput.value = upperAbbr; // Toggle on
+                            }
+                            
+                            // Trigger the UI's existing filter logic
+                            applyBtn.click();
+                            
+                            // Adjust zoom to state boundary or reset
+                            if (stateInput.value !== '') {
+                                setTimeout(() => { map.fitBounds(layer.getBounds()); }, 50);
+                            } else {
+                                map.setView([39.82, -98.57], 4);
+                            }
+                        }
+                    }
+                });
+            }
+        });
+        
+        // Add it to the top-right layer control menu
+        layerControl.addOverlay(stateBoundaryLayer, "State Boundaries");
+        
+        // If you want the boundaries to be visible immediately on load, uncomment the next line:
+        stateBoundaryLayer.addTo(map);
+    } catch (error) {
+        console.error(`Failed to load JSON from ${url}:`, error);
+    }
+}
+
+loadStateBoundaries('data/us_boundaries/cb_2025_us_state_20m.json');
