@@ -438,6 +438,9 @@ function renderMarkers() {
             });
 
             const _displayName = displayName(dam);
+            
+            marker.bindTooltip(_displayName, { direction: 'top', offset: [0, -6] });
+            
             let popupContent = `
                 <div class="popup-content">
                     <strong>${_displayName}</strong><br>
