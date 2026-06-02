@@ -72,11 +72,17 @@ def process_streamflow_with_ds(
     force: bool = False,
     limit: int | None = None,
     start_year_opt: int | None = None,
-    end_year_opt: int | None = None
+    end_year_opt: int | None = None,
+    nwm_ids: set[int] | None = None,
 ) -> None:
     """
-    Core calculation logic that accepts an already open xarray Dataset, 
+    Core calculation logic that accepts an already open xarray Dataset,
     saving substantial overhead when run inside loops.
+
+    ``nwm_ids`` is the set of every feature_id present in ``ds``. Building
+    it materializes ~2.7M ids into a Python set (slow), so when called
+    inside a loop the caller can build it once and reuse it across calls.
+    Defaults to building from ``ds`` if not supplied.
     """
     flowline_dir = staging_dir / "STRM"
     out_dir = staging_dir / "FLOW"
@@ -122,10 +128,13 @@ def process_streamflow_with_ds(
         print("Nothing to do for this batch.")
         return
 
-    print("Filtering feature_ids against the active NWM coordinate context ...")
-    t0 = time.time()
-    nwm_ids = set(int(x) for x in ds[_FEATURE_DIM].values.tolist())
-    print(f"  {len(nwm_ids):,} reaches available ({time.time()-t0:.1f}s)\n")
+    if nwm_ids is None:
+        print("Filtering feature_ids against the active NWM coordinate context ...")
+        t0 = time.time()
+        nwm_ids = set(int(x) for x in ds[_FEATURE_DIM].values.tolist())
+        print(f"  {len(nwm_ids):,} reaches available ({time.time()-t0:.1f}s)\n")
+    else:
+        print(f"Using preloaded NWM feature_id set ({len(nwm_ids):,} reaches).\n")
 
     for dam_id in list(dam_features.keys()):
         valid = [fid for fid in dam_features[dam_id] if fid in nwm_ids]

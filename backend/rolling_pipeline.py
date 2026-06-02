@@ -63,15 +63,26 @@ import json
 import shutil
 import subprocess
 import sys
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 import pandas as pd
 import xarray as xr
-from backend.build_streamflow_csv import open_nwm_zarr, process_streamflow_with_ds
 
 _BACKEND_ROOT = Path(__file__).resolve().parent
+if str(_BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_ROOT))
+
+from build_streamflow_csv import (  # noqa: E402  (sys.path tweak above)
+    _DEFAULT_NWM_URL,
+    _FEATURE_DIM,
+    open_nwm_zarr,
+    process_streamflow_with_ds,
+)
+from stage_nhd_dem import load_vaa_df, run_stage as run_stage_nhd_dem  # noqa: E402
+
 _REPO_ROOT = _BACKEND_ROOT.parent
 DEFAULT_DAMS_CSV = _REPO_ROOT / "data" / "full_lhd_website.csv"
 
@@ -225,6 +236,8 @@ def _process_huc8(
     workers: int,
     existing_dirs: List[Path],
     nwm_dataset: xr.Dataset | None = None,
+    nwm_ids: set[int] | None = None,
+    vaa_df=None,
 ) -> None:
     label = f"HUC{len(key)} {key}"
     huc_dir = local_root / _huc_dirname(key)
@@ -254,11 +267,21 @@ def _process_huc8(
     dams_arg = ["--dams-csv", str(dams_csv)]
     common_workers = ["--workers", workers_s]
 
-    _run_step("stage_nhd_dem", [
-        py, f"{backend}/stage_nhd_dem.py",
-        *staging_arg, *dams_arg, *common_workers,
-        "--download-workers", workers_s,
-    ])
+    if vaa_df is not None:
+        print(f"\n  → stage_nhd_dem (in-process, shared VAA table)")
+        run_stage_nhd_dem(
+            staging_dir=huc_dir,
+            dams_csv=dams_csv,
+            workers=workers,
+            download_workers=workers,
+            vaa_df=vaa_df,
+        )
+    else:
+        _run_step("stage_nhd_dem", [
+            py, f"{backend}/stage_nhd_dem.py",
+            *staging_arg, *dams_arg, *common_workers,
+            "--download-workers", workers_s,
+        ])
     _run_step("build_trimmed_dems", [
         py, f"{backend}/build_trimmed_dems.py",
         *staging_arg, *common_workers,
@@ -268,10 +291,13 @@ def _process_huc8(
         *staging_arg, *common_workers,
     ])
 
-    print(f"\n → build_streamflow_csv (In-Memory Shared Zarr Connection)")
+    print(f"\n  → build_streamflow_csv (in-memory shared zarr connection)")
     if nwm_dataset is not None:
-        # Reuse the persistent opened dataset passed from the main runner loop
-        process_streamflow_with_ds(ds=nwm_dataset, staging_dir=huc_dir)
+        # Reuse the persistent opened dataset (and its feature_id set) from
+        # the main runner loop — saves ~2.7M id materialization per HUC.
+        process_streamflow_with_ds(
+            ds=nwm_dataset, staging_dir=huc_dir, nwm_ids=nwm_ids,
+        )
     else:
         # Fallback to subprocess if run stand-alone or context isn't passed
         _run_step("build_streamflow_csv", [
@@ -398,17 +424,35 @@ def _cmd_run(args: argparse.Namespace) -> None:
     if existing_dirs:
         print(f"Existing data dirs: {', '.join(str(d) for d in existing_dirs)}")
     
-    # open zarr once globally here
-    nwm_ds = None
+    # Open the NWM zarr (and materialize its feature_id set) once for the
+    # whole session — both are reused across every HUC, saving the S3 open
+    # + ~2.7M id round-trip per batch.
+    nwm_ds: xr.Dataset | None = None
+    nwm_ids: set[int] | None = None
     if pending:
-        print("\nOpening global NWM Retrospective Zarr connection once for the entire pipeline session...")
-        # Reuses the default target path configuration variable inside the streamflow script
-        from backend.build_streamflow_csv import _DEFAULT_NWM_URL
+        print("\nOpening shared NWM retrospective zarr for the session …")
         try:
             nwm_ds = open_nwm_zarr(_DEFAULT_NWM_URL)
-            print("Global NWM dataset loaded successfully.")
+            nwm_ids = set(int(x) for x in nwm_ds[_FEATURE_DIM].values.tolist())
+            print(f"  zarr open, {len(nwm_ids):,} reaches in coordinate set.")
         except Exception as e:
-            print(f"Warning: Failed to globally establish shared Zarr connection: {e}. Falling back to standard pipeline behavior.")
+            print(f"  ! shared zarr open failed: {e}. "
+                  "Falling back to per-HUC subprocess.")
+            nwm_ds = None
+            nwm_ids = None
+
+    # Pre-load the NHDPlus VAA table once — pynhd caches the parquet on
+    # disk, so this saves a ~5-10s parquet-read + DataFrame-construct on
+    # every HUC. If it fails for any reason, fall back to per-HUC subprocess
+    # invocation of stage_nhd_dem (which loads VAA inline).
+    vaa_df = None
+    if pending:
+        try:
+            vaa_df = load_vaa_df()
+        except Exception as e:
+            print(f"  ! shared VAA preload failed: {e}. "
+                  "Falling back to per-HUC subprocess for stage_nhd_dem.")
+            vaa_df = None
 
 
     for key, group in pending:
@@ -442,13 +486,27 @@ def _cmd_run(args: argparse.Namespace) -> None:
             _process_huc8(
                 key, group, local_root, ledger, ledger_path,
                 args.workers, existing_dirs,
-                nwm_dataset=nwm_ds
+                nwm_dataset=nwm_ds, nwm_ids=nwm_ids,
+                vaa_df=vaa_df,
             )
-        except subprocess.CalledProcessError as e:
-            print(f"\nFATAL: HUC{level} {key} pipeline step failed: {e}")
+        except (subprocess.CalledProcessError, Exception) as e:
+            # Catches both subprocess failures (the original error path) and
+            # uncaught Python exceptions from the in-process steps
+            # (stage_nhd_dem.run_stage, process_streamflow_with_ds). Either
+            # way we flip the ledger to "errored", persist, and halt cleanly
+            # so the user can investigate and rerun without leaving the
+            # batch in a half-staged state that wouldn't auto-retry.
+            kind = (
+                "subprocess step"
+                if isinstance(e, subprocess.CalledProcessError)
+                else f"in-process step ({type(e).__name__})"
+            )
+            print(f"\nFATAL: HUC{level} {key} {kind} failed: {e}")
+            traceback.print_exc()
             entry = ledger.setdefault(key, {})
             entry["status"] = "errored"
             entry["error"] = str(e)
+            entry["error_kind"] = kind
             entry["errored_at"] = _now()
             _save_ledger(ledger_path, ledger)
             print("Halting loop. Investigate, then rerun.")

@@ -191,6 +191,21 @@ def _process_dam(
     return dam_id, flowline_entry, tiles, used_cache
 
 
+def load_vaa_df():
+    """Load the NHDPlus VAA table (245 MB).
+
+    HyRiver caches the underlying parquet locally, so the network download
+    is one-time across the machine — but each call still pays a multi-second
+    parquet read + DataFrame construct. When invoked inside a loop (e.g.
+    one HUC batch at a time), the caller should load once and pass via
+    ``stage_dams_parallel(..., vaa_df=...)`` to skip the repeat work.
+    """
+    _log("Pre-fetching NHDPlus VAA table (245 MB, once) ...")
+    df = nhd.nhdplus_vaa()
+    _log("VAA table ready.")
+    return df
+
+
 def stage_dams_parallel(
     dams_df: pd.DataFrame,
     flowline_dir: Path,
@@ -198,9 +213,14 @@ def stage_dams_parallel(
     force_flowlines: bool,
     force_tile_query: bool,
     workers: int,
+    vaa_df=None,
 ) -> Tuple[Dict[int, dict], Dict[int, List[str]], Dict[str, dict]]:
     """
     Run flowline fetch + DEM-tile query for each dam in parallel.
+
+    ``vaa_df`` is the result of ``nhd.nhdplus_vaa()``. When ``None`` it's
+    loaded inline; when provided (e.g. by a multi-HUC orchestrator) the
+    inline load is skipped.
 
     Returns
     -------
@@ -213,9 +233,10 @@ def stage_dams_parallel(
     tile_catalog: Dict[str, dict] = {}  # seeded from cache below, then updated by workers
     total = len(dams_df)
 
-    _log("Pre-fetching NHDPlus VAA table (245 MB, once) ...")
-    vaa_df = nhd.nhdplus_vaa()
-    _log("VAA table ready.")
+    if vaa_df is None:
+        vaa_df = load_vaa_df()
+    else:
+        _log(f"Using preloaded NHDPlus VAA table ({len(vaa_df):,} rows).")
 
     cached_dam_tiles: Dict[int, List[str]] = {}
     cached_tile_catalog: Dict[str, dict] = {}
@@ -418,6 +439,94 @@ def _apply_rename_map(
 # Entry point
 # ---------------------------------------------------------------------------
 
+def run_stage(
+    staging_dir: Path,
+    dams_csv: Path,
+    *,
+    limit: int | None = None,
+    force_flowlines: bool = False,
+    force_tiles: bool = False,
+    force_tile_query: bool = False,
+    skip_download: bool = False,
+    workers: int = 8,
+    download_workers: int = 8,
+    vaa_df=None,
+) -> None:
+    """
+    In-process entry point for the staging step. Same behavior as the CLI
+    ``main()`` below — broken out so a multi-HUC orchestrator can call it
+    directly and pass a pre-loaded ``vaa_df`` across batches.
+    """
+    flowline_dir = staging_dir / "STRM"
+    raw_dem_dir = staging_dir / "DEM" / "raw_3dep"
+    flowline_dir.mkdir(parents=True, exist_ok=True)
+    raw_dem_dir.mkdir(parents=True, exist_ok=True)
+
+    dams_df = pd.read_csv(dams_csv)
+    n_raw = len(dams_df)
+    dams_df = dams_df[
+        dams_df["OBJECTID"].notna()
+        & dams_df["Latitude"].notna()
+        & dams_df["Longitude"].notna()
+    ].reset_index(drop=True)
+    dams_df["OBJECTID"] = dams_df["OBJECTID"].astype(int)
+    if len(dams_df) < n_raw:
+        print(f"Dropped {n_raw - len(dams_df)} row(s) with missing OBJECTID/lat/lon")
+    if limit:
+        dams_df = dams_df.head(limit)
+
+    print(
+        f"Processing {len(dams_df)} dams from {dams_csv} "
+        f"(workers={workers}, download_workers={download_workers})\n"
+    )
+
+    print("=" * 60)
+    print("Steps 1 + 2 — NHD Flowlines + DEM Tile Manifest (parallel)")
+    print("=" * 60)
+    flowline_results, manifest, tile_catalog = stage_dams_parallel(
+        dams_df, flowline_dir,
+        staging_dir=staging_dir,
+        force_flowlines=force_flowlines,
+        force_tile_query=force_tile_query,
+        workers=workers,
+        vaa_df=vaa_df,
+    )
+    n_ok = sum(1 for v in flowline_results.values() if v.get("path"))
+    n_tiles = sum(len(v) for v in manifest.values())
+    n_unique = len(tile_catalog)
+    print(
+        f"\nFlowlines: {n_ok}/{len(dams_df)} succeeded — "
+        f"tile references: {n_tiles} total, {n_unique} unique\n"
+    )
+
+    print("=" * 60)
+    print("Step 3 — Saving Manifest")
+    print("=" * 60)
+
+    if not skip_download:
+        # Save once now so a partial download still leaves a usable manifest,
+        # then re-save after extraction in case zipped tiles were unpacked.
+        save_manifest(manifest, tile_catalog, flowline_results, staging_dir)
+        print()
+        print("=" * 60)
+        print("Step 4 — Downloading DEM Tiles")
+        print("=" * 60)
+        rename_map = download_all_tiles(
+            tile_catalog, raw_dem_dir,
+            workers=download_workers,
+            force=force_tiles,
+        )
+        if rename_map:
+            print(f"\nRewriting manifest for {len(rename_map)} extracted zipped tiles")
+            _apply_rename_map(rename_map, manifest, tile_catalog)
+            save_manifest(manifest, tile_catalog, flowline_results, staging_dir)
+    else:
+        save_manifest(manifest, tile_catalog, flowline_results, staging_dir)
+        print(f"\nSkipped tile download (--skip-download). {n_unique} unique tiles recorded.")
+
+    print("\nDone.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -461,74 +570,17 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    staging_dir: Path = args.staging_dir
-    flowline_dir = staging_dir / "STRM"
-    raw_dem_dir = staging_dir / "DEM" / "raw_3dep"
-    flowline_dir.mkdir(parents=True, exist_ok=True)
-    raw_dem_dir.mkdir(parents=True, exist_ok=True)
-
-    dams_df = pd.read_csv(args.dams_csv)
-    n_raw = len(dams_df)
-    dams_df = dams_df[
-        dams_df["OBJECTID"].notna()
-        & dams_df["Latitude"].notna()
-        & dams_df["Longitude"].notna()
-    ].reset_index(drop=True)
-    dams_df["OBJECTID"] = dams_df["OBJECTID"].astype(int)
-    if len(dams_df) < n_raw:
-        print(f"Dropped {n_raw - len(dams_df)} row(s) with missing OBJECTID/lat/lon")
-    if args.limit:
-        dams_df = dams_df.head(args.limit)
-
-    print(
-        f"Processing {len(dams_df)} dams from {args.dams_csv} "
-        f"(workers={args.workers}, download_workers={args.download_workers})\n"
-    )
-
-    print("=" * 60)
-    print("Steps 1 + 2 — NHD Flowlines + DEM Tile Manifest (parallel)")
-    print("=" * 60)
-    flowline_results, manifest, tile_catalog = stage_dams_parallel(
-        dams_df, flowline_dir,
-        staging_dir=staging_dir,
+    run_stage(
+        staging_dir=args.staging_dir,
+        dams_csv=args.dams_csv,
+        limit=args.limit,
         force_flowlines=args.force_flowlines,
+        force_tiles=args.force_tiles,
         force_tile_query=args.force_tile_query,
+        skip_download=args.skip_download,
         workers=args.workers,
+        download_workers=args.download_workers,
     )
-    n_ok = sum(1 for v in flowline_results.values() if v.get("path"))
-    n_tiles = sum(len(v) for v in manifest.values())
-    n_unique = len(tile_catalog)
-    print(
-        f"\nFlowlines: {n_ok}/{len(dams_df)} succeeded — "
-        f"tile references: {n_tiles} total, {n_unique} unique\n"
-    )
-
-    print("=" * 60)
-    print("Step 3 — Saving Manifest")
-    print("=" * 60)
-
-    if not args.skip_download:
-        # Save once now so a partial download still leaves a usable manifest,
-        # then re-save after extraction in case zipped tiles were unpacked.
-        save_manifest(manifest, tile_catalog, flowline_results, staging_dir)
-        print()
-        print("=" * 60)
-        print("Step 4 — Downloading DEM Tiles")
-        print("=" * 60)
-        rename_map = download_all_tiles(
-            tile_catalog, raw_dem_dir,
-            workers=args.download_workers,
-            force=args.force_tiles,
-        )
-        if rename_map:
-            print(f"\nRewriting manifest for {len(rename_map)} extracted zipped tiles")
-            _apply_rename_map(rename_map, manifest, tile_catalog)
-            save_manifest(manifest, tile_catalog, flowline_results, staging_dir)
-    else:
-        save_manifest(manifest, tile_catalog, flowline_results, staging_dir)
-        print(f"\nSkipped tile download (--skip-download). {n_unique} unique tiles recorded.")
-
-    print("\nDone.")
 
 
 if __name__ == "__main__":
