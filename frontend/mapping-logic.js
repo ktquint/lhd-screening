@@ -922,4 +922,4 @@ async function loadStateBoundaries(url) {
     }
 }
 
-loadStateBoundaries('data/us_boundaries/cb_2025_us_state_20m.json');
+loadStateBoundaries('data/cb_2025_us_state_20m.json');
