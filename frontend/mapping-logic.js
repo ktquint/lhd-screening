@@ -242,11 +242,13 @@ const SearchControl = L.Control.extend({
         riverLabel.textContent = 'FILTER BY RIVER';
 
         const riverInput = L.DomUtil.create('input', '', panel);
+        riverInput.id = 'globalRiverInput';
         riverInput.type = 'text';
         riverInput.placeholder = 'River name (e.g. South Platte)';
         riverInput.style.cssText = 'width:100%;padding:6px;box-sizing:border-box;border:1px solid #ccc;border-radius:3px;margin-bottom:4px;font-size:12px;';
 
         const stateInput = L.DomUtil.create('input', '', panel);
+        stateInput.id = 'globalStateInput';
         stateInput.type = 'text';
         stateInput.maxLength = 2;
         stateInput.placeholder = 'State abbr. (e.g. CO)';
@@ -256,6 +258,7 @@ const SearchControl = L.Control.extend({
         btnRow.style.cssText = 'display:flex;gap:4px;margin-bottom:4px;';
 
         const applyBtn = L.DomUtil.create('button', '', btnRow);
+        applyBtn.id = 'globalApplyFilterBtn';
         applyBtn.textContent = 'Apply Filter';
         applyBtn.style.cssText = 'flex:1;padding:6px;background:#3498db;color:white;border:none;border-radius:3px;cursor:pointer;font-size:12px;font-weight:600;';
 
@@ -305,6 +308,10 @@ const SearchControl = L.Control.extend({
             activeRiverFilter = { river: rq, state: sq };
             renderMarkers();
 
+            if (typeof window.highlightStateBoundary === 'function') {
+                window.highlightStateBoundary(sq);
+            }
+
             if (!rq && !sq) {
                 filterStatus.textContent = '';
                 return;
@@ -332,10 +339,27 @@ const SearchControl = L.Control.extend({
             activeRiverFilter = { river: '', state: '' };
             filterStatus.textContent = '';
             renderMarkers();
+            if (typeof window.clearStateHighlight === 'function') {
+                window.clearStateHighlight();
+            }
         });
 
         L.DomEvent.on(riverInput, 'keydown', (e) => { if (e.key === 'Enter') applyRiverFilter(); });
         L.DomEvent.on(stateInput, 'keydown', (e) => { if (e.key === 'Enter') applyRiverFilter(); });
+
+        // Expose function globally to open the panel
+        window.openSearchPanel = () => {
+            if (panel.style.display !== 'block') {
+                panel.style.display = 'block';
+                setTimeout(() => input.focus(), 0);
+            }
+        };
+
+        window.closeSearchPanel = () => {
+            if (panel.style.display === 'block') {
+                panel.style.display = 'none';
+            }
+        };
 
         return container;
     }
@@ -343,8 +367,53 @@ const SearchControl = L.Control.extend({
 map.addControl(new SearchControl());
 
 // Add the background maps button (Layers Control)
-L.control.layers(baseMaps).addTo(map);
+const layerControl = L.control.layers(baseMaps).addTo(map);
 
+// --- Active Filters Badge ---
+const ActiveFiltersControl = L.Control.extend({
+    options: { position: 'bottomleft' },
+    onAdd: function() {
+        const container = L.DomUtil.create('div', 'leaflet-control');
+        container.id = 'activeFiltersBadge';
+        container.style.cssText = 'display:none; background:rgba(255,255,255,0.95); padding:8px 12px; border-radius:4px; box-shadow:0 1px 5px rgba(0,0,0,0.4); font-size:12px; font-weight:bold; color:#2c3e50; cursor:pointer; border-left:4px solid #3498db; margin-bottom: 20px; transition: all 0.2s ease;';
+        container.title = 'Click to clear all filters';
+        
+        L.DomEvent.disableClickPropagation(container);
+        
+        container.onmouseover = () => container.style.background = '#f8f9fa';
+        container.onmouseout = () => container.style.background = 'rgba(255,255,255,0.95)';
+        
+        container.onclick = (e) => {
+            L.DomEvent.stopPropagation(e);
+            // Trigger the global escape key logic to clear everything
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+        };
+        
+        return container;
+    }
+});
+map.addControl(new ActiveFiltersControl());
+
+window.updateActiveFiltersBadge = () => {
+    const badge = document.getElementById('activeFiltersBadge');
+    if (!badge) return;
+    
+    const stateInput = document.getElementById('globalStateInput');
+    const riverInput = document.getElementById('globalRiverInput');
+    const fatalityCheckbox = document.getElementById('fatalityFilter');
+    
+    let active = [];
+    if (stateInput && stateInput.value.trim()) active.push(`State: ${stateInput.value.trim().toUpperCase()}`);
+    if (riverInput && riverInput.value.trim()) active.push(`River: ${riverInput.value.trim()}`);
+    if (fatalityCheckbox && fatalityCheckbox.checked) active.push(`Fatalities Only`);
+    
+    if (active.length > 0) {
+        badge.style.display = 'block';
+        badge.innerHTML = `Active Filters: <span style="font-weight:normal; color:#555;">${active.join(' | ')}</span> <span style="color:#e74c3c; margin-left:12px; border-left: 1px solid #ccc; padding-left: 10px;">&times; Clear All</span>`;
+    } else {
+        badge.style.display = 'none';
+    }
+};
 
 // 2. Load Dam Data
 async function loadDams() {
@@ -414,6 +483,9 @@ function renderMarkers() {
             });
 
             const _displayName = displayName(dam);
+            
+            marker.bindTooltip(_displayName, { direction: 'top', offset: [0, -6] });
+            
             let popupContent = `
                 <div class="popup-content">
                     <strong>${_displayName}</strong><br>
@@ -441,6 +513,14 @@ function renderMarkers() {
     });
     
     map.addLayer(markers); 
+
+    if (typeof window.updateBoundaryZOrder === 'function') {
+        window.updateBoundaryZOrder();
+    }
+    
+    if (typeof window.updateActiveFiltersBadge === 'function') {
+        window.updateActiveFiltersBadge();
+    }
 }
 
 // 4. National Water Model Forecast (NOAA NWPS API, NHDPlus V2 COMID = Reach_ID)
@@ -859,3 +939,181 @@ loadDams();
 
     headings.forEach(heading => observer.observe(heading));
 })();
+
+// --- Load State Boundaries JSON ---
+async function loadStateBoundaries(url) {
+    try {
+        window.updateBoundaryZOrder = () => {
+            if (window.stateBoundaryLayer) {
+                if (map.getZoom() <= 4) {
+                    window.stateBoundaryLayer.bringToFront();
+                } else {
+                    window.stateBoundaryLayer.bringToBack();
+                }
+            }
+        };
+        map.on('zoomend', window.updateBoundaryZOrder);
+
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        let selectedStateLayer = null;
+        let stateLayersMap = {};
+        const defaultStyle = { color: 'black', weight: 2, fillOpacity: 0.05 };
+        const hoverStyle = { color: 'black', weight: 3, fillOpacity: 0.2 };
+        const selectedStyle = { color: '#3498db', weight: 4, fillOpacity: 0.2 };
+
+        window.clearStateHighlight = () => {
+            if (selectedStateLayer) {
+                selectedStateLayer.setStyle(defaultStyle);
+                selectedStateLayer = null;
+            }
+        };
+
+        window.highlightStateBoundary = (stateAbbr) => {
+            window.clearStateHighlight();
+            if (stateAbbr && stateLayersMap[stateAbbr]) {
+                const layer = stateLayersMap[stateAbbr];
+                layer.setStyle(selectedStyle);
+                selectedStateLayer = layer;
+            }
+        };
+
+        const stateBoundaryLayer = L.geoJSON(data, {
+            style: defaultStyle,
+            onEachFeature: function(feature, layer) {
+                const stateAbbr = feature.properties.stusps || feature.properties.STUSPS || feature.properties.STUSAB || feature.properties.STATE;
+                if (stateAbbr) {
+                    stateLayersMap[stateAbbr.toUpperCase()] = layer;
+                }
+
+                // Visual feedback on hover
+                layer.on('mouseover', function() {
+                    if (selectedStateLayer !== layer) {
+                        layer.setStyle(hoverStyle);
+                    }
+                });
+                layer.on('mouseout', function() {
+                    if (selectedStateLayer !== layer) {
+                        layer.setStyle(defaultStyle);
+                    }
+                });
+                
+                // Double click to zoom back out (deselect)
+                layer.on('dblclick', function(e) {
+                    // Prevent the default map double-click zoom from interfering on canvas
+                    map.doubleClickZoom.disable();
+                    setTimeout(() => map.doubleClickZoom.enable(), 500);
+
+                    // Prevent the default map double-click zoom
+                    if (e.originalEvent) {
+                        L.DomEvent.stopPropagation(e.originalEvent);
+                    }
+                    
+                    if (selectedStateLayer !== layer) {
+                        return; // Only act if it's the currently selected state
+                    }
+
+                    const stateInput = document.getElementById('globalStateInput');
+                    const applyBtn = document.getElementById('globalApplyFilterBtn');
+                    
+                    if (stateInput && applyBtn) {
+                        stateInput.value = ''; // Clear state filter
+                        applyBtn.click();      // Trigger the UI's existing filter logic
+                    }
+                    
+                    map.setView([39.82, -98.57], 4);
+                    if (typeof window.closeSearchPanel === 'function') {
+                        window.closeSearchPanel();
+                    }
+                });
+
+                // Click to filter by state
+                layer.on('click', function(e) {
+                    // Extract state abbreviation (Census shapefiles usually use STUSPS)
+                    const stateAbbr = feature.properties.stusps || feature.properties.STUSPS || feature.properties.STUSAB || feature.properties.STATE;
+                    if (stateAbbr) {
+                        const upperAbbr = stateAbbr.toUpperCase();
+                        const stateInput = document.getElementById('globalStateInput');
+                        const applyBtn = document.getElementById('globalApplyFilterBtn');
+                        
+                        if (stateInput && applyBtn) {
+                            // Only apply if it is not already the selected state
+                            if (stateInput.value.toUpperCase() !== upperAbbr) {
+                                stateInput.value = upperAbbr; // Toggle on
+                                if (selectedStateLayer) {
+                                    selectedStateLayer.setStyle(defaultStyle);
+                                }
+                                layer.setStyle(selectedStyle);
+                                selectedStateLayer = layer;
+                            
+                                // Trigger the UI's existing filter logic
+                                applyBtn.click();
+                                
+                                // Adjust zoom to state boundary
+                                setTimeout(() => { map.fitBounds(layer.getBounds()); }, 50);
+                                if (typeof window.openSearchPanel === 'function') {
+                                    window.openSearchPanel();
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        });
+        
+        window.stateBoundaryLayer = stateBoundaryLayer;
+
+        // Add it to the top-right layer control menu
+        layerControl.addOverlay(stateBoundaryLayer, "State Boundaries");
+        
+        // If you want the boundaries to be visible immediately on load, uncomment the next line:
+        stateBoundaryLayer.addTo(map);
+        window.updateBoundaryZOrder();
+    } catch (error) {
+        console.error(`Failed to load JSON from ${url}:`, error);
+    }
+}
+
+loadStateBoundaries('data/cb_2025_us_state_20m.json');
+
+// --- Global Escape Key Handler ---
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        // Clear all filters if they are applied
+        const stateInput = document.getElementById('globalStateInput');
+        const riverInput = document.getElementById('globalRiverInput');
+        const fatalityCheckbox = document.getElementById('fatalityFilter');
+        const applyBtn = document.getElementById('globalApplyFilterBtn');
+        
+        let filtersChanged = false;
+        if (stateInput && stateInput.value !== '') {
+            stateInput.value = '';
+            filtersChanged = true;
+        }
+        if (riverInput && riverInput.value !== '') {
+            riverInput.value = '';
+            filtersChanged = true;
+        }
+        if (fatalityCheckbox && fatalityCheckbox.checked) {
+            fatalityCheckbox.checked = false;
+            filtersChanged = true;
+        }
+        
+        if (filtersChanged && applyBtn) {
+            applyBtn.click();
+        }
+        
+        // Zoom out to national view
+        map.setView([39.82, -98.57], 4);
+        
+        // Close any open panels or popups
+        if (typeof window.closeSearchPanel === 'function') {
+            window.closeSearchPanel();
+        }
+        if (typeof window.closeForecastPanel === 'function') {
+            window.closeForecastPanel();
+        }
+        map.closePopup();
+    }
+});
