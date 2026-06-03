@@ -123,10 +123,56 @@ def _staged_paths(staging_dir: Path, dam_id: int) -> Dict[str, Path]:
         "flowline_gpkg": gpkgs[0] if gpkgs else None,
         "dem": staging_dir / "DEM" / str(dam_id) / f"dem_{dam_id}.tif",
         "land": staging_dir / "LAND" / str(dam_id) / "constant_land.tif",
+        "manning": staging_dir / "LAND" / str(dam_id) / "Manning_n.txt",
         "flow_csv": staging_dir / "FLOW" / str(dam_id) / f"flow_{dam_id}.csv",
         "arc_done": staging_dir / "RESULTS" / str(dam_id) / "arc_done.json",
         "analysis_summary": staging_dir / "RESULTS" / str(dam_id) / "analysis_summary.json",
     }
+
+
+def _is_sentinel(v) -> bool:
+    """True if v is one of ARC's no-data sentinels or a NaN."""
+    if v is None:
+        return True
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return True
+    return f != f or f == -9999.0  # NaN check via self-inequality
+
+
+def _summary_facts(summary: dict) -> Dict[str, object]:
+    """Pull every fact diagnostics needs out of analysis_summary.json in one pass."""
+    xs_list = summary.get("xs_results") or []
+    valid = [
+        xs for xs in xs_list
+        if xs.get("Qmin_cms") is not None and xs.get("Qmax_cms") is not None
+    ]
+    any_xs_sentinel = any(
+        _is_sentinel(xs.get("Qmin_cms")) or _is_sentinel(xs.get("Qmax_cms"))
+        or _is_sentinel(xs.get("P_height_m"))
+        for xs in xs_list
+    )
+    qmin_env = min((float(xs["Qmin_cms"]) for xs in valid), default=None)
+    qmax_env = max((float(xs["Qmax_cms"]) for xs in valid), default=None)
+    bracket = summary.get("solver_bracket_cms") or [None, None]
+    return {
+        "qmin_env": qmin_env,
+        "qmax_env": qmax_env,
+        "bracket_source": summary.get("solver_bracket_source"),
+        "bracket_floor": bracket[0] if len(bracket) >= 1 else None,
+        "bracket_ceiling": bracket[1] if len(bracket) >= 2 else None,
+        "dam_height_m": summary.get("dam_height_m"),
+        "any_xs_sentinel": any_xs_sentinel,
+        "n_xs_total": len(xs_list),
+        "n_xs_valid": len(valid),
+    }
+
+
+def _close(a: Optional[float], b: Optional[float], rtol: float = 1e-9, atol: float = 1e-12) -> bool:
+    if a is None or b is None:
+        return False
+    return abs(a - b) <= atol + rtol * max(abs(a), abs(b))
 
 
 def _flow_values(flow_csv: Path, comid: Optional[int]) -> Tuple[Optional[float], Optional[float]]:
@@ -152,21 +198,6 @@ def _flow_values(flow_csv: Path, comid: Optional[int]) -> Tuple[Optional[float],
     return pick("q_ep_50"), pick("rp100")
 
 
-def _envelope_from_summary(summary: dict) -> Tuple[Optional[float], Optional[float], Optional[str]]:
-    """Re-derive Qmin_env / Qmax_env from xs_results so we don't depend on
-    rolling_pipeline having run yet."""
-    xs_list = summary.get("xs_results") or []
-    valid = [
-        xs for xs in xs_list
-        if xs.get("Qmin_cms") is not None and xs.get("Qmax_cms") is not None
-    ]
-    if not valid:
-        return None, None, summary.get("solver_bracket_source")
-    qmin_env = min(float(xs["Qmin_cms"]) for xs in valid)
-    qmax_env = max(float(xs["Qmax_cms"]) for xs in valid)
-    return qmin_env, qmax_env, summary.get("solver_bracket_source")
-
-
 def _classify_dam(
     dam_id: int,
     comid: Optional[int],
@@ -177,37 +208,43 @@ def _classify_dam(
     paths = _staged_paths(staging_dir, dam_id)
     has_strm = paths["flowline_gpkg"] is not None
     has_dem = paths["dem"].exists()
+    has_land = paths["land"].exists() and paths["manning"].exists()
     has_flow_csv = paths["flow_csv"].exists()
     has_arc = paths["arc_done"].exists()
     has_analysis = paths["analysis_summary"].exists()
 
     q_ep_50, rp100 = _flow_values(paths["flow_csv"], comid)
-    qmin_env = qmax_env = None
-    bracket_source = None
+
+    facts: Optional[Dict[str, object]] = None
+    summary_unreadable = False
     if has_analysis:
         summary = _read_json(paths["analysis_summary"])
-        if summary is not None:
-            qmin_env, qmax_env, bracket_source = _envelope_from_summary(summary)
+        if summary is None:
+            summary_unreadable = True
+        else:
+            facts = _summary_facts(summary)
 
     row: Dict[str, object] = {
         "OBJECTID": dam_id,
         "huc_dir": staging_dir.name,
         "has_strm": has_strm,
         "has_dem": has_dem,
+        "has_land": has_land,
         "has_flow": has_flow_csv,
         "has_arc": has_arc,
         "has_analysis": has_analysis,
         "q_ep_50": q_ep_50,
         "rp100": rp100,
-        "qmin_env": qmin_env,
-        "qmax_env": qmax_env,
-        "solver_bracket_source": bracket_source,
+        "qmin_env": facts["qmin_env"] if facts else None,
+        "qmax_env": facts["qmax_env"] if facts else None,
+        "dam_height_m": facts["dam_height_m"] if facts else None,
+        "solver_bracket_source": facts["bracket_source"] if facts else None,
         "terminal_stage": "",
         "terminal_reason": "",
         "raw_reason": "",
     }
 
-    # Apply the first-matching classification rule.
+    # ---- Staging-stage classification (first match wins) ----
     if not has_strm:
         row["terminal_stage"] = "stage_no_strm"
         row["terminal_reason"] = "no nhd_flowline_*.gpkg under STRM/<id>/"
@@ -215,6 +252,15 @@ def _classify_dam(
     if not has_dem:
         row["terminal_stage"] = "stage_no_dem"
         row["terminal_reason"] = f"missing {paths['dem'].name}"
+        return row
+    if not has_land:
+        missing = []
+        if not paths["land"].exists():
+            missing.append("constant_land.tif")
+        if not paths["manning"].exists():
+            missing.append("Manning_n.txt")
+        row["terminal_stage"] = "stage_no_land"
+        row["terminal_reason"] = f"missing {' + '.join(missing)} under LAND/<id>/"
         return row
     if not has_flow_csv:
         row["terminal_stage"] = "stage_no_flow"
@@ -228,6 +274,7 @@ def _classify_dam(
         )
         return row
 
+    # ---- ARC stage ----
     if not has_arc:
         arc_status = arc_failures.get(dam_id)
         if arc_status:
@@ -239,6 +286,7 @@ def _classify_dam(
             row["terminal_reason"] = "no arc_done.json and not in failures_arc.json"
         return row
 
+    # ---- Post-ARC analysis stage ----
     if not has_analysis:
         a_status = analysis_failures.get(dam_id)
         if a_status:
@@ -250,18 +298,78 @@ def _classify_dam(
             row["terminal_reason"] = "arc done but no analysis_summary.json"
         return row
 
-    # Analysis completed — judge the envelope.
+    if summary_unreadable:
+        row["terminal_stage"] = "analysis_summary_unreadable"
+        row["terminal_reason"] = "analysis_summary.json present but unparseable (partial write?)"
+        return row
+
+    # facts is non-None past here.
+    assert facts is not None
+
+    if _is_sentinel(facts["dam_height_m"]):
+        row["terminal_stage"] = "bad_dam_height"
+        row["terminal_reason"] = (
+            f"dam_height_m == {facts['dam_height_m']!r} — height estimator failed "
+            f"(every downstream XS will sentinel out)"
+        )
+        return row
+
+    if facts["any_xs_sentinel"]:
+        row["terminal_stage"] = "solver_sentinel_xs"
+        row["terminal_reason"] = (
+            f"{facts['n_xs_valid']}/{facts['n_xs_total']} XS produced values; "
+            f"at least one Qmin_cms / Qmax_cms / P_height_m is -9999 or NaN — "
+            f"envelope is polluted"
+        )
+        return row
+
+    qmin_env = facts["qmin_env"]
+    qmax_env = facts["qmax_env"]
     if qmin_env is None or qmax_env is None:
         row["terminal_stage"] = "solver_no_valid_xs"
         row["terminal_reason"] = "analysis ran but no XS produced both Qmin and Qmax"
         return row
+
     if qmin_env == qmax_env:
         row["terminal_stage"] = "solver_degenerate"
         row["terminal_reason"] = f"Qmin_env == Qmax_env == {qmin_env:g} cms"
         return row
 
-    # Informational: rp100 missing means bracket fell back to baseflow*1000.
-    if bracket_source == "baseflow_x1000":
+    # Bracket-collapse interpretation:
+    #   * full collapse (Qmin == floor AND Qmax == ceiling) → the residual
+    #     never crossed inside the bracket; this is a legitimate physical
+    #     finding (every flow in the search range is dangerous, or every
+    #     flow is safe), so treat it as ok with an annotation.
+    #   * half collapse (one end pinned, the other a real root) → one
+    #     intercept couldn't be located inside the bracket and was filled
+    #     in with the endpoint. Flag.
+    floor = facts["bracket_floor"]
+    ceiling = facts["bracket_ceiling"]
+    pinned_lo = _close(qmin_env, floor)
+    pinned_hi = _close(qmax_env, ceiling)
+    if pinned_lo and not pinned_hi:
+        row["terminal_stage"] = "solver_half_collapse_low"
+        row["terminal_reason"] = (
+            f"Qmin_env == bracket floor ({qmin_env:g} cms) — conjugate intercept "
+            f"never found below rp100"
+        )
+        return row
+    if pinned_hi and not pinned_lo:
+        row["terminal_stage"] = "solver_half_collapse_high"
+        row["terminal_reason"] = (
+            f"Qmax_env == bracket ceiling ({qmax_env:g} cms) — flip intercept "
+            f"never found below rp100"
+        )
+        return row
+    if pinned_lo and pinned_hi:
+        row["terminal_stage"] = "ok"
+        row["terminal_reason"] = (
+            "ok (bracket fully spans the dangerous range — neither intercept "
+            "crossed inside [floor, ceiling])"
+        )
+        return row
+
+    if facts["bracket_source"] == "baseflow_x1000":
         row["terminal_stage"] = "ok"
         row["terminal_reason"] = "ok (bracket used baseflow_x1000 fallback — rp100 missing)"
         return row
