@@ -453,8 +453,10 @@ function renderMarkers() {
             let markerColor = '#95a5a6'; // Default: Gray (Missing hydro link / screening safety data)
             if (fatalities > 0) {
                 markerColor = '#e74c3c'; // Priority 1: Red (Fatality recorded)
+            } else if (hasSafetyData) {
+                markerColor = '#f1c40f'; // Priority 2: Yellow (Dangerous flow range calculated)
             } else if (hasComid) {
-                markerColor = '#3498db'; // Priority 2: Blue (Live forecast + screening active)
+                markerColor = '#3498db'; // Priority 3: Blue (Live forecast available)
             }
 
 
@@ -737,6 +739,7 @@ legend.onAdd = function (map) {
     div.innerHTML = `
         <strong>Dam Status</strong><br>
         <i style="background: #e74c3c"></i> Fatality Recorded<br>
+        <i style="background: #f1c40f"></i> Dangerous Range Calculated<br>
         <i style="background: #3498db"></i> Live Forecast Available<br>
         <i style="background: #95a5a6"></i> Location Info Only
     `;
