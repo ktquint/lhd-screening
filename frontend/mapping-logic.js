@@ -369,6 +369,51 @@ map.addControl(new SearchControl());
 // Add the background maps button (Layers Control)
 const layerControl = L.control.layers(baseMaps).addTo(map);
 
+// --- Active Filters Badge ---
+const ActiveFiltersControl = L.Control.extend({
+    options: { position: 'bottomleft' },
+    onAdd: function() {
+        const container = L.DomUtil.create('div', 'leaflet-control');
+        container.id = 'activeFiltersBadge';
+        container.style.cssText = 'display:none; background:rgba(255,255,255,0.95); padding:8px 12px; border-radius:4px; box-shadow:0 1px 5px rgba(0,0,0,0.4); font-size:12px; font-weight:bold; color:#2c3e50; cursor:pointer; border-left:4px solid #3498db; margin-bottom: 20px; transition: all 0.2s ease;';
+        container.title = 'Click to clear all filters';
+        
+        L.DomEvent.disableClickPropagation(container);
+        
+        container.onmouseover = () => container.style.background = '#f8f9fa';
+        container.onmouseout = () => container.style.background = 'rgba(255,255,255,0.95)';
+        
+        container.onclick = (e) => {
+            L.DomEvent.stopPropagation(e);
+            // Trigger the global escape key logic to clear everything
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+        };
+        
+        return container;
+    }
+});
+map.addControl(new ActiveFiltersControl());
+
+window.updateActiveFiltersBadge = () => {
+    const badge = document.getElementById('activeFiltersBadge');
+    if (!badge) return;
+    
+    const stateInput = document.getElementById('globalStateInput');
+    const riverInput = document.getElementById('globalRiverInput');
+    const fatalityCheckbox = document.getElementById('fatalityFilter');
+    
+    let active = [];
+    if (stateInput && stateInput.value.trim()) active.push(`State: ${stateInput.value.trim().toUpperCase()}`);
+    if (riverInput && riverInput.value.trim()) active.push(`River: ${riverInput.value.trim()}`);
+    if (fatalityCheckbox && fatalityCheckbox.checked) active.push(`Fatalities Only`);
+    
+    if (active.length > 0) {
+        badge.style.display = 'block';
+        badge.innerHTML = `Active Filters: <span style="font-weight:normal; color:#555;">${active.join(' | ')}</span> <span style="color:#e74c3c; margin-left:12px; border-left: 1px solid #ccc; padding-left: 10px;">&times; Clear All</span>`;
+    } else {
+        badge.style.display = 'none';
+    }
+};
 
 // 2. Load Dam Data
 async function loadDams() {
@@ -471,6 +516,10 @@ function renderMarkers() {
 
     if (typeof window.updateBoundaryZOrder === 'function') {
         window.updateBoundaryZOrder();
+    }
+    
+    if (typeof window.updateActiveFiltersBadge === 'function') {
+        window.updateActiveFiltersBadge();
     }
 }
 
