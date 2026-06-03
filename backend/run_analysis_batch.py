@@ -12,8 +12,13 @@ For each dam in tile_manifest.json this script:
   2. Reconstructs an ArcDam object (no ARC run — just path bookkeeping).
   3. Calls estimate_weir_length() on the staged stream raster + ARC outputs.
   4. Calls ArcDam.extract_local_xs() to write the Local_*.gpkg files Dam needs.
-  5. Constructs lhd_processor.analysis_classes.Dam with an empty flow_series
-     (so FDC-based prob_min/prob_max are skipped — geometry only).
+  5. Constructs lhd_processor.analysis_classes.Dam with a 2-point synthetic
+     flow_series of [solver_bracket_floor, rp100]. rp100 is the Log-Pearson
+     III 100-yr flow from the NWM v3 retrospective (already staged into the
+     per-dam flow CSV); using it sets a physically grounded upper bracket
+     for rating_curve_intercepts_simp instead of the legacy [0, 100] cms
+     placeholder, which collapsed nearly every solver run to a bracket
+     endpoint.
   6. Calls Dam.run_analysis() to populate per-XS dam_height + Qmin/Qmax.
   7. Writes RESULTS/{dam_id}/analysis_summary.json.
 
@@ -90,23 +95,40 @@ def _resolve_inputs(
     return paths
 
 
-def _read_baseflow(flow_csv: Path, comid: Optional[int]) -> Optional[float]:
-    """Pull q_ep_50 for `comid` out of the per-dam flow CSV. Falls back to
-    the first non-NaN row if comid is missing/unknown."""
+def _read_flow_anchors(
+    flow_csv: Path, comid: Optional[int]
+) -> Tuple[Optional[float], Optional[float]]:
+    """Pull (q_ep_50, rp100) for `comid` out of the per-dam flow CSV.
+
+    Both are derived from the NWM v3 retrospective by build_streamflow_csv.py:
+      q_ep_50 — median daily flow (baseflow anchor for dam-height solver).
+      rp100   — Log-Pearson III 100-yr return-period flow (upper bracket
+                for rating_curve_intercepts_simp).
+
+    Falls back to the first non-NaN row of each column if comid is missing.
+    Returns (None, None) on read failure; either element may be None if its
+    column is missing or NaN for `comid`.
+    """
     try:
         df = pd.read_csv(flow_csv)
     except Exception:
-        return None
-    if df.empty or "q_ep_50" not in df.columns:
-        return None
-    if comid is not None and "comid" in df.columns:
-        match = df.loc[df["comid"] == int(comid), "q_ep_50"]
-        if not match.empty and pd.notna(match.iloc[0]):
-            return float(match.iloc[0])
-    valid = df["q_ep_50"].dropna()
-    if valid.empty:
-        return None
-    return float(valid.iloc[0])
+        return None, None
+    if df.empty:
+        return None, None
+
+    def _pick(col: str) -> Optional[float]:
+        if col not in df.columns:
+            return None
+        if comid is not None and "comid" in df.columns:
+            match = df.loc[df["comid"] == int(comid), col]
+            if not match.empty and pd.notna(match.iloc[0]):
+                return float(match.iloc[0])
+        valid = df[col].dropna()
+        if valid.empty:
+            return None
+        return float(valid.iloc[0])
+
+    return _pick("q_ep_50"), _pick("rp100")
 
 
 # ---------------------------------------------------------------------------
@@ -139,10 +161,20 @@ def _process_dam(
         _log(f"[{idx}/{total}] Dam {dam_id}: SKIP (missing staged inputs)")
         return dam_id, "missing-input"
 
-    baseflow = _read_baseflow(paths["flow_csv"], comid)
+    baseflow, rp100 = _read_flow_anchors(paths["flow_csv"], comid)
     if baseflow is None or baseflow <= 0:
         _log(f"[{idx}/{total}] Dam {dam_id}: SKIP (no valid q_ep_50 in {paths['flow_csv'].name})")
         return dam_id, "no-baseflow"
+
+    # Solver bracket for rating_curve_intercepts_simp. Floor sits above
+    # hydraulics.residual's Q<=0.001 guard; ceiling is rp100 when staged,
+    # else a generous baseflow multiple so we don't regress to [0, 100].
+    SOLVER_BRACKET_FLOOR_CMS = 0.01
+    if rp100 is not None and rp100 > baseflow:
+        solver_q_max = float(rp100)
+    else:
+        solver_q_max = float(baseflow) * 1000.0
+    solver_bracket = pd.Series([SOLVER_BRACKET_FLOOR_CMS, solver_q_max])
 
     # Reconstruct ArcDam without running ARC — we only need the path bookkeeping
     # plus extract_local_xs(). _prepare_dirs_and_paths() is called by
@@ -214,8 +246,9 @@ def _process_dam(
         return dam_id, f"localxs-error:{e}"
 
     # ----- Dam height + dangerous-flow range -----
-    # Empty flow_series so Dam skips FDC / probability calculations
-    # (we asked for geometry-only) and skips the NWM zarr fetch.
+    # 2-point synthetic flow_series feeds [floor, rp100] into the rating-curve
+    # intercept solver as its search bracket. Passing a non-None Series also
+    # bypasses Dam.get_flow_data()'s NWM zarr fetch, so this stays cheap.
     try:
         dam = Dam(
             lhd_id=dam_id,
@@ -224,7 +257,7 @@ def _process_dam(
             weir_length=weir_length,
             baseflow=baseflow,
             base_results_dir=results_dir,
-            flow_series=pd.Series(dtype=float),
+            flow_series=solver_bracket,
             flowline_source="NHDPlus",
             streamflow_source="National Water Model",
             calc_mode="Simplified",
@@ -253,6 +286,9 @@ def _process_dam(
         "longitude": lon,
         "comid": int(comid) if comid is not None else None,
         "baseflow_q_ep_50_cms": baseflow,
+        "rp100_cms": rp100,
+        "solver_bracket_cms": [SOLVER_BRACKET_FLOOR_CMS, solver_q_max],
+        "solver_bracket_source": "rp100" if (rp100 is not None and rp100 > baseflow) else "baseflow_x1000",
         "weir_length_m": weir_length,
         "snap_row": int(width_info["snap_row"]),
         "snap_col": int(width_info["snap_col"]),
