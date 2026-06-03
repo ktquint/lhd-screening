@@ -527,6 +527,8 @@ function renderMarkers() {
 // Medium-range only: ~10d 3-hourly ensemble mean + member spread as uncertainty band.
 // Units: API returns ft³/s (cfs) — no conversion needed.
 async function checkForecast(comid, qMin, qMax, damName) {
+    // Reach_ID arrives as a pandas-style float string ("10376596.0") — NWPS wants an integer.
+    comid = String(comid).replace(/\.0+$/, '');
     const hasSafetyRange = qMin !== null && !isNaN(qMin) && qMax !== null && !isNaN(qMax);
 
     // FIX: Clear out the old header immediately so it doesn't distract the user while loading
