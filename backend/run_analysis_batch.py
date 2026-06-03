@@ -320,31 +320,44 @@ def _process_dam(
 # Entry point
 # ---------------------------------------------------------------------------
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument("--staging-dir", required=True, type=Path,
-                        help="Root of the staging tree")
-    parser.add_argument("--dams-csv", type=Path, default=DEFAULT_DAMS_CSV,
-                        help=f"Dam inventory CSV (default: {DEFAULT_DAMS_CSV})")
-    parser.add_argument("--limit", type=int, default=None,
-                        help="Process only the first N dams in the manifest")
-    parser.add_argument("--workers", type=int, default=4,
-                        help="Parallel workers [default: 4]")
-    parser.add_argument("--force", action="store_true",
-                        help="Recompute even if analysis_summary.json exists")
-    args = parser.parse_args()
+_HUC_DIR_RE = re.compile(r"^huc\d+_")
 
-    staging_dir: Path = args.staging_dir
+
+def _discover_staging_dirs(root: Path) -> List[Path]:
+    """Return the list of staging dirs to process.
+
+    Layouts supported:
+      * Flat staging: `root/tile_manifest.json` present → return `[root]`.
+      * HUC-batched: each `root/huc<level>_<KEY>/tile_manifest.json` is its
+        own self-contained staging dir → return all matching subdirs, sorted.
+    """
+    if (root / "tile_manifest.json").exists():
+        return [root]
+    if not root.is_dir():
+        return []
+    hits = sorted(
+        d for d in root.iterdir()
+        if d.is_dir()
+        and _HUC_DIR_RE.match(d.name)
+        and (d / "tile_manifest.json").exists()
+    )
+    return hits
+
+
+def _run_one_staging_dir(
+    staging_dir: Path,
+    coord_lookup: Dict[int, Tuple[float, float]],
+    workers: int,
+    force: bool,
+    limit: Optional[int],
+) -> Tuple[Dict[str, int], Dict[int, str]]:
+    """Process a single staging dir; return (counts, failures)."""
     results_dir = staging_dir / "RESULTS"
     if not results_dir.exists():
-        sys.exit(f"No RESULTS/ directory under {staging_dir} — run run_arc_batch.py first.")
+        print(f"[{staging_dir.name}] SKIP — no RESULTS/ (run run_arc_batch first)")
+        return {}, {}
 
     manifest_path = staging_dir / "tile_manifest.json"
-    if not manifest_path.exists():
-        sys.exit(f"Manifest not found: {manifest_path}")
     with open(manifest_path) as f:
         manifest = json.load(f)
     dam_ids: List[int] = [int(k) for k in manifest.get("dam_tiles", {}).keys()]
@@ -352,18 +365,8 @@ def main() -> None:
         int(k): (int(v) if v is not None else None)
         for k, v in manifest.get("dam_comids", {}).items()
     }
-    if args.limit:
-        dam_ids = dam_ids[: args.limit]
-
-    if not args.dams_csv.exists():
-        sys.exit(f"Dam inventory CSV not found: {args.dams_csv}")
-    dams_df = pd.read_csv(args.dams_csv)
-    dams_df = dams_df.dropna(subset=["OBJECTID", "Latitude", "Longitude"])
-    dams_df["OBJECTID"] = dams_df["OBJECTID"].astype(int)
-    coord_lookup: Dict[int, Tuple[float, float]] = {
-        int(r["OBJECTID"]): (float(r["Latitude"]), float(r["Longitude"]))
-        for _, r in dams_df.iterrows()
-    }
+    if limit:
+        dam_ids = dam_ids[:limit]
 
     pairs: List[Tuple[int, float, float, Optional[int]]] = []
     no_coords = 0
@@ -374,18 +377,19 @@ def main() -> None:
         lat, lon = coord_lookup[dam_id]
         pairs.append((dam_id, lat, lon, dam_comids.get(dam_id)))
     if no_coords:
-        print(f"Skipping {no_coords} dams with no lat/lon in {args.dams_csv}\n")
+        print(f"[{staging_dir.name}] skipping {no_coords} dams with no lat/lon")
     total = len(pairs)
 
-    print(f"Running post-ARC analysis for {total} dams (workers={args.workers})\n")
+    print(f"\n=== {staging_dir.name}: running post-ARC analysis for "
+          f"{total} dams (workers={workers}) ===")
 
     counts: Dict[str, int] = {}
     failures: Dict[int, str] = {}
-    with ThreadPoolExecutor(max_workers=args.workers) as ex:
+    with ThreadPoolExecutor(max_workers=workers) as ex:
         futures = {
             ex.submit(
                 _process_dam, i + 1, total, dam_id, lat, lon, comid,
-                staging_dir, results_dir, args.force,
+                staging_dir, results_dir, force,
             ): dam_id
             for i, (dam_id, lat, lon, comid) in enumerate(pairs)
         }
@@ -401,10 +405,6 @@ def main() -> None:
             if status != "ok":
                 failures[int(dam_id)] = status
 
-    print("\nSummary:")
-    for status in sorted(counts):
-        print(f"  {status:<22} {counts[status]}")
-
     failures_path = staging_dir / "failures_analysis.json"
     if failures:
         with open(failures_path, "w") as f:
@@ -412,10 +412,70 @@ def main() -> None:
                 {str(k): v for k, v in sorted(failures.items())},
                 f, indent=2,
             )
-        print(f"\nWrote per-dam failure reasons → {failures_path}")
+        print(f"[{staging_dir.name}] per-dam failure reasons → {failures_path}")
     elif failures_path.exists():
-        # Last run had failures, this one fixed them — clean up the stale file.
         failures_path.unlink()
+
+    return counts, failures
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--staging-dir", required=True, type=Path,
+                        help="Either a flat staging root (with tile_manifest.json) "
+                             "or a parent root containing huc<level>_<KEY>/ subdirs.")
+    parser.add_argument("--dams-csv", type=Path, default=DEFAULT_DAMS_CSV,
+                        help=f"Dam inventory CSV (default: {DEFAULT_DAMS_CSV})")
+    parser.add_argument("--limit", type=int, default=None,
+                        help="Process only the first N dams per staging dir")
+    parser.add_argument("--workers", type=int, default=4,
+                        help="Parallel workers [default: 4]")
+    parser.add_argument("--force", action="store_true",
+                        help="Recompute even if analysis_summary.json exists")
+    args = parser.parse_args()
+
+    staging_dirs = _discover_staging_dirs(args.staging_dir)
+    if not staging_dirs:
+        sys.exit(
+            f"No staging dirs found under {args.staging_dir} — expected either "
+            f"a tile_manifest.json here or huc<level>_<KEY>/ subdirs each with one."
+        )
+    if len(staging_dirs) == 1 and staging_dirs[0] == args.staging_dir:
+        print(f"Flat staging layout: {args.staging_dir}")
+    else:
+        print(f"HUC-batched layout: {len(staging_dirs)} subdir(s) under {args.staging_dir}")
+        for d in staging_dirs:
+            print(f"  - {d.name}")
+
+    if not args.dams_csv.exists():
+        sys.exit(f"Dam inventory CSV not found: {args.dams_csv}")
+    dams_df = pd.read_csv(args.dams_csv)
+    dams_df = dams_df.dropna(subset=["OBJECTID", "Latitude", "Longitude"])
+    dams_df["OBJECTID"] = dams_df["OBJECTID"].astype(int)
+    coord_lookup: Dict[int, Tuple[float, float]] = {
+        int(r["OBJECTID"]): (float(r["Latitude"]), float(r["Longitude"]))
+        for _, r in dams_df.iterrows()
+    }
+
+    grand_counts: Dict[str, int] = {}
+    grand_failures: Dict[int, str] = {}
+    for staging_dir in staging_dirs:
+        counts, failures = _run_one_staging_dir(
+            staging_dir, coord_lookup, args.workers, args.force, args.limit,
+        )
+        for k, v in counts.items():
+            grand_counts[k] = grand_counts.get(k, 0) + v
+        grand_failures.update(failures)
+
+    print("\n=== Overall summary ===")
+    for status in sorted(grand_counts):
+        print(f"  {status:<22} {grand_counts[status]}")
+    if grand_failures:
+        print(f"  ({len(grand_failures)} dam(s) failed; see per-staging-dir "
+              f"failures_analysis.json files)")
 
 
 if __name__ == "__main__":
