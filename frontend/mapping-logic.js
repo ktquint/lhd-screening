@@ -111,7 +111,7 @@ const GeolocationControl = L.Control.extend({
                 return;
             }
             navigator.geolocation.getCurrentPosition(
-                (pos) => map.setView([pos.coords.latitude, pos.coords.longitude], 13),
+            (pos) => map.flyTo([pos.coords.latitude, pos.coords.longitude], 13, { duration: 1.5 }),
                 (err) => alert('Unable to retrieve your location: ' + err.message)
             );
         });
@@ -223,7 +223,7 @@ const SearchControl = L.Control.extend({
                     const lat = parseFloat(dam.Latitude);
                     const lng = parseFloat(dam.Longitude);
                     if (!isNaN(lat) && !isNaN(lng)) {
-                        map.setView([lat, lng], 14); // Pushed zoom slightly tighter for context
+                    map.flyTo([lat, lng], 14, { duration: 1.5 }); // Pushed zoom slightly tighter for context
                         markers.eachLayer(l => {
                             if (l.getLatLng().lat === lat && l.getLatLng().lng === lng) l.openPopup();
                         });
@@ -328,7 +328,7 @@ const SearchControl = L.Control.extend({
                 const bounds = L.latLngBounds(
                     withCoords.map(d => [parseFloat(d.Latitude), parseFloat(d.Longitude)])
                 );
-                map.fitBounds(bounds, { padding: [60, 60], maxZoom: 13 });
+            map.flyToBounds(bounds, { padding: [60, 60], maxZoom: 13, duration: 1.5 });
             }
         }
 
@@ -428,11 +428,33 @@ async function loadDams() {
     }
 }
 
+// Helper to scale marker size based on zoom level
+function getMarkerRadiusAndWeight() {
+    const zoom = map.getZoom();
+    if (zoom <= 5) return { radius: 3, weight: 0.5 };
+    if (zoom <= 8) return { radius: 4, weight: 0.5 };
+    if (zoom <= 11) return { radius: 6, weight: 1.0 };
+    return { radius: 8, weight: 1.5 };
+}
+
+// Dynamically resize markers whenever the map zoom level changes
+map.on('zoomend', () => {
+    const { radius, weight } = getMarkerRadiusAndWeight();
+    markers.eachLayer(layer => {
+        if (layer.setRadius) {
+            layer.setRadius(radius);
+            layer.setStyle({ weight: weight });
+        }
+    });
+});
+
 // 3. Render Markers with Filter Logic
 function renderMarkers() {
     markers.clearLayers(); 
     const filterEl = document.getElementById('fatalityFilter');
     const showOnlyFatality = filterEl ? filterEl.checked : false;
+    
+    const { radius, weight } = getMarkerRadiusAndWeight();
 
     allDams.forEach(dam => {
         const lat = parseFloat(dam.Latitude);
@@ -480,12 +502,12 @@ function renderMarkers() {
             const location = place + (state ? `, ${state}` : "");
             
             const marker = L.circleMarker([lat, lng], {
-                radius: 6,
+                radius: radius,
                 fillColor: markerColor,
-                color: 'white',
-                weight: 2,
-                opacity: 1,
-                fillOpacity: 1
+                color: '#1a252f', // Subtle dark border
+                weight: weight,   // Scaled stroke
+                opacity: 0.8,    // Slightly transparent stroke
+                fillOpacity: 1  
             });
 
             const _displayName = displayName(dam);
@@ -952,6 +974,23 @@ loadDams();
 // --- Load State Boundaries JSON ---
 async function loadStateBoundaries(url) {
     try {
+        let selectedStateLayer = null;
+        let stateLayersMap = {};
+
+        function getDynamicStyles() {
+            const zoom = map.getZoom();
+            let baseWeight = 1; // Thinner border at national scale
+            if (zoom > 4 && zoom <= 6) baseWeight = 2;
+            if (zoom > 6 && zoom <= 8) baseWeight = 3;
+            if (zoom > 8) baseWeight = 4;
+            
+            return {
+                defaultStyle: { color: 'black', weight: baseWeight, fillOpacity: 0.05 },
+                hoverStyle: { color: 'black', weight: baseWeight + 1, fillOpacity: 0.2 },
+                selectedStyle: { color: '#3498db', weight: baseWeight + 2, fillOpacity: 0.2 }
+            };
+        }
+
         window.updateBoundaryZOrder = () => {
             if (window.stateBoundaryLayer) {
                 if (map.getZoom() <= 4) {
@@ -959,6 +998,16 @@ async function loadStateBoundaries(url) {
                 } else {
                     window.stateBoundaryLayer.bringToBack();
                 }
+                
+                // Update dynamic stroke width on zoom
+                const styles = getDynamicStyles();
+                window.stateBoundaryLayer.eachLayer(layer => {
+                    if (layer === selectedStateLayer) {
+                        layer.setStyle(styles.selectedStyle);
+                    } else {
+                        layer.setStyle(styles.defaultStyle);
+                    }
+                });
             }
         };
         map.on('zoomend', window.updateBoundaryZOrder);
@@ -966,15 +1015,10 @@ async function loadStateBoundaries(url) {
         const response = await fetch(url);
         const data = await response.json();
         
-        let selectedStateLayer = null;
-        let stateLayersMap = {};
-        const defaultStyle = { color: 'black', weight: 2, fillOpacity: 0.05 };
-        const hoverStyle = { color: 'black', weight: 3, fillOpacity: 0.2 };
-        const selectedStyle = { color: '#3498db', weight: 4, fillOpacity: 0.2 };
 
         window.clearStateHighlight = () => {
             if (selectedStateLayer) {
-                selectedStateLayer.setStyle(defaultStyle);
+                selectedStateLayer.setStyle(getDynamicStyles().defaultStyle);
                 selectedStateLayer = null;
             }
         };
@@ -983,13 +1027,13 @@ async function loadStateBoundaries(url) {
             window.clearStateHighlight();
             if (stateAbbr && stateLayersMap[stateAbbr]) {
                 const layer = stateLayersMap[stateAbbr];
-                layer.setStyle(selectedStyle);
+                layer.setStyle(getDynamicStyles().selectedStyle);
                 selectedStateLayer = layer;
             }
         };
 
         const stateBoundaryLayer = L.geoJSON(data, {
-            style: defaultStyle,
+            style: function() { return getDynamicStyles().defaultStyle; },
             onEachFeature: function(feature, layer) {
                 const stateAbbr = feature.properties.stusps || feature.properties.STUSPS || feature.properties.STUSAB || feature.properties.STATE;
                 if (stateAbbr) {
@@ -999,12 +1043,12 @@ async function loadStateBoundaries(url) {
                 // Visual feedback on hover
                 layer.on('mouseover', function() {
                     if (selectedStateLayer !== layer) {
-                        layer.setStyle(hoverStyle);
+                        layer.setStyle(getDynamicStyles().hoverStyle);
                     }
                 });
                 layer.on('mouseout', function() {
                     if (selectedStateLayer !== layer) {
-                        layer.setStyle(defaultStyle);
+                        layer.setStyle(getDynamicStyles().defaultStyle);
                     }
                 });
                 
@@ -1031,7 +1075,7 @@ async function loadStateBoundaries(url) {
                         applyBtn.click();      // Trigger the UI's existing filter logic
                     }
                     
-                    map.setView([39.82, -98.57], 4);
+                    map.flyTo([39.82, -98.57], 4, { duration: 1.5 });
                     if (typeof window.closeSearchPanel === 'function') {
                         window.closeSearchPanel();
                     }
@@ -1051,16 +1095,16 @@ async function loadStateBoundaries(url) {
                             if (stateInput.value.toUpperCase() !== upperAbbr) {
                                 stateInput.value = upperAbbr; // Toggle on
                                 if (selectedStateLayer) {
-                                    selectedStateLayer.setStyle(defaultStyle);
+                                    selectedStateLayer.setStyle(getDynamicStyles().defaultStyle);
                                 }
-                                layer.setStyle(selectedStyle);
+                                layer.setStyle(getDynamicStyles().selectedStyle);
                                 selectedStateLayer = layer;
                             
                                 // Trigger the UI's existing filter logic
                                 applyBtn.click();
                                 
                                 // Adjust zoom to state boundary
-                                setTimeout(() => { map.fitBounds(layer.getBounds()); }, 50);
+                                setTimeout(() => { map.flyToBounds(layer.getBounds(), { duration: 1.5, padding: [50, 50] }); }, 50);
                                 if (typeof window.openSearchPanel === 'function') {
                                     window.openSearchPanel();
                                 }
@@ -1122,7 +1166,7 @@ document.addEventListener('keydown', (e) => {
         }
         
         // Zoom out to national view
-        map.setView([39.82, -98.57], 4);
+        map.flyTo([39.82, -98.57], 4, { duration: 1.5   });
         
         // Close any open panels or popups
         if (typeof window.closeSearchPanel === 'function') {
