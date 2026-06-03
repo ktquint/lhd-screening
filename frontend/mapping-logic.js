@@ -145,6 +145,7 @@ const SearchControl = L.Control.extend({
         panel.style.minWidth = '240px';
 
         const input = L.DomUtil.create('input', '', panel);
+        input.id = 'globalSearchInput';
         input.type = 'text';
         input.placeholder = 'Search dams, city, state...';
         input.style.width = '100%';
@@ -154,6 +155,7 @@ const SearchControl = L.Control.extend({
         input.style.borderRadius = '3px';
 
         const resultsDiv = L.DomUtil.create('div', '', panel);
+        resultsDiv.id = 'globalSearchResults';
         resultsDiv.style.maxHeight = '240px';
         resultsDiv.style.overflowY = 'auto';
         resultsDiv.style.marginTop = '6px';
@@ -1085,6 +1087,8 @@ document.addEventListener('keydown', (e) => {
         const riverInput = document.getElementById('globalRiverInput');
         const fatalityCheckbox = document.getElementById('fatalityFilter');
         const applyBtn = document.getElementById('globalApplyFilterBtn');
+        const searchInput = document.getElementById('globalSearchInput');
+        const searchResults = document.getElementById('globalSearchResults');
         
         let filtersChanged = false;
         if (stateInput && stateInput.value !== '') {
@@ -1098,6 +1102,12 @@ document.addEventListener('keydown', (e) => {
         if (fatalityCheckbox && fatalityCheckbox.checked) {
             fatalityCheckbox.checked = false;
             filtersChanged = true;
+        }
+        if (searchInput && searchInput.value !== '') {
+            searchInput.value = '';
+            if (searchResults) {
+                searchResults.innerHTML = '';
+            }
         }
         
         if (filtersChanged && applyBtn) {
