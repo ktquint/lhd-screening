@@ -446,8 +446,8 @@ function renderMarkers() {
 
             if (showOnlyFatality && fatalities === 0) return;
 
-            const qMinVal = Math.round(parseFloat(dam.Qmin));
-            const qMaxVal = Math.round(parseFloat(dam.Qmax));
+            const qMinVal = Math.round(parseFloat(dam.Qmin_env));
+            const qMaxVal = Math.round(parseFloat(dam.Qmax_env));
             const hasComid = dam.Reach_ID !== undefined && dam.Reach_ID !== null && String(dam.Reach_ID).trim() !== '';
             const hasSafetyData = !isNaN(qMinVal) && hasComid;
             
@@ -455,8 +455,10 @@ function renderMarkers() {
             let markerColor = '#95a5a6'; // Default: Gray (Missing hydro link / screening safety data)
             if (fatalities > 0) {
                 markerColor = '#e74c3c'; // Priority 1: Red (Fatality recorded)
+            } else if (hasSafetyData) {
+                markerColor = '#f1c40f'; // Priority 2: Yellow (Dangerous flow range calculated)
             } else if (hasComid) {
-                markerColor = '#3498db'; // Priority 2: Blue (Live forecast + screening active)
+                markerColor = '#3498db'; // Priority 3: Blue (Live forecast available)
             }
 
 
@@ -529,6 +531,8 @@ function renderMarkers() {
 // Medium-range only: ~10d 3-hourly ensemble mean + member spread as uncertainty band.
 // Units: API returns ft³/s (cfs) — no conversion needed.
 async function checkForecast(comid, qMin, qMax, damName) {
+    // Reach_ID arrives as a pandas-style float string ("10376596.0") — NWPS wants an integer.
+    comid = String(comid).replace(/\.0+$/, '');
     const hasSafetyRange = qMin !== null && !isNaN(qMin) && qMax !== null && !isNaN(qMax);
 
     // FIX: Clear out the old header immediately so it doesn't distract the user while loading
@@ -737,6 +741,7 @@ legend.onAdd = function (map) {
     div.innerHTML = `
         <strong>Dam Status</strong><br>
         <i style="background: #e74c3c"></i> Fatality Recorded<br>
+        <i style="background: #f1c40f"></i> Dangerous Range Calculated<br>
         <i style="background: #3498db"></i> Live Forecast Available<br>
         <i style="background: #95a5a6"></i> Location Info Only
     `;
