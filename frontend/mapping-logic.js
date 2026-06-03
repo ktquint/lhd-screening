@@ -444,8 +444,8 @@ function renderMarkers() {
 
             if (showOnlyFatality && fatalities === 0) return;
 
-            const qMinVal = Math.round(parseFloat(dam.Qmin));
-            const qMaxVal = Math.round(parseFloat(dam.Qmax));
+            const qMinVal = Math.round(parseFloat(dam.Qmin_env));
+            const qMaxVal = Math.round(parseFloat(dam.Qmax_env));
             const hasComid = dam.Reach_ID !== undefined && dam.Reach_ID !== null && String(dam.Reach_ID).trim() !== '';
             const hasSafetyData = !isNaN(qMinVal) && hasComid;
             
