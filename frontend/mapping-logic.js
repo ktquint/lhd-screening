@@ -1126,7 +1126,7 @@ async function loadStateBoundaries(url) {
     }
 }
 
-loadStateBoundaries('data/cb_2025_us_state_20m.json');
+loadStateBoundaries('data/cb_2025_us_state_20m_noalaska_nopuertorico.json');
 
 // --- Global Escape Key Handler ---
 document.addEventListener('keydown', (e) => {
