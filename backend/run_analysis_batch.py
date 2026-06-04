@@ -12,8 +12,13 @@ For each dam in tile_manifest.json this script:
   2. Reconstructs an ArcDam object (no ARC run — just path bookkeeping).
   3. Calls estimate_weir_length() on the staged stream raster + ARC outputs.
   4. Calls ArcDam.extract_local_xs() to write the Local_*.gpkg files Dam needs.
-  5. Constructs lhd_processor.analysis_classes.Dam with an empty flow_series
-     (so FDC-based prob_min/prob_max are skipped — geometry only).
+  5. Constructs lhd_processor.analysis_classes.Dam with a 2-point synthetic
+     flow_series of [solver_bracket_floor, rp100]. rp100 is the Log-Pearson
+     III 100-yr flow from the NWM v3 retrospective (already staged into the
+     per-dam flow CSV); using it sets a physically grounded upper bracket
+     for rating_curve_intercepts_simp instead of the legacy [0, 100] cms
+     placeholder, which collapsed nearly every solver run to a bracket
+     endpoint.
   6. Calls Dam.run_analysis() to populate per-XS dam_height + Qmin/Qmax.
   7. Writes RESULTS/{dam_id}/analysis_summary.json.
 
@@ -90,23 +95,40 @@ def _resolve_inputs(
     return paths
 
 
-def _read_baseflow(flow_csv: Path, comid: Optional[int]) -> Optional[float]:
-    """Pull q_ep_50 for `comid` out of the per-dam flow CSV. Falls back to
-    the first non-NaN row if comid is missing/unknown."""
+def _read_flow_anchors(
+    flow_csv: Path, comid: Optional[int]
+) -> Tuple[Optional[float], Optional[float]]:
+    """Pull (q_ep_50, rp100) for `comid` out of the per-dam flow CSV.
+
+    Both are derived from the NWM v3 retrospective by build_streamflow_csv.py:
+      q_ep_50 — median daily flow (baseflow anchor for dam-height solver).
+      rp100   — Log-Pearson III 100-yr return-period flow (upper bracket
+                for rating_curve_intercepts_simp).
+
+    Falls back to the first non-NaN row of each column if comid is missing.
+    Returns (None, None) on read failure; either element may be None if its
+    column is missing or NaN for `comid`.
+    """
     try:
         df = pd.read_csv(flow_csv)
     except Exception:
-        return None
-    if df.empty or "q_ep_50" not in df.columns:
-        return None
-    if comid is not None and "comid" in df.columns:
-        match = df.loc[df["comid"] == int(comid), "q_ep_50"]
-        if not match.empty and pd.notna(match.iloc[0]):
-            return float(match.iloc[0])
-    valid = df["q_ep_50"].dropna()
-    if valid.empty:
-        return None
-    return float(valid.iloc[0])
+        return None, None
+    if df.empty:
+        return None, None
+
+    def _pick(col: str) -> Optional[float]:
+        if col not in df.columns:
+            return None
+        if comid is not None and "comid" in df.columns:
+            match = df.loc[df["comid"] == int(comid), col]
+            if not match.empty and pd.notna(match.iloc[0]):
+                return float(match.iloc[0])
+        valid = df[col].dropna()
+        if valid.empty:
+            return None
+        return float(valid.iloc[0])
+
+    return _pick("q_ep_50"), _pick("rp100")
 
 
 # ---------------------------------------------------------------------------
@@ -139,10 +161,20 @@ def _process_dam(
         _log(f"[{idx}/{total}] Dam {dam_id}: SKIP (missing staged inputs)")
         return dam_id, "missing-input"
 
-    baseflow = _read_baseflow(paths["flow_csv"], comid)
+    baseflow, rp100 = _read_flow_anchors(paths["flow_csv"], comid)
     if baseflow is None or baseflow <= 0:
         _log(f"[{idx}/{total}] Dam {dam_id}: SKIP (no valid q_ep_50 in {paths['flow_csv'].name})")
         return dam_id, "no-baseflow"
+
+    # Solver bracket for rating_curve_intercepts_simp. Floor sits above
+    # hydraulics.residual's Q<=0.001 guard; ceiling is rp100 when staged,
+    # else a generous baseflow multiple so we don't regress to [0, 100].
+    SOLVER_BRACKET_FLOOR_CMS = 0.01
+    if rp100 is not None and rp100 > baseflow:
+        solver_q_max = float(rp100)
+    else:
+        solver_q_max = float(baseflow) * 1000.0
+    solver_bracket = pd.Series([SOLVER_BRACKET_FLOOR_CMS, solver_q_max])
 
     # Reconstruct ArcDam without running ARC — we only need the path bookkeeping
     # plus extract_local_xs(). _prepare_dirs_and_paths() is called by
@@ -214,8 +246,9 @@ def _process_dam(
         return dam_id, f"localxs-error:{e}"
 
     # ----- Dam height + dangerous-flow range -----
-    # Empty flow_series so Dam skips FDC / probability calculations
-    # (we asked for geometry-only) and skips the NWM zarr fetch.
+    # 2-point synthetic flow_series feeds [floor, rp100] into the rating-curve
+    # intercept solver as its search bracket. Passing a non-None Series also
+    # bypasses Dam.get_flow_data()'s NWM zarr fetch, so this stays cheap.
     try:
         dam = Dam(
             lhd_id=dam_id,
@@ -224,7 +257,7 @@ def _process_dam(
             weir_length=weir_length,
             baseflow=baseflow,
             base_results_dir=results_dir,
-            flow_series=pd.Series(dtype=float),
+            flow_series=solver_bracket,
             flowline_source="NHDPlus",
             streamflow_source="National Water Model",
             calc_mode="Simplified",
@@ -253,6 +286,9 @@ def _process_dam(
         "longitude": lon,
         "comid": int(comid) if comid is not None else None,
         "baseflow_q_ep_50_cms": baseflow,
+        "rp100_cms": rp100,
+        "solver_bracket_cms": [SOLVER_BRACKET_FLOOR_CMS, solver_q_max],
+        "solver_bracket_source": "rp100" if (rp100 is not None and rp100 > baseflow) else "baseflow_x1000",
         "weir_length_m": weir_length,
         "snap_row": int(width_info["snap_row"]),
         "snap_col": int(width_info["snap_col"]),
@@ -284,31 +320,44 @@ def _process_dam(
 # Entry point
 # ---------------------------------------------------------------------------
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument("--staging-dir", required=True, type=Path,
-                        help="Root of the staging tree")
-    parser.add_argument("--dams-csv", type=Path, default=DEFAULT_DAMS_CSV,
-                        help=f"Dam inventory CSV (default: {DEFAULT_DAMS_CSV})")
-    parser.add_argument("--limit", type=int, default=None,
-                        help="Process only the first N dams in the manifest")
-    parser.add_argument("--workers", type=int, default=4,
-                        help="Parallel workers [default: 4]")
-    parser.add_argument("--force", action="store_true",
-                        help="Recompute even if analysis_summary.json exists")
-    args = parser.parse_args()
+_HUC_DIR_RE = re.compile(r"^huc\d+_")
 
-    staging_dir: Path = args.staging_dir
+
+def _discover_staging_dirs(root: Path) -> List[Path]:
+    """Return the list of staging dirs to process.
+
+    Layouts supported:
+      * Flat staging: `root/tile_manifest.json` present → return `[root]`.
+      * HUC-batched: each `root/huc<level>_<KEY>/tile_manifest.json` is its
+        own self-contained staging dir → return all matching subdirs, sorted.
+    """
+    if (root / "tile_manifest.json").exists():
+        return [root]
+    if not root.is_dir():
+        return []
+    hits = sorted(
+        d for d in root.iterdir()
+        if d.is_dir()
+        and _HUC_DIR_RE.match(d.name)
+        and (d / "tile_manifest.json").exists()
+    )
+    return hits
+
+
+def _run_one_staging_dir(
+    staging_dir: Path,
+    coord_lookup: Dict[int, Tuple[float, float]],
+    workers: int,
+    force: bool,
+    limit: Optional[int],
+) -> Tuple[Dict[str, int], Dict[int, str]]:
+    """Process a single staging dir; return (counts, failures)."""
     results_dir = staging_dir / "RESULTS"
     if not results_dir.exists():
-        sys.exit(f"No RESULTS/ directory under {staging_dir} — run run_arc_batch.py first.")
+        print(f"[{staging_dir.name}] SKIP — no RESULTS/ (run run_arc_batch first)")
+        return {}, {}
 
     manifest_path = staging_dir / "tile_manifest.json"
-    if not manifest_path.exists():
-        sys.exit(f"Manifest not found: {manifest_path}")
     with open(manifest_path) as f:
         manifest = json.load(f)
     dam_ids: List[int] = [int(k) for k in manifest.get("dam_tiles", {}).keys()]
@@ -316,18 +365,8 @@ def main() -> None:
         int(k): (int(v) if v is not None else None)
         for k, v in manifest.get("dam_comids", {}).items()
     }
-    if args.limit:
-        dam_ids = dam_ids[: args.limit]
-
-    if not args.dams_csv.exists():
-        sys.exit(f"Dam inventory CSV not found: {args.dams_csv}")
-    dams_df = pd.read_csv(args.dams_csv)
-    dams_df = dams_df.dropna(subset=["OBJECTID", "Latitude", "Longitude"])
-    dams_df["OBJECTID"] = dams_df["OBJECTID"].astype(int)
-    coord_lookup: Dict[int, Tuple[float, float]] = {
-        int(r["OBJECTID"]): (float(r["Latitude"]), float(r["Longitude"]))
-        for _, r in dams_df.iterrows()
-    }
+    if limit:
+        dam_ids = dam_ids[:limit]
 
     pairs: List[Tuple[int, float, float, Optional[int]]] = []
     no_coords = 0
@@ -338,18 +377,19 @@ def main() -> None:
         lat, lon = coord_lookup[dam_id]
         pairs.append((dam_id, lat, lon, dam_comids.get(dam_id)))
     if no_coords:
-        print(f"Skipping {no_coords} dams with no lat/lon in {args.dams_csv}\n")
+        print(f"[{staging_dir.name}] skipping {no_coords} dams with no lat/lon")
     total = len(pairs)
 
-    print(f"Running post-ARC analysis for {total} dams (workers={args.workers})\n")
+    print(f"\n=== {staging_dir.name}: running post-ARC analysis for "
+          f"{total} dams (workers={workers}) ===")
 
     counts: Dict[str, int] = {}
     failures: Dict[int, str] = {}
-    with ThreadPoolExecutor(max_workers=args.workers) as ex:
+    with ThreadPoolExecutor(max_workers=workers) as ex:
         futures = {
             ex.submit(
                 _process_dam, i + 1, total, dam_id, lat, lon, comid,
-                staging_dir, results_dir, args.force,
+                staging_dir, results_dir, force,
             ): dam_id
             for i, (dam_id, lat, lon, comid) in enumerate(pairs)
         }
@@ -365,10 +405,6 @@ def main() -> None:
             if status != "ok":
                 failures[int(dam_id)] = status
 
-    print("\nSummary:")
-    for status in sorted(counts):
-        print(f"  {status:<22} {counts[status]}")
-
     failures_path = staging_dir / "failures_analysis.json"
     if failures:
         with open(failures_path, "w") as f:
@@ -376,10 +412,70 @@ def main() -> None:
                 {str(k): v for k, v in sorted(failures.items())},
                 f, indent=2,
             )
-        print(f"\nWrote per-dam failure reasons → {failures_path}")
+        print(f"[{staging_dir.name}] per-dam failure reasons → {failures_path}")
     elif failures_path.exists():
-        # Last run had failures, this one fixed them — clean up the stale file.
         failures_path.unlink()
+
+    return counts, failures
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--staging-dir", required=True, type=Path,
+                        help="Either a flat staging root (with tile_manifest.json) "
+                             "or a parent root containing huc<level>_<KEY>/ subdirs.")
+    parser.add_argument("--dams-csv", type=Path, default=DEFAULT_DAMS_CSV,
+                        help=f"Dam inventory CSV (default: {DEFAULT_DAMS_CSV})")
+    parser.add_argument("--limit", type=int, default=None,
+                        help="Process only the first N dams per staging dir")
+    parser.add_argument("--workers", type=int, default=4,
+                        help="Parallel workers [default: 4]")
+    parser.add_argument("--force", action="store_true",
+                        help="Recompute even if analysis_summary.json exists")
+    args = parser.parse_args()
+
+    staging_dirs = _discover_staging_dirs(args.staging_dir)
+    if not staging_dirs:
+        sys.exit(
+            f"No staging dirs found under {args.staging_dir} — expected either "
+            f"a tile_manifest.json here or huc<level>_<KEY>/ subdirs each with one."
+        )
+    if len(staging_dirs) == 1 and staging_dirs[0] == args.staging_dir:
+        print(f"Flat staging layout: {args.staging_dir}")
+    else:
+        print(f"HUC-batched layout: {len(staging_dirs)} subdir(s) under {args.staging_dir}")
+        for d in staging_dirs:
+            print(f"  - {d.name}")
+
+    if not args.dams_csv.exists():
+        sys.exit(f"Dam inventory CSV not found: {args.dams_csv}")
+    dams_df = pd.read_csv(args.dams_csv)
+    dams_df = dams_df.dropna(subset=["OBJECTID", "Latitude", "Longitude"])
+    dams_df["OBJECTID"] = dams_df["OBJECTID"].astype(int)
+    coord_lookup: Dict[int, Tuple[float, float]] = {
+        int(r["OBJECTID"]): (float(r["Latitude"]), float(r["Longitude"]))
+        for _, r in dams_df.iterrows()
+    }
+
+    grand_counts: Dict[str, int] = {}
+    grand_failures: Dict[int, str] = {}
+    for staging_dir in staging_dirs:
+        counts, failures = _run_one_staging_dir(
+            staging_dir, coord_lookup, args.workers, args.force, args.limit,
+        )
+        for k, v in counts.items():
+            grand_counts[k] = grand_counts.get(k, 0) + v
+        grand_failures.update(failures)
+
+    print("\n=== Overall summary ===")
+    for status in sorted(grand_counts):
+        print(f"  {status:<22} {grand_counts[status]}")
+    if grand_failures:
+        print(f"  ({len(grand_failures)} dam(s) failed; see per-staging-dir "
+              f"failures_analysis.json files)")
 
 
 if __name__ == "__main__":

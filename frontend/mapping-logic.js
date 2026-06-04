@@ -468,8 +468,10 @@ function renderMarkers() {
 
             if (showOnlyFatality && fatalities === 0) return;
 
-            const qMinVal = Math.round(parseFloat(dam.Qmin_env));
-            const qMaxVal = Math.round(parseFloat(dam.Qmax_env));
+            // Backend writes the envelope in cms; NWPS forecasts are in cfs. Convert at parse.
+            const CMS_TO_CFS = 35.3147;
+            const qMinVal = Math.round(parseFloat(dam.Qmin_env) * CMS_TO_CFS);
+            const qMaxVal = Math.round(parseFloat(dam.Qmax_env) * CMS_TO_CFS);
             const hasComid = dam.Reach_ID !== undefined && dam.Reach_ID !== null && String(dam.Reach_ID).trim() !== '';
             const hasSafetyData = !isNaN(qMinVal) && hasComid;
             

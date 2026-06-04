@@ -195,8 +195,27 @@ def build_reach(
 # ---------------------------------------------------------------------------
 
 def _gradient(reach: pd.DataFrame) -> np.ndarray:
-    """Per-cell DEM_Elev gradient (m/m) centred on each cell."""
-    return np.gradient(reach["DEM_Elev"].values, reach["x"].values)
+    """Per-cell DEM_Elev gradient (m/m) centred on each cell.
+
+    Robust to duplicate x positions: when ARC snaps two adjacent flowline
+    vertices to the same along-flowline coordinate, np.gradient's 3-point
+    stencil divides by dx == 0 and emits divide-by-zero / invalid-value
+    warnings (and pollutes the result with NaNs). Collapse to unique x
+    values for the gradient computation, then broadcast back so every
+    original row receives the gradient at its x-position.
+    """
+    x = reach["x"].values
+    y = reach["DEM_Elev"].values
+    if len(x) < 2:
+        return np.zeros_like(x, dtype=float)
+    unique_x, inverse = np.unique(x, return_inverse=True)
+    if len(unique_x) == len(x):
+        return np.gradient(y, x)
+    if len(unique_x) < 2:
+        return np.zeros_like(x, dtype=float)
+    _, first_idx = np.unique(x, return_index=True)
+    grad_unique = np.gradient(y[first_idx], unique_x)
+    return grad_unique[inverse]
 
 
 def pick_crest_cell(
