@@ -731,6 +731,10 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
         }
     );
 
+    const validUppers = allUpper.filter(v => v != null && !isNaN(v));
+    const maxForecast = validUppers.length > 0 ? Math.max(...validUppers) : 10;
+    const yAxisMax = Math.max(maxForecast, 10) * 1.2;
+
     const ctx = document.getElementById('forecastChart').getContext('2d');
     if (forecastChart) forecastChart.destroy();
     forecastChart = new Chart(ctx, {
@@ -754,7 +758,7 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
             scales: {
                 y: {
                     title: { display: true, text: 'Streamflow (cfs)' },
-                    grace: '10%'
+                    max: yAxisMax
                 },
                 x: { ticks: { maxTicksLimit: 10 } }
             }
