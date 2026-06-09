@@ -464,6 +464,14 @@ function renderMarkers() {
             // Filter out sites that don't have a US State abbreviation
             if (!dam["State Abbreviation"]) return;
 
+            // Hide dams the LHDI review has flagged as non-LHD or removed
+            const EXCLUDED_REVIEW_STATUSES = new Set([
+                'Removed',
+                'Confirmed not a LHD',
+                'Appears to not be LHD'
+            ]);
+            if (EXCLUDED_REVIEW_STATUSES.has((dam.Review_Status || '').trim())) return;
+
             const fatalities = parseInt(dam.NumberOfFatalities) || 0;
 
             if (showOnlyFatality && fatalities === 0) return;
