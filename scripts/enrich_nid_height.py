@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Enrich full_lhd_website.csv with dam heights from the National Inventory of Dams.
+Enrich full_lhd_website.csv with dam dimensions from the National Inventory of Dams.
 
-For every dam, find its NID counterpart and copy over the four NID height
-fields. Matching uses two methods, in priority order:
+For every dam, find its NID counterpart and copy over heights, crest length,
+and spillway width. Matching uses two methods, in priority order:
 
   1. federal_id  — our Federal_ID exactly matches an NID "Federal ID" (high
                    confidence; no distance check).
@@ -11,8 +11,9 @@ fields. Matching uses two methods, in priority order:
                    (default 50 m, the same threshold the dataset uses for
                    dedup).
 
-Results are written to NEW columns (prefixed NID_Match_); existing height
-columns are left untouched so you can review before merging.
+Values fill the canonical columns only when those are blank; existing values
+are never overwritten. Provenance is recorded in NID_Match_Method /
+NID_Match_Federal_ID / NID_Match_Dist_M.
 
 The NID national CSV (~92k dams) is downloaded once and cached locally. Use
 --nid-csv to point at an existing copy.
@@ -38,12 +39,14 @@ NID_CACHE_DEFAULT = Path(__file__).resolve().parent.parent / "frontend" / "data"
 NID_URL = "https://nid.sec.usace.army.mil/api/nation/csv"
 EARTH_RADIUS_M = 6_371_000.0
 
-# (NID column name, output column suffix)
-HEIGHT_FIELDS = [
+# (NID source column, canonical column in full_lhd_website.csv)
+NID_FIELDS = [
     ("Dam Height (Ft)", "Dam_Height_Ft"),
     ("Hydraulic Height (Ft)", "Hydraulic_Height_Ft"),
     ("Structural Height (Ft)", "Structural_Height_Ft"),
     ("NID Height (Ft)", "NID_Height_Ft"),
+    ("Dam Length (Ft)", "Dam_Length_Ft"),
+    ("Spillway Width (Ft)", "Spillway_Width_Ft"),
 ]
 
 
@@ -106,12 +109,12 @@ def main() -> None:
     method = [""] * n
     matched_fid = [""] * n
     matched_dist = [""] * n
-    heights: dict[str, list[str]] = {suffix: [""] * n for _, suffix in HEIGHT_FIELDS}
+    nid_values: dict[str, list[str]] = {canon: [""] * n for _, canon in NID_FIELDS}
 
     def record(row_pos: int, nid_pos: int) -> None:
-        for nid_col, suffix in HEIGHT_FIELDS:
+        for nid_col, canon in NID_FIELDS:
             val = nid.iat[nid_pos, nid.columns.get_loc(nid_col)]
-            heights[suffix][row_pos] = "" if pd.isna(val) else str(val).strip()
+            nid_values[canon][row_pos] = "" if pd.isna(val) else str(val).strip()
         fid = nid.iat[nid_pos, nid.columns.get_loc("Federal ID")]
         matched_fid[row_pos] = "" if pd.isna(fid) else str(fid).strip()
 
@@ -161,20 +164,31 @@ def main() -> None:
     df["NID_Match_Method"] = method
     df["NID_Match_Federal_ID"] = matched_fid
     df["NID_Match_Dist_M"] = matched_dist
-    for _, suffix in HEIGHT_FIELDS:
-        df[f"NID_Match_{suffix}"] = heights[suffix]
 
-    # A match counts as "with height" only if at least one height field is set.
-    has_height = sum(
+    # Fill blanks in the canonical columns from NID. Never overwrite existing values.
+    fill_counts: dict[str, int] = {}
+    for _, canon in NID_FIELDS:
+        if canon not in df.columns:
+            df[canon] = ""
+        existing = df[canon].fillna("").astype(str).str.strip()
+        incoming = pd.Series(nid_values[canon], index=df.index)
+        blank_mask = existing == ""
+        fill_mask = blank_mask & (incoming != "")
+        df.loc[fill_mask, canon] = incoming[fill_mask]
+        fill_counts[canon] = int(fill_mask.sum())
+
+    has_any = sum(
         1 for i in range(n)
-        if method[i] and any(heights[s][i] for _, s in HEIGHT_FIELDS)
+        if method[i] and any(nid_values[c][i] for _, c in NID_FIELDS)
     )
 
     df.to_csv(out_path, index=False)
     print(
         f"\nDone — {n_fed:,} federal-id + {n_coord:,} coordinate matches "
-        f"({n_fed + n_coord:,} total, {has_height:,} carry at least one height)"
+        f"({n_fed + n_coord:,} total, {has_any:,} carry at least one NID value)"
     )
+    for _, canon in NID_FIELDS:
+        print(f"  filled {canon:24s} blanks: {fill_counts[canon]:>5d}")
     print(f"Output → {out_path}")
 
 

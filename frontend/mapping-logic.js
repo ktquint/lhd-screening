@@ -421,6 +421,9 @@ window.updateActiveFiltersBadge = () => {
 async function loadDams() {
     try {
         allDams = await d3.csv("data/full_lhd_website.csv");
+        // NWM does not produce forecasts for Hawaii or Puerto Rico, so exclude those dams everywhere.
+        const NON_CONUS_STATES = new Set(['HI', 'PR']);
+        allDams = allDams.filter(d => !NON_CONUS_STATES.has((d['State Abbreviation'] || '').toUpperCase()));
         renderMarkers();
         console.log("Dam markers clustered and initialized.");
     } catch (err) { 
@@ -1136,7 +1139,7 @@ async function loadStateBoundaries(url) {
     }
 }
 
-loadStateBoundaries('data/cb_2025_us_state_20m_noalaska_nopuertorico.json');
+loadStateBoundaries('data/cb_2025_us_state_20m_conus.json');
 
 // --- Global Escape Key Handler ---
 document.addEventListener('keydown', (e) => {
