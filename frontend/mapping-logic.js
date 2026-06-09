@@ -17,6 +17,7 @@
 
 // 1. Initialize Map with multiple base layers
 let forecastChart;
+let ratingCurvesChart;
 let allDams = [];
 let _forecastState = null; // { allPoints, hasSafetyRange, qMin, qMax, damName }
 let markers = L.layerGroup();
@@ -545,6 +546,22 @@ function renderMarkers() {
                 popupContent += `<i>No forecast available: this site is not linked to an NHDPlus stream reach.</i>`;
             }
 
+            // Rating-curve plot: only when GIS geometry + tailwater coefficients + Rp100 are all present.
+            const heightFt = parseFloat(dam.Dam_Height_GIS_Ft);
+            const lengthFt = parseFloat(dam.Dam_Length_GIS_Ft);
+            const twA      = parseFloat(dam.Tailwater_a);
+            const twB      = parseFloat(dam.Tailwater_b);
+            const rp100Cms = parseFloat(dam.Rp100_cms);
+            if (isFinite(heightFt) && heightFt > 0
+                && isFinite(lengthFt) && lengthFt > 0
+                && isFinite(twA) && isFinite(twB)
+                && isFinite(rp100Cms) && rp100Cms > 0) {
+                popupContent += `
+                    <button class="btn-check" onclick="showRatingCurves(${heightFt}, ${lengthFt}, ${twA}, ${twB}, ${rp100Cms}, ${jsAttrLiteral(_displayName)})">
+                        Show Rating Curves
+                    </button>`;
+            }
+
             popupContent += `</div>`;
             marker.bindPopup(popupContent);
             markers.addLayer(marker); 
@@ -769,6 +786,69 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
     });
 }
 
+// 4b. Rating curves (tailwater / conjugate / flip) computed client-side.
+// Inputs: height + length in ft, tailwater coeffs (D[m] = a * Q[cms]^b), Rp100 in cms.
+// Display: Q in cfs on x-axis, depth in ft on y-axis.
+function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
+    document.getElementById('ratingCurvesModal').classList.add('is-open');
+
+    const { tailwater, conjugate, flip } =
+        window.LHDHydraulics.buildRatingCurvesFt(heightFt, lengthFt, a, b, rp100Cms);
+
+    document.getElementById('ratingCurvesHeader').innerHTML =
+        `<strong>${damName}</strong><br>` +
+        `<span style="color:#7f8c8d; font-size: 12px;">` +
+        `P = ${heightFt.toFixed(1)} ft &nbsp;·&nbsp; L = ${lengthFt.toFixed(0)} ft &nbsp;·&nbsp; ` +
+        `tailwater D = ${a.toPrecision(3)}·Q<sup>${b.toFixed(3)}</sup> ` +
+        `(SI) &nbsp;·&nbsp; Q<sub>max</sub> = ${(rp100Cms * 35.3147).toFixed(0)} cfs (Rp100)` +
+        `</span>`;
+
+    const ctx = document.getElementById('ratingCurvesChart').getContext('2d');
+    if (ratingCurvesChart) ratingCurvesChart.destroy();
+    ratingCurvesChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            datasets: [
+                { label: 'Tailwater (yₜ)',  data: tailwater,
+                  borderColor: '#3498db', backgroundColor: '#3498db',
+                  pointRadius: 0, borderWidth: 2, tension: 0.2, spanGaps: true },
+                { label: 'Conjugate depth (y₂)', data: conjugate,
+                  borderColor: '#27ae60', backgroundColor: '#27ae60',
+                  pointRadius: 0, borderWidth: 2, tension: 0.2, spanGaps: true },
+                { label: 'Flip depth (y_flip)', data: flip,
+                  borderColor: '#e74c3c', backgroundColor: '#e74c3c',
+                  pointRadius: 0, borderWidth: 2, tension: 0.2, spanGaps: true,
+                  borderDash: [6, 4] },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            parsing: false,
+            plugins: {
+                legend: { labels: { usePointStyle: true } },
+                tooltip: {
+                    callbacks: {
+                        title: (items) => `Q = ${items[0].parsed.x.toFixed(0)} cfs`,
+                        label: (item) => `${item.dataset.label}: ${item.parsed.y.toFixed(2)} ft`,
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    type: 'logarithmic',
+                    title: { display: true, text: 'Discharge Q (cfs)' },
+                },
+                y: {
+                    title: { display: true, text: 'Depth (ft)' },
+                    beginAtZero: true,
+                },
+            },
+        },
+    });
+}
+window.showRatingCurves = showRatingCurves;
+
 // 5. Legend and Filter Integration
 const legend = L.control({ position: 'bottomright' });
 legend.onAdd = function (map) {
@@ -788,24 +868,27 @@ legend.addTo(map);
 
 window.addEventListener('resize', () => { map.invalidateSize(); });
 
-// --- Draggable + resizable forecast panel ---
+// --- Draggable + resizable floating panels (forecast + rating curves) ---
 function closeForecastPanel() {
     document.getElementById('forecastModal').classList.remove('is-open');
     document.getElementById('forecastSliderWrap').style.display = 'none';
 }
 window.closeForecastPanel = closeForecastPanel;
 
-(function enableForecastDrag() {
-    const panel  = document.getElementById('forecastModal');
-    const handle = document.getElementById('forecastModalHeader');
+function closeRatingCurvesPanel() {
+    document.getElementById('ratingCurvesModal').classList.remove('is-open');
+}
+window.closeRatingCurvesPanel = closeRatingCurvesPanel;
+
+function enablePanelDragResize(panelId, headerId, onResize) {
+    const panel  = document.getElementById(panelId);
+    const handle = document.getElementById(headerId);
     if (!panel || !handle) return;
 
     let dragging = false;
     let startX = 0, startY = 0, startLeft = 0, startTop = 0;
 
     function pinAbsolute() {
-        // After the first drag/resize, replace `left:50%; transform:translateX(-50%)`
-        // with concrete pixel left/top so drag math is straightforward.
         const r = panel.getBoundingClientRect();
         panel.style.left = r.left + 'px';
         panel.style.top  = r.top  + 'px';
@@ -814,7 +897,7 @@ window.closeForecastPanel = closeForecastPanel;
     }
 
     handle.addEventListener('mousedown', (e) => {
-        if (e.target.closest('.close')) return;       // don't drag when clicking X
+        if (e.target.closest('.close')) return;
         e.preventDefault();
         pinAbsolute();
         dragging = true;
@@ -829,7 +912,6 @@ window.closeForecastPanel = closeForecastPanel;
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
         const r = panel.getBoundingClientRect();
-        // clamp so the header stays on-screen
         const minLeft = -r.width + 80;
         const maxLeft = window.innerWidth - 80;
         const minTop  = 0;
@@ -844,17 +926,13 @@ window.closeForecastPanel = closeForecastPanel;
         document.body.style.userSelect = '';
     });
 
-    // Keep the Chart.js canvas in sync with the resizable panel.
-    if (typeof ResizeObserver !== 'undefined') {
-        const ro = new ResizeObserver(() => {
-            if (typeof forecastChart !== 'undefined' && forecastChart) forecastChart.resize();
-        });
+    if (typeof ResizeObserver !== 'undefined' && typeof onResize === 'function') {
+        const ro = new ResizeObserver(() => onResize());
         ro.observe(panel);
     }
 
-    // 8-direction resize via edge/corner handles
     const MIN_W = 340, MIN_H = 260;
-    let resizing = null;   // { dir, startX, startY, startLeft, startTop, startW, startH }
+    let resizing = null;
 
     panel.querySelectorAll('.resize-handle').forEach((h) => {
         h.addEventListener('mousedown', (e) => {
@@ -890,7 +968,6 @@ window.closeForecastPanel = closeForecastPanel;
             T = resizing.startTop + (resizing.startH - newH);
             H = newH;
         }
-        // Clamp to viewport
         L = Math.max(0, Math.min(window.innerWidth  - W, L));
         T = Math.max(0, Math.min(window.innerHeight - H, T));
 
@@ -906,7 +983,12 @@ window.closeForecastPanel = closeForecastPanel;
             document.body.style.userSelect = '';
         }
     });
-})();
+}
+
+enablePanelDragResize('forecastModal', 'forecastModalHeader',
+    () => { if (forecastChart) forecastChart.resize(); });
+enablePanelDragResize('ratingCurvesModal', 'ratingCurvesModalHeader',
+    () => { if (ratingCurvesChart) ratingCurvesChart.resize(); });
 
 document.getElementById('forecastSlider').addEventListener('input', function () {
     const days = parseInt(this.value);
@@ -1185,6 +1267,9 @@ document.addEventListener('keydown', (e) => {
         }
         if (typeof window.closeForecastPanel === 'function') {
             window.closeForecastPanel();
+        }
+        if (typeof window.closeRatingCurvesPanel === 'function') {
+            window.closeRatingCurvesPanel();
         }
         map.closePopup();
     }

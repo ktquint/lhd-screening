@@ -202,7 +202,8 @@
             flex-direction: column;
             overflow: auto;
         }
-        .modal-content #forecastChart { flex: 1 1 auto; min-height: 0; }
+        .modal-content #forecastChart,
+        .modal-content #ratingCurvesChart { flex: 1 1 auto; min-height: 0; }
         .close { cursor: pointer; font-size: 22px; font-weight: bold; line-height: 1; padding: 0 4px; color: #7f8c8d; }
         .close:hover { color: #2c3e50; }
         
@@ -839,10 +840,30 @@
         </div>
     </div>
 
+    <div id="ratingCurvesModal" class="modal">
+        <div class="resize-handle n"  data-dir="n"></div>
+        <div class="resize-handle s"  data-dir="s"></div>
+        <div class="resize-handle e"  data-dir="e"></div>
+        <div class="resize-handle w"  data-dir="w"></div>
+        <div class="resize-handle ne" data-dir="ne"></div>
+        <div class="resize-handle nw" data-dir="nw"></div>
+        <div class="resize-handle se" data-dir="se"></div>
+        <div class="resize-handle sw" data-dir="sw"></div>
+        <div class="modal-header" id="ratingCurvesModalHeader">
+            <span>Rating Curves <span class="drag-hint">— drag to move, corner to resize</span></span>
+            <span class="close" onclick="closeRatingCurvesPanel()">&times;</span>
+        </div>
+        <div class="modal-content">
+            <div id="ratingCurvesHeader"></div>
+            <canvas id="ratingCurvesChart"></canvas>
+        </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
     <script src="https://unpkg.com/esri-leaflet@3.0.12/dist/esri-leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="hydraulics.js"></script>
     <script src="mapping-logic.js"></script>
 </body>
 </html>

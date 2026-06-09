@@ -270,6 +270,8 @@ def _process_dam(
         return dam_id, f"analysis-error:{e}"
 
     # Trim per-XS payload to the geometry-only fields we care about.
+    # depth_a / depth_b are the tailwater rating-curve coefficients (D = a * Q^b,
+    # Q in cms → D in m); kept so the website can plot the curve.
     xs_results = []
     for row in xs_data_list:
         xs_results.append({
@@ -277,6 +279,8 @@ def _process_dam(
             "P_height_m": row.get("P_height"),
             "Qmin_cms": row.get("Qmin"),
             "Qmax_cms": row.get("Qmax"),
+            "depth_a": row.get("depth_a"),
+            "depth_b": row.get("depth_b"),
         })
 
     summary_path.parent.mkdir(parents=True, exist_ok=True)
