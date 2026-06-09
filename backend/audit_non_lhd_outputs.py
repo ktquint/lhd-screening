@@ -70,7 +70,9 @@ def normalize_objectid(raw: str) -> int | None:
 def load_non_lhd_ids(csv_path: Path) -> dict[int, str]:
     """Return {OBJECTID: Review_Status} for every excluded dam."""
     excluded: dict[int, str] = {}
-    with open(csv_path, newline="") as f:
+    # Force UTF-8 because the master CSV has non-ASCII names/places and
+    # Windows defaults to cp1252.
+    with open(csv_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         if "Review_Status" not in (reader.fieldnames or []):
             sys.exit(f"{csv_path} has no Review_Status column. Re-run fetch_lhd_review_metadata.py.")
@@ -181,7 +183,7 @@ def print_report(findings: list[dict], excluded: dict[int, str]) -> None:
 def write_report_csv(findings: list[dict], path: Path) -> None:
     cols = ["OBJECTID", "Review_Status", "bundle", "bundle_path",
             "subdirs_present", "arc_done", "analysis_done", "paths_to_delete"]
-    with open(path, "w", newline="") as f:
+    with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=cols)
         w.writeheader()
         for r in findings:
