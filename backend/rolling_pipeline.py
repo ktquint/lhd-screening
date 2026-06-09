@@ -395,6 +395,24 @@ def _cmd_run(args: argparse.Namespace) -> None:
     dams["HUC8"] = dams["HUC8"].astype(str).str.split(".").str[0].str.zfill(8)
     dams = dams[dams["HUC8"] != "00000000"]
 
+    # Drop dams the LHDI review has flagged as non-LHD or removed so the
+    # pipeline doesn't re-stage work that audit_non_lhd_outputs.py would
+    # immediately clean back up. Matches the set used by the audit script
+    # and the frontend's render filter.
+    EXCLUDED_REVIEW_STATUSES = {
+        "Removed",
+        "Confirmed not a LHD",
+        "Appears to not be LHD",
+    }
+    if "Review_Status" in dams.columns:
+        status = dams["Review_Status"].fillna("").astype(str).str.strip()
+        excluded_mask = status.isin(EXCLUDED_REVIEW_STATUSES)
+        n_excluded = int(excluded_mask.sum())
+        if n_excluded:
+            print(f"Excluding {n_excluded} dams with non-LHD Review_Status "
+                  f"({', '.join(sorted(EXCLUDED_REVIEW_STATUSES))})")
+            dams = dams[~excluded_mask]
+
     # HUC codes nest by prefix: HUC6 = HUC8[:6], HUC4 = HUC8[:4], etc.
     level = args.huc_level
     dams["_GROUP"] = dams["HUC8"].str[: level]
