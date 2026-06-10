@@ -15,9 +15,9 @@ Two cell pickers implement the methods evaluated in the 2026 ASDSO paper:
   gradient drops below ``flat_threshold``.
 
 * :func:`pick_downstream_cell` — Method B (ARC-slope flat zone) tailwater
-  sampler.  Walks downstream until ARC's per-cell ``Slope`` reconverges to
-  the reference channel slope (median ``Slope`` over ``[ref_min, ref_max]``
-  m downstream).
+  sampler.  Computes a reference channel slope (median ARC ``Slope`` over
+  ``[ref_min, ref_max]`` m downstream) and returns the downstream cell whose
+  ``Slope`` is closest (smallest relative difference) to that reference.
 
 These were the methods recommended for the production rollout.
 """
@@ -41,9 +41,8 @@ INVALID_THRESHOLD = -1e5
 DEFAULT_SEARCH_M_UP = 50.0
 DEFAULT_SEARCH_M_DN = 500.0
 DEFAULT_FLAT_THRESHOLD = 0.02
-DEFAULT_REF_SLOPE_MIN = 100.0
-DEFAULT_REF_SLOPE_MAX = 500.0
-DEFAULT_SLOPE_TOL = 0.20
+DEFAULT_REF_SLOPE_MIN = 0.0
+DEFAULT_REF_SLOPE_MAX = 200.0
 
 
 # ---------------------------------------------------------------------------
@@ -250,15 +249,12 @@ def pick_downstream_cell(
     reach: pd.DataFrame,
     ref_min: float = DEFAULT_REF_SLOPE_MIN,
     ref_max: float = DEFAULT_REF_SLOPE_MAX,
-    slope_tol: float = DEFAULT_SLOPE_TOL,
 ) -> pd.Series:
     """Method B (ARC-slope flat zone) tailwater sampler.
 
     Reference slope = median ARC ``Slope`` of cells ``[ref_min, ref_max]``
-    metres downstream.  Walk downstream from the snap and return the first
-    cell whose ``Slope`` lies within ``slope_tol`` of that reference.  Falls
-    back to the cell with the closest slope, then to the first downstream
-    cell.
+    metres downstream. Return the downstream cell whose ``Slope`` is closest
+    (smallest relative difference) to that reference.
 
     Returns the reach DataFrame row for the chosen cell.
     """
@@ -273,23 +269,15 @@ def pick_downstream_cell(
 
     ref_band = reach[(reach["x"] >= ref_min) & (reach["x"] <= ref_max)]
     if ref_band.empty:
-        ref_band = reach[reach["x"] > 20]
-    if ref_band.empty:
         return _first_ds_cell()
 
     ref_slope = float(ref_band["Slope"].median())
     if ref_slope <= 0:
         return _first_ds_cell()
 
-    downstream = reach[reach["x"] > 0].sort_values("x")
+    downstream = reach[reach["x"] > 0].copy()
     if downstream.empty:
         return _first_ds_cell()
 
-    for _, row in downstream.iterrows():
-        if abs(float(row["Slope"]) - ref_slope) / ref_slope < slope_tol:
-            return row
-
-    # No convergence — use the cell whose slope is closest to reference.
-    downstream = downstream.copy()
     downstream["slope_diff"] = (downstream["Slope"] - ref_slope).abs() / ref_slope
     return downstream.loc[downstream["slope_diff"].idxmin()]
