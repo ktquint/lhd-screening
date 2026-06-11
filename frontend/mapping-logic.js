@@ -803,6 +803,34 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
     const { tailwater, conjugate, flip, dangerConj, dangerFlip } =
         window.LHDHydraulics.buildRatingCurvesFt(heightFt, lengthFt, a, b, rp100Cms);
 
+    const intersections = [];
+    for (let i = 0; i < tailwater.length - 1; i++) {
+        if (conjugate[i].y !== null && conjugate[i+1].y !== null && tailwater[i].y !== null && tailwater[i+1].y !== null) {
+            const diff1 = tailwater[i].y - conjugate[i].y;
+            const diff2 = tailwater[i+1].y - conjugate[i+1].y;
+            if (diff1 * diff2 <= 0 && diff1 !== diff2) {
+                const t = diff1 / (diff1 - diff2);
+                if (t > 0 || i === 0) {
+                    const x = tailwater[i].x + t * (tailwater[i+1].x - tailwater[i].x);
+                    const y = tailwater[i].y + t * (tailwater[i+1].y - tailwater[i].y);
+                    intersections.push({x, y, label: 'Intersection (Tailwater & Conjugate)'});
+                }
+            }
+        }
+        if (flip[i].y !== null && flip[i+1].y !== null && tailwater[i].y !== null && tailwater[i+1].y !== null) {
+            const diff1 = tailwater[i].y - flip[i].y;
+            const diff2 = tailwater[i+1].y - flip[i+1].y;
+            if (diff1 * diff2 <= 0 && diff1 !== diff2) {
+                const t = diff1 / (diff1 - diff2);
+                if (t > 0 || i === 0) {
+                    const x = tailwater[i].x + t * (tailwater[i+1].x - tailwater[i].x);
+                    const y = tailwater[i].y + t * (tailwater[i+1].y - tailwater[i].y);
+                    intersections.push({x, y, label: 'Intersection (Tailwater & Flip)'});
+                }
+            }
+        }
+    }
+
     document.getElementById('ratingCurvesHeader').innerHTML =
         `<strong>${damName}</strong><br>` +
         `<span style="color:#7f8c8d; font-size: 12px;">` +
@@ -818,39 +846,60 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
         data: {
             datasets: [
                 { label: 'Tailwater (yₜ)',  data: tailwater,
-                  borderColor: '#3498db', backgroundColor: '#3498db',
+                  order: 1, borderColor: '#3498db', backgroundColor: '#3498db',
                   pointRadius: 0, borderWidth: 2, tension: 0.2, spanGaps: true },
                 { label: 'Conjugate depth (y₂)', data: conjugate,
-                  borderColor: '#27ae60', backgroundColor: '#27ae60',
+                  order: 1, borderColor: '#27ae60', backgroundColor: '#27ae60',
                   pointRadius: 0, borderWidth: 2, tension: 0.2, spanGaps: true },
                 { label: 'Flip depth (y_flip)', data: flip,
-                  borderColor: '#e74c3c', backgroundColor: '#e74c3c',
+                  order: 1, borderColor: '#e74c3c', backgroundColor: '#e74c3c',
                   pointRadius: 0, borderWidth: 2, tension: 0.2, spanGaps: true,
                   borderDash: [6, 4] },
                 { label: 'Danger Zone Conj', data: dangerConj,
-                  borderColor: 'transparent', backgroundColor: 'transparent',
+                  order: 1, borderColor: 'transparent', backgroundColor: 'transparent',
                   pointRadius: 0, borderWidth: 0, tension: 0.2, spanGaps: false },
                 { label: 'Danger Zone', data: dangerFlip,
-                  borderColor: 'transparent', backgroundColor: 'rgba(231, 76, 60, 0.25)',
+                  order: 1, borderColor: 'transparent', backgroundColor: 'rgba(231, 76, 60, 0.25)',
                   pointRadius: 0, borderWidth: 0, tension: 0.2, spanGaps: false, fill: '-1' },
+                { label: 'Intersections', data: intersections,
+                  order: 0, type: 'scatter', borderColor: '#2c3e50', backgroundColor: '#2c3e50',
+                  pointRadius: 5, pointHoverRadius: 7, pointHitRadius: 15, showLine: false },
             ],
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             parsing: false,
+            onClick: (event, elements, chart) => {
+                if (elements.length > 0) {
+                    const element = elements[0];
+                    const dataset = chart.data.datasets[element.datasetIndex];
+                    if (dataset.label === 'Intersections') {
+                        const pt = dataset.data[element.index];
+                        alert(`${pt.label}\n\nCoordinates:\nx: ${pt.x.toPrecision(4)} cfs\ny: ${pt.y.toPrecision(4)} ft`);
+                    }
+                }
+            },
             plugins: {
                 legend: { 
                     labels: { 
                         usePointStyle: true,
-                        filter: (item) => !item.text.includes('Danger Zone')
+                        filter: (item) => !item.text.includes('Danger Zone') && !item.text.includes('Intersections')
                     } 
                 },
                 tooltip: {
                     filter: (tooltipItem) => !tooltipItem.dataset.label.includes('Danger Zone'),
                     callbacks: {
-                        title: (items) => `Q = ${items[0].parsed.x.toFixed(0)} cfs`,
-                        label: (item) => `${item.dataset.label}: ${item.parsed.y.toFixed(2)} ft`,
+                        title: (items) => {
+                            if (items[0].dataset.label === 'Intersections') return items[0].raw.label;
+                            return `Q = ${items[0].parsed.x.toFixed(0)} cfs`;
+                        },
+                        label: (item) => {
+                            if (item.dataset.label === 'Intersections') {
+                                return `x: ${item.parsed.x.toPrecision(4)}, y: ${item.parsed.y.toPrecision(4)}`;
+                            }
+                            return `${item.dataset.label}: ${item.parsed.y.toFixed(2)} ft`;
+                        },
                     },
                 },
                 zoom: {
