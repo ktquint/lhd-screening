@@ -878,7 +878,7 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
                     const dataset = chart.data.datasets[element.datasetIndex];
                     if (dataset.label === 'Intersections') {
                         const pt = dataset.data[element.index];
-                        alert(`${pt.label}\n\nCoordinates:\nx: ${pt.x.toPrecision(4)} cfs\ny: ${pt.y.toPrecision(4)} ft`);
+                        alert(`${pt.label}\n\nCoordinates:\nx: ${pt.x.toFixed(2)} cfs\ny: ${pt.y.toFixed(2)} ft`);
                     }
                 }
             },
@@ -898,7 +898,7 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
                         },
                         label: (item) => {
                             if (item.dataset.label === 'Intersections') {
-                                return `x: ${item.parsed.x.toPrecision(4)}, y: ${item.parsed.y.toPrecision(4)}`;
+                                return `x: ${item.parsed.x.toFixed(2)} cfs, y: ${item.parsed.y.toFixed(2)} ft`;
                             }
                             return `${item.dataset.label}: ${item.parsed.y.toFixed(2)} ft`;
                         },
