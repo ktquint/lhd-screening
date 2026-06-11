@@ -830,7 +830,6 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
             ],
         },
         options: {
-            indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
             parsing: false,
@@ -838,19 +837,19 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
                 legend: { labels: { usePointStyle: true } },
                 tooltip: {
                     callbacks: {
-                        title: (items) => `Q = ${items[0].parsed.y.toFixed(0)} cfs`,
-                        label: (item) => `${item.dataset.label}: ${item.parsed.x.toFixed(2)} ft`,
+                        title: (items) => `Q = ${items[0].parsed.x.toFixed(0)} cfs`,
+                        label: (item) => `${item.dataset.label}: ${item.parsed.y.toFixed(2)} ft`,
                     },
                 },
             },
             scales: {
                 x: {
-                    title: { display: true, text: 'Depth (ft)' },
-                    beginAtZero: true,
-                },
-                y: {
                     type: 'logarithmic',
                     title: { display: true, text: 'Discharge Q (cfs)' },
+                },
+                y: {
+                    title: { display: true, text: 'Depth (ft)' },
+                    beginAtZero: true,
                 },
             },
         },
