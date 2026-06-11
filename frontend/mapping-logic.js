@@ -560,7 +560,7 @@ function renderMarkers() {
                 
                 popupContent += `
                     <button class="btn-check" onclick="${onClickActions.join('; ')}">
-                        Live Forecast
+                        Check Live Forecast
                     </button>`;
             } else {
                 popupContent += `<i>No forecast or rating curve available for this site.</i>`;
@@ -605,7 +605,7 @@ async function checkForecast(comid, qMin, qMax, damName) {
     const hasSafetyRange = qMin !== null && !isNaN(qMin) && qMax !== null && !isNaN(qMax);
 
     // FIX: Clear out the old header immediately so it doesn't distract the user while loading
-    document.getElementById('statusDisplay').innerHTML = `<strong>${damName}</strong><br><span style="color:#888;">Loading forecast details...</span>`;
+    document.getElementById('statusDisplay').innerHTML = `<strong>${damName} Forecast</strong><br><span style="color:#888;">Loading forecast details...</span>`;
 
     // Show modal + spinner immediately
     document.getElementById('forecastContainer').style.display = 'flex';
@@ -694,7 +694,7 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
         new Date(p.validTime).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit' })
     );
 
-    let statusText = `<strong>${damName}</strong><br>`;
+    let statusText = `<strong>${damName} Forecast</strong><br>`;
     statusText += `Current Forecast: ${currentCfs != null ? currentCfs.toFixed(0) : 'N/A'} cfs`;
 
     if (hasSafetyRange) {
@@ -846,7 +846,7 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
     }
 
     document.getElementById('ratingCurvesHeader').innerHTML =
-        `<strong>${damName}</strong><br>` +
+        `<strong>${damName} Rating Curve</strong><br>` +
         `<span style="color:#7f8c8d; font-size: 12px;">` +
         `P = ${heightFt.toFixed(1)} ft &nbsp;·&nbsp; L = ${lengthFt.toFixed(0)} ft &nbsp;·&nbsp; ` +
         `tailwater D = ${a.toPrecision(3)}·Q<sup>${b.toFixed(3)}</sup> ` +
