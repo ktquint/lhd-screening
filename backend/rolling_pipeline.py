@@ -54,6 +54,8 @@ Other commands
                            consolidate + mv to PATH + mark archived
     --aggregate            roll per-dam analysis_summary.json into
                            Qmin_env/Qmax_env + Qmin_stable/Qmax_stable
+                           + Dam_Height_GIS_Ft + Dam_Length_GIS_Ft
+                           + Rp100_cms + Tailwater_a + Tailwater_b
                            columns on --dams-csv (drops legacy Qmin/Qmax)
 """
 from __future__ import annotations
@@ -393,6 +395,24 @@ def _cmd_run(args: argparse.Namespace) -> None:
     dams["HUC8"] = dams["HUC8"].astype(str).str.split(".").str[0].str.zfill(8)
     dams = dams[dams["HUC8"] != "00000000"]
 
+    # Drop dams the LHDI review has flagged as non-LHD or removed so the
+    # pipeline doesn't re-stage work that audit_non_lhd_outputs.py would
+    # immediately clean back up. Matches the set used by the audit script
+    # and the frontend's render filter.
+    EXCLUDED_REVIEW_STATUSES = {
+        "Removed",
+        "Confirmed not a LHD",
+        "Appears to not be LHD",
+    }
+    if "Review_Status" in dams.columns:
+        status = dams["Review_Status"].fillna("").astype(str).str.strip()
+        excluded_mask = status.isin(EXCLUDED_REVIEW_STATUSES)
+        n_excluded = int(excluded_mask.sum())
+        if n_excluded:
+            print(f"Excluding {n_excluded} dams with non-LHD Review_Status "
+                  f"({', '.join(sorted(EXCLUDED_REVIEW_STATUSES))})")
+            dams = dams[~excluded_mask]
+
     # HUC codes nest by prefix: HUC6 = HUC8[:6], HUC4 = HUC8[:4], etc.
     level = args.huc_level
     dams["_GROUP"] = dams["HUC8"].str[: level]
@@ -694,7 +714,7 @@ def _cmd_archive_to(args: argparse.Namespace) -> None:
 
 
 def _cmd_aggregate(args: argparse.Namespace) -> None:
-    """Roll per-dam analysis_summary.json into Qmin/Qmax columns on the master CSV.
+    """Roll per-dam analysis_summary.json into screening columns on the master CSV.
 
     Searches the local staging root + every --existing-data-dir for
     RESULTS/<dam_id>/analysis_summary.json files (rglob handles both the
@@ -706,9 +726,17 @@ def _cmd_aggregate(args: argparse.Namespace) -> None:
                                   (xs_index * weir_length_m) is closest to
                                   height_info.ds_x_m (slope-stabilization
                                   cell from the dam-height estimator).
+      Dam_Length_GIS_Ft         — Method-2 crest length (weir_length_m → ft).
+      Dam_Height_GIS_Ft         — Method-B GIS height estimate (dam_height_m → ft).
+      Rp100_cms                 — 100-year recurrence-interval flow (cms),
+                                  intended as the upper bound when plotting
+                                  rating curves on the website.
+      Tailwater_a / Tailwater_b — depth rating-curve coefficients at the
+                                  stable XS: D[m] = a * (Q[cms]) ** b.
 
-    Drops any pre-existing Qmin / Qmax columns on the master CSV before
-    writing the new columns back in place.
+    Drops any pre-existing Qmin / Qmax / Dam_*_GIS_Ft / Rp100_cms /
+    Tailwater_a / Tailwater_b columns on the master CSV before writing the
+    new columns back in place.
     """
     dams_csv: Path = args.dams_csv
     if not dams_csv.exists():
@@ -753,7 +781,17 @@ def _cmd_aggregate(args: argparse.Namespace) -> None:
 
         xs_list = summary.get("xs_results") or []
         weir_length_m = summary.get("weir_length_m")
+        dam_height_m = summary.get("dam_height_m")
+        rp100_cms = summary.get("rp100_cms")
         ds_x_m = (summary.get("height_info") or {}).get("ds_x_m")
+
+        # GIS estimates in feet, for direct comparison with the NID Dam_*_Ft columns.
+        M_TO_FT = 3.28084
+        length_gis_ft = (float(weir_length_m) * M_TO_FT
+                         if weir_length_m and weir_length_m > 0 else None)
+        height_gis_ft = (float(dam_height_m) * M_TO_FT
+                         if dam_height_m and dam_height_m > 0 else None)
+        rp100_out = float(rp100_cms) if rp100_cms and rp100_cms > 0 else None
 
         valid = [
             xs for xs in xs_list
@@ -763,12 +801,25 @@ def _cmd_aggregate(args: argparse.Namespace) -> None:
         ]
         if not valid:
             n_no_xs += 1
+            # Still record GIS height/length + Rp100 if available — they're
+            # independent of XS Qmin/Qmax.
+            if length_gis_ft is not None or height_gis_ft is not None or rp100_out is not None:
+                rows[dam_id] = {
+                    "Qmin_env": None, "Qmax_env": None,
+                    "Qmin_stable": None, "Qmax_stable": None,
+                    "Dam_Length_GIS_Ft": length_gis_ft,
+                    "Dam_Height_GIS_Ft": height_gis_ft,
+                    "Rp100_cms": rp100_out,
+                    "Tailwater_a": None,
+                    "Tailwater_b": None,
+                }
             continue
 
         qmin_env = min(float(xs["Qmin_cms"]) for xs in valid)
         qmax_env = max(float(xs["Qmax_cms"]) for xs in valid)
 
         qmin_stable = qmax_stable = None
+        tailwater_a = tailwater_b = None
         if (weir_length_m and weir_length_m > 0
                 and ds_x_m is not None and ds_x_m > 0):
             chosen = min(
@@ -778,6 +829,10 @@ def _cmd_aggregate(args: argparse.Namespace) -> None:
             )
             qmin_stable = float(chosen["Qmin_cms"])
             qmax_stable = float(chosen["Qmax_cms"])
+            da = chosen.get("depth_a")
+            db = chosen.get("depth_b")
+            tailwater_a = float(da) if da is not None else None
+            tailwater_b = float(db) if db is not None else None
         else:
             n_no_stable += 1
 
@@ -786,6 +841,11 @@ def _cmd_aggregate(args: argparse.Namespace) -> None:
             "Qmax_env": qmax_env,
             "Qmin_stable": qmin_stable,
             "Qmax_stable": qmax_stable,
+            "Dam_Length_GIS_Ft": length_gis_ft,
+            "Dam_Height_GIS_Ft": height_gis_ft,
+            "Rp100_cms": rp100_out,
+            "Tailwater_a": tailwater_a,
+            "Tailwater_b": tailwater_b,
         }
 
     print(f"  rolled up {len(rows)} dams "
@@ -793,7 +853,9 @@ def _cmd_aggregate(args: argparse.Namespace) -> None:
 
     dams = pd.read_csv(dams_csv, low_memory=False)
     for old_col in ("Qmin", "Qmax", "Qmin_env", "Qmax_env",
-                    "Qmin_stable", "Qmax_stable"):
+                    "Qmin_stable", "Qmax_stable",
+                    "Dam_Length_GIS_Ft", "Dam_Height_GIS_Ft",
+                    "Rp100_cms", "Tailwater_a", "Tailwater_b"):
         if old_col in dams.columns:
             dams = dams.drop(columns=[old_col])
 
@@ -803,8 +865,9 @@ def _cmd_aggregate(args: argparse.Namespace) -> None:
 
     merged = dams.merge(add, on="OBJECTID", how="left")
     merged.to_csv(dams_csv, index=False)
-    print(f"Wrote 4 columns (Qmin_env, Qmax_env, Qmin_stable, Qmax_stable) "
-          f"to {dams_csv}")
+    print(f"Wrote 9 columns (Qmin_env, Qmax_env, Qmin_stable, Qmax_stable, "
+          f"Dam_Length_GIS_Ft, Dam_Height_GIS_Ft, Rp100_cms, Tailwater_a, "
+          f"Tailwater_b) to {dams_csv}")
 
 
 def _cmd_locate(args: argparse.Namespace) -> None:

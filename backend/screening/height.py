@@ -24,7 +24,6 @@ from lhd_processor.hydraulics import solve_weir_geom
 from screening.reach import (
     DEFAULT_REF_SLOPE_MAX,
     DEFAULT_REF_SLOPE_MIN,
-    DEFAULT_SLOPE_TOL,
     pick_downstream_cell,
 )
 
@@ -36,7 +35,6 @@ def estimate_dam_height(
     crest_wse: float,
     ref_min_m: float = DEFAULT_REF_SLOPE_MIN,
     ref_max_m: float = DEFAULT_REF_SLOPE_MAX,
-    slope_tol: float = DEFAULT_SLOPE_TOL,
 ) -> Optional[dict]:
     """Solve for dam height P from a Method B downstream sample.
 
@@ -67,7 +65,7 @@ def estimate_dam_height(
         return None
 
     ds = pick_downstream_cell(
-        reach, ref_min=ref_min_m, ref_max=ref_max_m, slope_tol=slope_tol,
+        reach, ref_min=ref_min_m, ref_max=ref_max_m,
     )
 
     wse_ds = float(ds["DEM_Elev"])

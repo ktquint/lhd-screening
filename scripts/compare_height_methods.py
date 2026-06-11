@@ -39,7 +39,6 @@ from screening.reach import (
     DEFAULT_REF_SLOPE_MIN as REF_SLOPE_MIN,
     DEFAULT_SEARCH_M_DN as SEARCH_M_DN,
     DEFAULT_SEARCH_M_UP as SEARCH_M_UP,
-    DEFAULT_SLOPE_TOL as SLOPE_TOL,
     build_reach,
     pick_crest_cell,
     pick_downstream_cell,
@@ -93,8 +92,7 @@ def _snap_cell(merged: pd.DataFrame) -> tuple[float, float]:
 
 
 def method_b_arc_flat(merged: pd.DataFrame) -> tuple[float, float]:
-    row = pick_downstream_cell(merged, ref_min=REF_SLOPE_MIN, ref_max=REF_SLOPE_MAX,
-                               slope_tol=SLOPE_TOL)
+    row = pick_downstream_cell(merged, ref_min=REF_SLOPE_MIN, ref_max=REF_SLOPE_MAX)
     return float(row["DEM_Elev"]), float(row["BaseElev"])
 
 
