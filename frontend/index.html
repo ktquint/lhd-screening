@@ -155,7 +155,7 @@
             top: 80px;
             left: 50%;
             transform: translateX(-50%);
-            width: min(860px, 90vw);
+            width: min(1000px, 95vw);
             height: min(520px, 80vh);
             min-width: 340px;
             min-height: 260px;
@@ -825,7 +825,7 @@
         </div>
     </div>
 
-    <div id="combinedModal" class="modal" style="height: min(720px, 90vh);">
+    <div id="combinedModal" class="modal" style="height: min(800px, 90vh);">
         <div class="resize-handle n"  data-dir="n"></div>
         <div class="resize-handle s"  data-dir="s"></div>
         <div class="resize-handle e"  data-dir="e"></div>
@@ -839,7 +839,7 @@
             <span class="close" onclick="closeCombinedPanel()">&times;</span>
         </div>
         <div class="modal-content">
-            <div id="forecastContainer" style="display:none; flex: 1 1 50%; min-height: 0; flex-direction: column;">
+            <div id="forecastContainer" style="display:none; flex: 3 1 60%; min-height: 450px; flex-direction: column;">
                 <div id="statusDisplay" class="chart-header"></div>
                 <div id="forecastSpinner" class="forecast-spinner">
                     <div class="forecast-spinner-ring"></div>
@@ -852,7 +852,7 @@
                     <input type="range" id="forecastSlider" min="1" max="10" value="5" style="width:100%;">
                 </div>
             </div>
-            <div id="ratingCurvesContainer" style="display:none; flex: 1 1 50%; min-height: 0; flex-direction: column; border-top: 2px solid #bdc3c7; padding-top: 10px; margin-top: 10px;">
+            <div id="ratingCurvesContainer" style="display:none; flex: 2 1 40%; min-height: 400px; flex-direction: column; border-top: 2px solid #bdc3c7; padding-top: 10px; margin-top: 10px;">
                 <div id="ratingCurvesHeader" class="chart-header" style="border-left-color: #27ae60;"></div>
                 <div style="flex: 1 1 auto; position: relative; min-height: 0;">
                     <canvas id="ratingCurvesChart"></canvas>

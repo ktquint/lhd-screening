@@ -590,7 +590,7 @@ window.openCombinedPanel = () => {
     if (cModal.style.transform !== 'none') {
         cModal.style.transform = 'none';
         cModal.style.top = '80px';
-        cModal.style.left = 'calc(50% - 430px)';
+        cModal.style.left = 'calc(50% - 500px)';
     }
     document.getElementById('forecastContainer').style.display = 'none';
     document.getElementById('ratingCurvesContainer').style.display = 'none';
