@@ -202,8 +202,6 @@
             flex-direction: column;
             overflow: auto;
         }
-        .modal-content #forecastChart,
-        .modal-content #ratingCurvesChart { flex: 1 1 auto; min-height: 0; }
         .close { cursor: pointer; font-size: 22px; font-weight: bold; line-height: 1; padding: 0 4px; color: #7f8c8d; }
         .close:hover { color: #2c3e50; }
         
@@ -814,7 +812,7 @@
         </div>
     </div>
 
-    <div id="forecastModal" class="modal">
+    <div id="combinedModal" class="modal" style="height: min(720px, 90vh);">
         <div class="resize-handle n"  data-dir="n"></div>
         <div class="resize-handle s"  data-dir="s"></div>
         <div class="resize-handle e"  data-dir="e"></div>
@@ -823,39 +821,30 @@
         <div class="resize-handle nw" data-dir="nw"></div>
         <div class="resize-handle se" data-dir="se"></div>
         <div class="resize-handle sw" data-dir="sw"></div>
-        <div class="modal-header" id="forecastModalHeader">
-            <span>Forecast <span class="drag-hint">— drag to move, corner to resize</span></span>
-            <span class="close" onclick="closeForecastPanel()">&times;</span>
+        <div class="modal-header" id="combinedModalHeader">
+            <span>Site Analysis <span class="drag-hint">— drag to move, corner to resize</span></span>
+            <span class="close" onclick="closeCombinedPanel()">&times;</span>
         </div>
         <div class="modal-content">
-            <div id="statusDisplay"></div>
-            <div id="forecastSpinner" class="forecast-spinner">
-                <div class="forecast-spinner-ring"></div>
-                <div class="forecast-spinner-label">Fetching NWM forecast...</div>
+            <div id="forecastContainer" style="display:none; flex: 1 1 50%; min-height: 0; flex-direction: column;">
+                <div id="statusDisplay"></div>
+                <div id="forecastSpinner" class="forecast-spinner">
+                    <div class="forecast-spinner-ring"></div>
+                    <div class="forecast-spinner-label">Fetching NWM forecast...</div>
+                </div>
+                <div style="flex: 1 1 auto; position: relative; min-height: 0;">
+                    <canvas id="forecastChart"></canvas>
+                </div>
+                <div id="forecastSliderWrap" style="display:none; margin: 2px 0 0;">
+                    <input type="range" id="forecastSlider" min="1" max="10" value="5" style="width:100%;">
+                </div>
             </div>
-            <canvas id="forecastChart"></canvas>
-            <div id="forecastSliderWrap" style="display:none; margin: 2px 0 0;">
-                <input type="range" id="forecastSlider" min="1" max="10" value="5" style="width:100%;">
+            <div id="ratingCurvesContainer" style="display:none; flex: 1 1 50%; min-height: 0; flex-direction: column; border-top: 2px solid #bdc3c7; padding-top: 10px; margin-top: 10px;">
+                <div id="ratingCurvesHeader"></div>
+                <div style="flex: 1 1 auto; position: relative; min-height: 0;">
+                    <canvas id="ratingCurvesChart"></canvas>
+                </div>
             </div>
-        </div>
-    </div>
-
-    <div id="ratingCurvesModal" class="modal">
-        <div class="resize-handle n"  data-dir="n"></div>
-        <div class="resize-handle s"  data-dir="s"></div>
-        <div class="resize-handle e"  data-dir="e"></div>
-        <div class="resize-handle w"  data-dir="w"></div>
-        <div class="resize-handle ne" data-dir="ne"></div>
-        <div class="resize-handle nw" data-dir="nw"></div>
-        <div class="resize-handle se" data-dir="se"></div>
-        <div class="resize-handle sw" data-dir="sw"></div>
-        <div class="modal-header" id="ratingCurvesModalHeader">
-            <span>Rating Curves <span class="drag-hint">— drag to move, corner to resize</span></span>
-            <span class="close" onclick="closeRatingCurvesPanel()">&times;</span>
-        </div>
-        <div class="modal-content">
-            <div id="ratingCurvesHeader"></div>
-            <canvas id="ratingCurvesChart"></canvas>
         </div>
     </div>
 

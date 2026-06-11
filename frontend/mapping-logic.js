@@ -554,7 +554,7 @@ function renderMarkers() {
                 }
                 const safetyArgs = hasSafetyData ? `${qMinVal}, ${qMaxVal}` : `null, null`;
                 
-                let onClickActions = [];
+                let onClickActions = ['openCombinedPanel()'];
                 if (hasComid) onClickActions.push(`checkForecast('${dam.Reach_ID}', ${safetyArgs}, ${jsAttrLiteral(_displayName)})`);
                 if (hasRatingCurves) onClickActions.push(`showRatingCurves(${heightFt}, ${lengthFt}, ${twA}, ${twB}, ${rp100Cms}, ${jsAttrLiteral(_displayName)})`);
                 
@@ -583,6 +583,19 @@ function renderMarkers() {
     }
 }
 
+window.openCombinedPanel = () => {
+    const cModal = document.getElementById('combinedModal');
+    cModal.classList.add('is-open');
+    
+    if (cModal.style.transform !== 'none') {
+        cModal.style.transform = 'none';
+        cModal.style.top = '80px';
+        cModal.style.left = 'calc(50% - 360px)';
+    }
+    document.getElementById('forecastContainer').style.display = 'none';
+    document.getElementById('ratingCurvesContainer').style.display = 'none';
+};
+
 // 4. National Water Model Forecast (NOAA NWPS API, NHDPlus V2 COMID = Reach_ID)
 // Medium-range only: ~10d 3-hourly ensemble mean + member spread as uncertainty band.
 // Units: API returns ft³/s (cfs) — no conversion needed.
@@ -595,18 +608,9 @@ async function checkForecast(comid, qMin, qMax, damName) {
     document.getElementById('statusDisplay').innerHTML = `<strong>${damName}</strong><br><span style="color:#888;">Loading forecast details...</span>`;
 
     // Show modal + spinner immediately
+    document.getElementById('forecastContainer').style.display = 'flex';
     document.getElementById('forecastSpinner').style.display = 'block';
     document.getElementById('forecastChart').style.display = 'none';
-    document.getElementById('forecastModal').classList.add('is-open');
-    const fModal = document.getElementById('forecastModal');
-    fModal.classList.add('is-open');
-    
-    // Offset starting position if it hasn't been moved yet
-    if (fModal.style.transform !== 'none') {
-        fModal.style.transform = 'none';
-        fModal.style.top = '80px';
-        fModal.style.left = 'calc(50% - 380px)'; // Offset slightly left and up
-    }
 
     if (forecastChart) { forecastChart.destroy(); forecastChart = null; }
 
@@ -808,16 +812,7 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
 // Inputs: height + length in ft, tailwater coeffs (D[m] = a * Q[cms]^b), Rp100 in cms.
 // Display: Q in cfs on x-axis, depth in ft on y-axis.
 function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
-    document.getElementById('ratingCurvesModal').classList.add('is-open');
-    const rModal = document.getElementById('ratingCurvesModal');
-    rModal.classList.add('is-open');
-    
-    // Offset starting position if it hasn't been moved yet
-    if (rModal.style.transform !== 'none') {
-        rModal.style.transform = 'none';
-        rModal.style.top = '120px';
-        rModal.style.left = 'calc(50% - 340px)'; // Offset slightly right and down
-    }
+    document.getElementById('ratingCurvesContainer').style.display = 'flex';
 
     const { tailwater, conjugate, flip, dangerConj, dangerFlip } =
         window.LHDHydraulics.buildRatingCurvesFt(heightFt, lengthFt, a, b, rp100Cms);
@@ -979,16 +974,11 @@ legend.addTo(map);
 window.addEventListener('resize', () => { map.invalidateSize(); });
 
 // --- Draggable + resizable floating panels (forecast + rating curves) ---
-function closeForecastPanel() {
-    document.getElementById('forecastModal').classList.remove('is-open');
+function closeCombinedPanel() {
+    document.getElementById('combinedModal').classList.remove('is-open');
     document.getElementById('forecastSliderWrap').style.display = 'none';
 }
-window.closeForecastPanel = closeForecastPanel;
-
-function closeRatingCurvesPanel() {
-    document.getElementById('ratingCurvesModal').classList.remove('is-open');
-}
-window.closeRatingCurvesPanel = closeRatingCurvesPanel;
+window.closeCombinedPanel = closeCombinedPanel;
 
 function enablePanelDragResize(panelId, headerId, onResize) {
     const panel  = document.getElementById(panelId);
@@ -1095,10 +1085,11 @@ function enablePanelDragResize(panelId, headerId, onResize) {
     });
 }
 
-enablePanelDragResize('forecastModal', 'forecastModalHeader',
-    () => { if (forecastChart) forecastChart.resize(); });
-enablePanelDragResize('ratingCurvesModal', 'ratingCurvesModalHeader',
-    () => { if (ratingCurvesChart) ratingCurvesChart.resize(); });
+enablePanelDragResize('combinedModal', 'combinedModalHeader',
+    () => { 
+        if (forecastChart) forecastChart.resize(); 
+        if (ratingCurvesChart) ratingCurvesChart.resize(); 
+    });
 
 document.getElementById('forecastSlider').addEventListener('input', function () {
     const days = parseInt(this.value);
@@ -1375,11 +1366,8 @@ document.addEventListener('keydown', (e) => {
         if (typeof window.closeSearchPanel === 'function') {
             window.closeSearchPanel();
         }
-        if (typeof window.closeForecastPanel === 'function') {
-            window.closeForecastPanel();
-        }
-        if (typeof window.closeRatingCurvesPanel === 'function') {
-            window.closeRatingCurvesPanel();
+        if (typeof window.closeCombinedPanel === 'function') {
+            window.closeCombinedPanel();
         }
         map.closePopup();
     }
