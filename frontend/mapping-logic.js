@@ -853,6 +853,25 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
                         label: (item) => `${item.dataset.label}: ${item.parsed.y.toFixed(2)} ft`,
                     },
                 },
+                zoom: {
+                    limits: {
+                        x: {min: 'original', max: 'original'},
+                        y: {min: 'original', max: 'original'}
+                    },
+                    pan: {
+                        enabled: true,
+                        mode: 'xy',
+                    },
+                    zoom: {
+                        wheel: {
+                            enabled: true,
+                        },
+                        pinch: {
+                            enabled: true
+                        },
+                        mode: 'xy',
+                    }
+                }
             },
             scales: {
                 x: {
