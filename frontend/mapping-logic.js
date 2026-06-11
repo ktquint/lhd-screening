@@ -800,7 +800,7 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
 function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
     document.getElementById('ratingCurvesModal').classList.add('is-open');
 
-    const { tailwater, conjugate, flip } =
+    const { tailwater, conjugate, flip, dangerConj, dangerFlip } =
         window.LHDHydraulics.buildRatingCurvesFt(heightFt, lengthFt, a, b, rp100Cms);
 
     document.getElementById('ratingCurvesHeader').innerHTML =
@@ -827,6 +827,12 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
                   borderColor: '#e74c3c', backgroundColor: '#e74c3c',
                   pointRadius: 0, borderWidth: 2, tension: 0.2, spanGaps: true,
                   borderDash: [6, 4] },
+                { label: 'Danger Zone Conj', data: dangerConj,
+                  borderColor: 'transparent', backgroundColor: 'transparent',
+                  pointRadius: 0, borderWidth: 0, tension: 0.2, spanGaps: false },
+                { label: 'Danger Zone', data: dangerFlip,
+                  borderColor: 'transparent', backgroundColor: 'rgba(231, 76, 60, 0.25)',
+                  pointRadius: 0, borderWidth: 0, tension: 0.2, spanGaps: false, fill: '-1' },
             ],
         },
         options: {
@@ -834,8 +840,14 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
             maintainAspectRatio: false,
             parsing: false,
             plugins: {
-                legend: { labels: { usePointStyle: true } },
+                legend: { 
+                    labels: { 
+                        usePointStyle: true,
+                        filter: (item) => !item.text.includes('Danger Zone')
+                    } 
+                },
                 tooltip: {
+                    filter: (tooltipItem) => !tooltipItem.dataset.label.includes('Danger Zone'),
                     callbacks: {
                         title: (items) => `Q = ${items[0].parsed.x.toFixed(0)} cfs`,
                         label: (item) => `${item.dataset.label}: ${item.parsed.y.toFixed(2)} ft`,
@@ -844,7 +856,8 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
             },
             scales: {
                 x: {
-                    type: 'logarithmic',
+                    type: 'linear',
+                    position: 'bottom',
                     title: { display: true, text: 'Discharge Q (cfs)' },
                 },
                 y: {
