@@ -537,33 +537,33 @@ function renderMarkers() {
                     <b>Fatalities:</b> ${fatalities}<br>
                     <hr>`;
             
-            if (hasComid) {
-                if (hasSafetyData) {
-                    popupContent += `<b>Dangerous Range:</b> ${qMinVal} - ${qMaxVal} cfs<br>`;
-                }
-                const safetyArgs = hasSafetyData ? `${qMinVal}, ${qMaxVal}` : `null, null`;
-                popupContent += `
-                    <button class="btn-check" onclick="checkForecast('${dam.Reach_ID}', ${safetyArgs}, ${jsAttrLiteral(_displayName)})">
-                        Check Live Forecast
-                    </button>`;
-            } else {
-                popupContent += `<i>No forecast available: this site is not linked to an NHDPlus stream reach.</i>`;
-            }
-
-            // Rating-curve plot: only when GIS geometry + tailwater coefficients + Rp100 are all present.
             const heightFt = parseFloat(dam.Dam_Height_GIS_Ft);
             const lengthFt = parseFloat(dam.Dam_Length_GIS_Ft);
             const twA      = parseFloat(dam.Tailwater_a);
             const twB      = parseFloat(dam.Tailwater_b);
             const rp100Cms = parseFloat(dam.Rp100_cms);
-            if (isFinite(heightFt) && heightFt > 0
+            
+            const hasRatingCurves = isFinite(heightFt) && heightFt > 0
                 && isFinite(lengthFt) && lengthFt > 0
                 && isFinite(twA) && isFinite(twB)
-                && isFinite(rp100Cms) && rp100Cms > 0) {
+                && isFinite(rp100Cms) && rp100Cms > 0;
+
+            if (hasComid || hasRatingCurves) {
+                if (hasSafetyData) {
+                    popupContent += `<b>Dangerous Range:</b> ${qMinVal} - ${qMaxVal} cfs<br>`;
+                }
+                const safetyArgs = hasSafetyData ? `${qMinVal}, ${qMaxVal}` : `null, null`;
+                
+                let onClickActions = [];
+                if (hasComid) onClickActions.push(`checkForecast('${dam.Reach_ID}', ${safetyArgs}, ${jsAttrLiteral(_displayName)})`);
+                if (hasRatingCurves) onClickActions.push(`showRatingCurves(${heightFt}, ${lengthFt}, ${twA}, ${twB}, ${rp100Cms}, ${jsAttrLiteral(_displayName)})`);
+                
                 popupContent += `
-                    <button class="btn-check" onclick="showRatingCurves(${heightFt}, ${lengthFt}, ${twA}, ${twB}, ${rp100Cms}, ${jsAttrLiteral(_displayName)})">
-                        Show Rating Curves
+                    <button class="btn-check" onclick="${onClickActions.join('; ')}">
+                        Live Forecast
                     </button>`;
+            } else {
+                popupContent += `<i>No forecast or rating curve available for this site.</i>`;
             }
 
             popupContent += `</div>`;
@@ -598,6 +598,16 @@ async function checkForecast(comid, qMin, qMax, damName) {
     document.getElementById('forecastSpinner').style.display = 'block';
     document.getElementById('forecastChart').style.display = 'none';
     document.getElementById('forecastModal').classList.add('is-open');
+    const fModal = document.getElementById('forecastModal');
+    fModal.classList.add('is-open');
+    
+    // Offset starting position if it hasn't been moved yet
+    if (fModal.style.transform !== 'none') {
+        fModal.style.transform = 'none';
+        fModal.style.top = '80px';
+        fModal.style.left = 'calc(50% - 380px)'; // Offset slightly left and up
+    }
+
     if (forecastChart) { forecastChart.destroy(); forecastChart = null; }
 
     try {
@@ -799,6 +809,15 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
 // Display: Q in cfs on x-axis, depth in ft on y-axis.
 function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
     document.getElementById('ratingCurvesModal').classList.add('is-open');
+    const rModal = document.getElementById('ratingCurvesModal');
+    rModal.classList.add('is-open');
+    
+    // Offset starting position if it hasn't been moved yet
+    if (rModal.style.transform !== 'none') {
+        rModal.style.transform = 'none';
+        rModal.style.top = '120px';
+        rModal.style.left = 'calc(50% - 340px)'; // Offset slightly right and down
+    }
 
     const { tailwater, conjugate, flip, dangerConj, dangerFlip } =
         window.LHDHydraulics.buildRatingCurvesFt(heightFt, lengthFt, a, b, rp100Cms);
