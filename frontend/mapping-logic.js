@@ -856,7 +856,7 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
                 { label: 'Flip depth (y_flip)', data: flip,
                   order: 1, borderColor: '#e74c3c', backgroundColor: '#e74c3c',
                   pointRadius: 0, borderWidth: 2, tension: 0.2, spanGaps: true,
-                  borderDash: [6, 4], pointStyle: dashedLegendIcon },
+                  borderDash: [6, 4], pointStyle: 'line' },
                 { label: 'Danger Zone Conj', data: dangerConj,
                   order: 1, borderColor: 'transparent', backgroundColor: 'transparent',
                   pointRadius: 0, borderWidth: 0, tension: 0.2, spanGaps: false },
