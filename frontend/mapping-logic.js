@@ -421,7 +421,8 @@ window.updateActiveFiltersBadge = () => {
 // 2. Load Dam Data
 async function loadDams() {
     try {
-        allDams = await d3.csv("data/full_lhd_website.csv");
+        // Append a timestamp to the URL to force the browser to bypass its cache. This ensures that users always get the most up-to-date data without needing to manually clear their cache. In development, this is crucial to see changes immediately. In production, it guarantees that any updates to the dam data are reflected for all users without delay.
+        allDams = await d3.csv(`data/full_lhd_website.csv?v=${new Date().getTime()}`);
         // NWM does not produce forecasts for Hawaii or Puerto Rico, so exclude those dams everywhere.
         const NON_CONUS_STATES = new Set(['HI', 'PR']);
         allDams = allDams.filter(d => !NON_CONUS_STATES.has((d['State Abbreviation'] || '').toUpperCase()));
@@ -482,8 +483,11 @@ function renderMarkers() {
 
             // Backend writes the envelope in cms; NWPS forecasts are in cfs. Convert at parse.
             const CMS_TO_CFS = 35.3147;
-            const qMinVal = Math.round(parseFloat(dam.Qmin_env) * CMS_TO_CFS);
-            const qMaxVal = Math.round(parseFloat(dam.Qmax_env) * CMS_TO_CFS);
+            let qMinVal = Math.round(parseFloat(dam.Qmin_env) * CMS_TO_CFS);
+            let qMaxVal = Math.round(parseFloat(dam.Qmax_env) * CMS_TO_CFS);
+            
+            if (qMinVal >= 100) qMinVal = Math.round(qMinVal / 100) * 100;
+            if (qMaxVal >= 100) qMaxVal = Math.round(qMaxVal / 100) * 100;
             const hasComid = dam.Reach_ID !== undefined && dam.Reach_ID !== null && String(dam.Reach_ID).trim() !== '';
             const hasSafetyData = !isNaN(qMinVal) && hasComid;
             
@@ -755,6 +759,10 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
         }
     );
 
+    const validUppers = allUpper.filter(v => v != null && !isNaN(v));
+    const maxForecast = validUppers.length > 0 ? Math.max(...validUppers) : 10;
+    const yAxisMax = Math.max(maxForecast, 10) * 1.2;
+
     const ctx = document.getElementById('forecastChart').getContext('2d');
     if (forecastChart) forecastChart.destroy();
     forecastChart = new Chart(ctx, {
@@ -778,7 +786,7 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
             scales: {
                 y: {
                     title: { display: true, text: 'Streamflow (cfs)' },
-                    grace: '10%'
+                    max: yAxisMax
                 },
                 x: { ticks: { maxTicksLimit: 10 } }
             }
