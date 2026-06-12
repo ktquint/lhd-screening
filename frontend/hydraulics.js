@@ -168,7 +168,7 @@
 
     global.LHDHydraulics = {
         weirHSimp, solveY1, solveFrSimp, calcY2Simp, computeYFlipAdv,
-        tailwaterDepth, buildRatingCurvesFt,
+        tailwaterDepth, buildRatingCurvesFt, bisect,
         constants: { G, C_W, M_TO_FT, CMS_TO_CFS },
     };
 })(window);

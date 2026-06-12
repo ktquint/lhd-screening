@@ -814,8 +814,14 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
 function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
     document.getElementById('ratingCurvesContainer').style.display = 'flex';
 
+    const P = heightFt / window.LHDHydraulics.constants.M_TO_FT;
+    const L = lengthFt / window.LHDHydraulics.constants.M_TO_FT;
+    const CMS_TO_CFS = window.LHDHydraulics.constants.CMS_TO_CFS;
+    const M_TO_FT = window.LHDHydraulics.constants.M_TO_FT;
+    const ERROR_TOLERANCE_CFS = 0.0005;
+
     const { tailwater, conjugate, flip, dangerConj, dangerFlip } =
-        window.LHDHydraulics.buildRatingCurvesFt(heightFt, lengthFt, a, b, rp100Cms);
+        window.LHDHydraulics.buildRatingCurvesFt(heightFt, lengthFt, a, b, rp100Cms, 500);
 
     const intersections = [];
     for (let i = 0; i < tailwater.length - 1; i++) {
@@ -823,11 +829,27 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
             const diff1 = tailwater[i].y - conjugate[i].y;
             const diff2 = tailwater[i+1].y - conjugate[i+1].y;
             if (diff1 * diff2 <= 0 && diff1 !== diff2) {
-                const t = diff1 / (diff1 - diff2);
-                if (t > 0 || i === 0) {
-                    const x = tailwater[i].x + t * (tailwater[i+1].x - tailwater[i].x);
-                    const y = tailwater[i].y + t * (tailwater[i+1].y - tailwater[i].y);
-                    intersections.push({x, y, label: 'Intersection (Tailwater & Conjugate)'});
+                const f_conj = (Qcfs) => {
+                    const Q = Qcfs / CMS_TO_CFS;
+                    const yt = window.LHDHydraulics.tailwaterDepth(Q, a, b);
+                    const H = window.LHDHydraulics.weirHSimp(Q, L);
+                    const y2 = window.LHDHydraulics.calcY2Simp(H, P);
+                    if (yt === null || y2 === null) return null;
+                    return (yt - y2) * M_TO_FT;
+                };
+                const exactX = window.LHDHydraulics.bisect(f_conj, tailwater[i].x * 0.99, tailwater[i+1].x * 1.01, ERROR_TOLERANCE_CFS);
+                if (exactX !== null) {
+                    const exactQ = exactX / CMS_TO_CFS;
+                    const exactY = window.LHDHydraulics.tailwaterDepth(exactQ, a, b) * M_TO_FT;
+                    intersections.push({x: exactX, y: exactY, label: 'Intersection (Tailwater & Conjugate)'});
+                    
+                    const yf = window.LHDHydraulics.computeYFlipAdv(exactQ, L, P);
+                    const exactYFlip = yf !== null ? yf * M_TO_FT : null;
+                    
+                    if (exactYFlip !== null && exactY <= exactYFlip) {
+                        dangerConj.push({ x: exactX, y: exactY });
+                        dangerFlip.push({ x: exactX, y: exactYFlip });
+                    }
                 }
             }
         }
@@ -835,15 +857,35 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
             const diff1 = tailwater[i].y - flip[i].y;
             const diff2 = tailwater[i+1].y - flip[i+1].y;
             if (diff1 * diff2 <= 0 && diff1 !== diff2) {
-                const t = diff1 / (diff1 - diff2);
-                if (t > 0 || i === 0) {
-                    const x = tailwater[i].x + t * (tailwater[i+1].x - tailwater[i].x);
-                    const y = tailwater[i].y + t * (tailwater[i+1].y - tailwater[i].y);
-                    intersections.push({x, y, label: 'Intersection (Tailwater & Flip)'});
+                const f_flip = (Qcfs) => {
+                    const Q = Qcfs / CMS_TO_CFS;
+                    const yt = window.LHDHydraulics.tailwaterDepth(Q, a, b);
+                    const yf = window.LHDHydraulics.computeYFlipAdv(Q, L, P);
+                    if (yt === null || yf === null) return null;
+                    return (yt - yf) * M_TO_FT;
+                };
+                const exactX = window.LHDHydraulics.bisect(f_flip, tailwater[i].x * 0.99, tailwater[i+1].x * 1.01, ERROR_TOLERANCE_CFS);
+                if (exactX !== null) {
+                    const exactQ = exactX / CMS_TO_CFS;
+                    const exactY = window.LHDHydraulics.tailwaterDepth(exactQ, a, b) * M_TO_FT;
+                    intersections.push({x: exactX, y: exactY, label: 'Intersection (Tailwater & Flip)'});
+                    
+                    const H = window.LHDHydraulics.weirHSimp(exactQ, L);
+                    const y2 = window.LHDHydraulics.calcY2Simp(H, P);
+                    const exactYConj = y2 !== null ? y2 * M_TO_FT : null;
+                    
+                    if (exactYConj !== null && exactY >= exactYConj) {
+                        dangerConj.push({ x: exactX, y: exactYConj });
+                        dangerFlip.push({ x: exactX, y: exactY });
+                    }
                 }
             }
         }
     }
+
+    // Ensure the injected intersection points are in the correct sequential order
+    dangerConj.sort((a, b) => a.x - b.x);
+    dangerFlip.sort((a, b) => a.x - b.x);
 
     document.getElementById('ratingCurvesHeader').innerHTML =
         `<strong>${damName} Rating Curve</strong><br>` +
