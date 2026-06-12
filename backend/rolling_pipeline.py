@@ -281,6 +281,7 @@ def _process_huc8(
     nwm_dataset: xr.Dataset | None = None,
     nwm_ids: set[int] | None = None,
     vaa_df=None,
+    keep_raw_tiles: bool = False,
 ) -> None:
     label = f"HUC{len(key)} {key}"
     huc_dir = local_root / _huc_dirname(key)
@@ -362,6 +363,14 @@ def _process_huc8(
     ])
 
     ok, failed = _tally_results(huc_dir, dam_ids)
+
+    if not keep_raw_tiles:
+        pruned, freed = _prune_raw_dem_tiles(huc_dir)
+        if pruned:
+            print(f"\n  Auto-pruned {pruned} raw 3DEP tile(s); "
+                  f"freed {freed / 1e9:.1f} GB. "
+                  f"Record retained in tile_manifest.json.")
+
     size_bytes = _dir_size_bytes(huc_dir)
     status = "ready_to_archive" if not failed else "partial"
 
@@ -549,6 +558,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
                 args.workers, existing_dirs,
                 nwm_dataset=nwm_ds, nwm_ids=nwm_ids,
                 vaa_df=vaa_df,
+                keep_raw_tiles=args.keep_raw_tiles,
             )
         except (subprocess.CalledProcessError, Exception) as e:
             # Catches both subprocess failures (the original error path) and
@@ -1048,11 +1058,11 @@ def main() -> None:
                              "huc<level>_<KEY>/ to PATH/, and mark archived. "
                              "One command clears the entire queue.")
     parser.add_argument("--keep-raw-tiles", action="store_true",
-                        help="Skip the raw_3dep tile prune that --consolidate / "
-                             "--archive-to do by default. Use only when you need "
-                             "the full DEM/raw_3dep/*.tif on the archived bundle "
-                             "(tile_manifest.json always retains the dam → tile "
-                             "+ URL mapping either way).")
+                        help="Skip the raw_3dep tile prune. By default, raw tiles "
+                             "are deleted at the end of each HUC during the main "
+                             "loop, and also during --consolidate / --archive-to. "
+                             "tile_manifest.json always retains the dam → tile + "
+                             "URL mapping either way.")
     parser.add_argument("--prune-raw-all", action="store_true",
                         help="Walk every bundle in the ledger and delete its "
                              "DEM/raw_3dep/ in place. Does NOT consolidate "
