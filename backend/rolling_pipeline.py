@@ -35,7 +35,9 @@ Typical workflow (HUC6 batches)
         --existing-data-dir /old/lhd_staging \\
         --huc-level 6 --min-free-gb 600
 
-    # before archiving a batch, collapse symlinks into real files:
+    # before archiving a batch, collapse symlinks into real files
+    # (also prunes DEM/raw_3dep/ by default — tile_manifest.json keeps the
+    # dam → tile + URL mapping so the tiles can be re-fetched if needed):
     python backend/rolling_pipeline.py \\
         --local-staging-root /Users/me/staging --consolidate 140600
 
@@ -52,6 +54,8 @@ Other commands
     --locate <dam_id>      print which HUC8 + batch a dam belongs to
     --archive-to <PATH>    batch-archive every ready_to_archive bundle:
                            consolidate + mv to PATH + mark archived
+    --keep-raw-tiles       skip the raw_3dep prune that --consolidate /
+                           --archive-to do by default
     --aggregate            roll per-dam analysis_summary.json into
                            Qmin_env/Qmax_env + Qmin_stable/Qmax_stable
                            + Dam_Height_GIS_Ft + Dam_Length_GIS_Ft
@@ -227,6 +231,43 @@ def _consolidate_huc(huc_dir: Path) -> Tuple[int, List[str]]:
             shutil.move(str(src), str(entry))
             moved += 1
     return moved, dangling
+
+
+def _prune_raw_dem_tiles(huc_dir: Path) -> Tuple[int, int]:
+    """
+    Delete huc_dir/DEM/raw_3dep/ (the downloaded 3DEP tiles) and stamp the
+    deletion into tile_manifest.json so the dam→tile mapping + URLs remain
+    on record. Returns (count_deleted, bytes_freed).
+
+    Idempotent — does nothing if raw_3dep/ is already gone.
+    """
+    raw_dir = huc_dir / "DEM" / "raw_3dep"
+    if not raw_dir.exists():
+        return 0, 0
+
+    count = 0
+    total_bytes = 0
+    for p in raw_dir.rglob("*"):
+        if p.is_file() and not p.is_symlink():
+            try:
+                total_bytes += p.stat().st_size
+            except OSError:
+                pass
+            count += 1
+    shutil.rmtree(raw_dir)
+
+    manifest_path = huc_dir / "tile_manifest.json"
+    if manifest_path.exists():
+        try:
+            manifest = json.loads(manifest_path.read_text())
+            manifest["raw_tiles_deleted_at"] = _now()
+            manifest["raw_tiles_deleted_count"] = count
+            manifest["raw_tiles_deleted_bytes"] = total_bytes
+            manifest_path.write_text(json.dumps(manifest, indent=2))
+        except (OSError, json.JSONDecodeError) as e:
+            print(f"  ! could not stamp tile_manifest.json: {e}")
+
+    return count, total_bytes
 
 
 def _process_huc8(
@@ -585,6 +626,15 @@ def _cmd_consolidate(args: argparse.Namespace) -> None:
     entry["consolidated_at"] = _now()
     entry["consolidated_moves"] = moved
     entry.pop("external_links", None)
+
+    if not args.keep_raw_tiles:
+        pruned, freed = _prune_raw_dem_tiles(huc_dir)
+        if pruned:
+            print(f"  Deleted {pruned} raw 3DEP tile(s) — freed {freed / 1e9:.1f} GB. "
+                  f"Record retained in tile_manifest.json.")
+        else:
+            print("  No raw 3DEP tiles to delete (already pruned or never staged).")
+
     _save_ledger(ledger_path, ledger)
 
     # Refresh size + marker
@@ -601,6 +651,51 @@ def _cmd_consolidate(args: argparse.Namespace) -> None:
 
     print(f"HUC group {key} consolidated. New size: {size_bytes / 1e9:.1f} GB. "
           f"Safe to `mv {huc_dir} /Volumes/<drive>/`.")
+
+
+def _cmd_prune_raw_all(args: argparse.Namespace) -> None:
+    """Walk every bundle in the ledger and delete DEM/raw_3dep/ in place.
+
+    Does NOT consolidate symlinks, move bundles, or change ledger status —
+    pure local-disk reclamation. tile_manifest.json keeps the dam → tile +
+    URL mapping plus a deletion stamp for each pruned bundle.
+    """
+    local_root: Path = args.local_staging_root
+    ledger_path = local_root / "huc8_ledger.json"
+    ledger = _load_ledger(ledger_path)
+    if not ledger:
+        sys.exit(f"No ledger at {ledger_path}")
+
+    total_files = 0
+    total_bytes = 0
+    pruned_keys: List[str] = []
+    skipped_missing: List[str] = []
+    nothing_to_do: List[str] = []
+
+    for key in sorted(ledger.keys()):
+        huc_dir = local_root / _huc_dirname(key)
+        if not huc_dir.is_dir():
+            skipped_missing.append(key)
+            continue
+        count, freed = _prune_raw_dem_tiles(huc_dir)
+        if count:
+            print(f"[{key}] deleted {count} tile(s); freed {freed / 1e9:.2f} GB")
+            total_files += count
+            total_bytes += freed
+            pruned_keys.append(key)
+        else:
+            nothing_to_do.append(key)
+
+    print(
+        f"\nDone. pruned {len(pruned_keys)} bundle(s); "
+        f"{total_files} tile(s); freed {total_bytes / 1e9:.1f} GB total."
+    )
+    if nothing_to_do:
+        print(f"  {len(nothing_to_do)} bundle(s) had no raw tiles to delete "
+              f"(already pruned or never staged).")
+    if skipped_missing:
+        print(f"  {len(skipped_missing)} ledger key(s) had no local dir "
+              f"(already archived/moved).")
 
 
 def _cmd_status(args: argparse.Namespace) -> None:
@@ -680,6 +775,12 @@ def _cmd_archive_to(args: argparse.Namespace) -> None:
             entry["consolidated_at"] = _now()
             entry["consolidated_moves"] = moved
             entry.pop("external_links", None)
+
+            if not args.keep_raw_tiles:
+                pruned, freed = _prune_raw_dem_tiles(huc_dir)
+                if pruned:
+                    print(f"  deleted {pruned} raw 3DEP tile(s); "
+                          f"freed {freed / 1e9:.1f} GB")
 
             size_bytes = _dir_size_bytes(huc_dir)
             marker_path = huc_dir / ".READY_TO_ARCHIVE"
@@ -946,6 +1047,19 @@ def main() -> None:
                              "ready_to_archive, consolidate symlinks, move "
                              "huc<level>_<KEY>/ to PATH/, and mark archived. "
                              "One command clears the entire queue.")
+    parser.add_argument("--keep-raw-tiles", action="store_true",
+                        help="Skip the raw_3dep tile prune that --consolidate / "
+                             "--archive-to do by default. Use only when you need "
+                             "the full DEM/raw_3dep/*.tif on the archived bundle "
+                             "(tile_manifest.json always retains the dam → tile "
+                             "+ URL mapping either way).")
+    parser.add_argument("--prune-raw-all", action="store_true",
+                        help="Walk every bundle in the ledger and delete its "
+                             "DEM/raw_3dep/ in place. Does NOT consolidate "
+                             "symlinks, move bundles, or change ledger status — "
+                             "pure local-disk reclamation. tile_manifest.json "
+                             "keeps the dam → tile + URL mapping plus a "
+                             "deletion stamp.")
     parser.add_argument("--aggregate", action="store_true",
                         help="Walk RESULTS/<dam_id>/analysis_summary.json under the "
                              "staging root + each --existing-data-dir and write "
@@ -967,6 +1081,8 @@ def main() -> None:
         _cmd_mark_archived(args)
     elif args.archive_to:
         _cmd_archive_to(args)
+    elif args.prune_raw_all:
+        _cmd_prune_raw_all(args)
     elif args.aggregate:
         _cmd_aggregate(args)
     else:
