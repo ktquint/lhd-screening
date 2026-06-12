@@ -142,22 +142,33 @@
         const tailwater = [];
         const conjugate = [];
         const flip = [];
+        const dangerConj = [];
+        const dangerFlip = [];
         for (const Q of qs) {
             const Qcfs = Q * CMS_TO_CFS;
             const yt = tailwaterDepth(Q, a, b);
             const H  = weirHSimp(Q, L);
             const y2 = calcY2Simp(H, P);
             const yf = computeYFlipAdv(Q, L, P);
-            tailwater.push({ x: Qcfs, y: yt !== null ? yt * M_TO_FT : null });
-            conjugate.push({ x: Qcfs, y: y2 !== null ? y2 * M_TO_FT : null });
-            flip.push     ({ x: Qcfs, y: yf !== null ? yf * M_TO_FT : null });
+            
+            const ytFt = yt !== null ? yt * M_TO_FT : null;
+            const y2Ft = y2 !== null ? y2 * M_TO_FT : null;
+            const yfFt = yf !== null ? yf * M_TO_FT : null;
+            
+            tailwater.push({ x: Qcfs, y: ytFt });
+            conjugate.push({ x: Qcfs, y: y2Ft });
+            flip.push     ({ x: Qcfs, y: yfFt });
+            
+            const isDanger = (ytFt !== null && y2Ft !== null && yfFt !== null) && (ytFt >= y2Ft && ytFt <= yfFt);
+            dangerConj.push({ x: Qcfs, y: isDanger ? y2Ft : null });
+            dangerFlip.push({ x: Qcfs, y: isDanger ? yfFt : null });
         }
-        return { tailwater, conjugate, flip };
+        return { tailwater, conjugate, flip, dangerConj, dangerFlip };
     }
 
     global.LHDHydraulics = {
         weirHSimp, solveY1, solveFrSimp, calcY2Simp, computeYFlipAdv,
-        tailwaterDepth, buildRatingCurvesFt,
+        tailwaterDepth, buildRatingCurvesFt, bisect,
         constants: { G, C_W, M_TO_FT, CMS_TO_CFS },
     };
 })(window);

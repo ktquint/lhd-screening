@@ -145,7 +145,8 @@
         .info.legend { padding: 12px; font: 14px Arial, Helvetica, sans-serif; background: rgba(255,255,255,0.9); box-shadow: 0 0 15px rgba(0,0,0,0.2); border-radius: 5px; line-height: 24px; }
         .legend i { width: 12px; height: 12px; float: left; margin-right: 8px; margin-top: 6px; border-radius: 50%; border: 1px solid #777; }
         .popup-content { line-height: 1.6; min-width: 200px; }
-        .btn-check { background-color: #3498db; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; width: 100%; margin-top: 10px; font-weight: bold; }
+        .btn-check { background-color: #3498db; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; width: 100%; margin-top: 10px; font-weight: bold; transition: background-color 0.2s ease; }
+        .btn-check:hover { background-color: #2980b9; }
         /* Floating, draggable, resizable forecast panel (replaces modal overlay) */
         .modal {
             display: none;            /* default hidden; .is-open swaps to flex */
@@ -154,7 +155,7 @@
             top: 80px;
             left: 50%;
             transform: translateX(-50%);
-            width: min(720px, 90vw);
+            width: min(1000px, 95vw);
             height: min(520px, 80vh);
             min-width: 340px;
             min-height: 260px;
@@ -202,8 +203,6 @@
             flex-direction: column;
             overflow: auto;
         }
-        .modal-content #forecastChart,
-        .modal-content #ratingCurvesChart { flex: 1 1 auto; min-height: 0; }
         .close { cursor: pointer; font-size: 22px; font-weight: bold; line-height: 1; padding: 0 4px; color: #7f8c8d; }
         .close:hover { color: #2c3e50; }
         
@@ -211,6 +210,18 @@
         .forecast-spinner { display: none; text-align: center; padding: 40px 0; }
         .forecast-spinner-ring { display: inline-block; width: 40px; height: 40px; border: 4px solid #ddd; border-top-color: #3498db; border-radius: 50%; animation: nwm-spin 0.8s linear infinite; }
         .forecast-spinner-label { margin-top: 10px; color: #888; font-size: 13px; }
+
+        .chart-header {
+            background-color: #f8f9fa;
+            border: 1px solid #e3e7eb;
+            border-left: 4px solid #3498db;
+            padding: 8px 14px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 13px;
+            line-height: 1.5;
+            color: #2c3e50;
+        }
 
         /* --- Disclaimer (shown on first load) --- */
         .disclaimer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -814,7 +825,7 @@
         </div>
     </div>
 
-    <div id="forecastModal" class="modal">
+    <div id="combinedModal" class="modal" style="height: min(800px, 90vh);">
         <div class="resize-handle n"  data-dir="n"></div>
         <div class="resize-handle s"  data-dir="s"></div>
         <div class="resize-handle e"  data-dir="e"></div>
@@ -823,39 +834,30 @@
         <div class="resize-handle nw" data-dir="nw"></div>
         <div class="resize-handle se" data-dir="se"></div>
         <div class="resize-handle sw" data-dir="sw"></div>
-        <div class="modal-header" id="forecastModalHeader">
-            <span>Forecast <span class="drag-hint">— drag to move, corner to resize</span></span>
-            <span class="close" onclick="closeForecastPanel()">&times;</span>
+        <div class="modal-header" id="combinedModalHeader">
+            <span>Site Analysis <span class="drag-hint">— drag to move, corner to resize</span></span>
+            <span class="close" onclick="closeCombinedPanel()">&times;</span>
         </div>
         <div class="modal-content">
-            <div id="statusDisplay"></div>
-            <div id="forecastSpinner" class="forecast-spinner">
-                <div class="forecast-spinner-ring"></div>
-                <div class="forecast-spinner-label">Fetching NWM forecast...</div>
+            <div id="forecastContainer" style="display:none; flex: 3 1 60%; min-height: 450px; flex-direction: column;">
+                <div id="statusDisplay" class="chart-header"></div>
+                <div id="forecastSpinner" class="forecast-spinner">
+                    <div class="forecast-spinner-ring"></div>
+                    <div class="forecast-spinner-label">Fetching NWM forecast...</div>
+                </div>
+                <div style="flex: 1 1 auto; position: relative; min-height: 0;">
+                    <canvas id="forecastChart"></canvas>
+                </div>
+                <div id="forecastSliderWrap" style="display:none; margin: 2px 0 0;">
+                    <input type="range" id="forecastSlider" min="1" max="10" value="5" style="width:100%;">
+                </div>
             </div>
-            <canvas id="forecastChart"></canvas>
-            <div id="forecastSliderWrap" style="display:none; margin: 2px 0 0;">
-                <input type="range" id="forecastSlider" min="1" max="10" value="5" style="width:100%;">
+            <div id="ratingCurvesContainer" style="display:none; flex: 2 1 40%; min-height: 400px; flex-direction: column; border-top: 2px solid #bdc3c7; padding-top: 10px; margin-top: 10px;">
+                <div id="ratingCurvesHeader" class="chart-header" style="border-left-color: #27ae60;"></div>
+                <div style="flex: 1 1 auto; position: relative; min-height: 0;">
+                    <canvas id="ratingCurvesChart"></canvas>
+                </div>
             </div>
-        </div>
-    </div>
-
-    <div id="ratingCurvesModal" class="modal">
-        <div class="resize-handle n"  data-dir="n"></div>
-        <div class="resize-handle s"  data-dir="s"></div>
-        <div class="resize-handle e"  data-dir="e"></div>
-        <div class="resize-handle w"  data-dir="w"></div>
-        <div class="resize-handle ne" data-dir="ne"></div>
-        <div class="resize-handle nw" data-dir="nw"></div>
-        <div class="resize-handle se" data-dir="se"></div>
-        <div class="resize-handle sw" data-dir="sw"></div>
-        <div class="modal-header" id="ratingCurvesModalHeader">
-            <span>Rating Curves <span class="drag-hint">— drag to move, corner to resize</span></span>
-            <span class="close" onclick="closeRatingCurvesPanel()">&times;</span>
-        </div>
-        <div class="modal-content">
-            <div id="ratingCurvesHeader"></div>
-            <canvas id="ratingCurvesChart"></canvas>
         </div>
     </div>
 
@@ -865,5 +867,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <script src="hydraulics.js"></script>
     <script src="mapping-logic.js"></script>
+    <!-- Required for touch gestures (panning/pinching) -->
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+    <!-- Chart.js Zoom Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 </body>
 </html>

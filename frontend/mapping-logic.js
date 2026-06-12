@@ -537,33 +537,33 @@ function renderMarkers() {
                     <b>Fatalities:</b> ${fatalities}<br>
                     <hr>`;
             
-            if (hasComid) {
-                if (hasSafetyData) {
-                    popupContent += `<b>Dangerous Range:</b> ${qMinVal} - ${qMaxVal} cfs<br>`;
-                }
-                const safetyArgs = hasSafetyData ? `${qMinVal}, ${qMaxVal}` : `null, null`;
-                popupContent += `
-                    <button class="btn-check" onclick="checkForecast('${dam.Reach_ID}', ${safetyArgs}, ${jsAttrLiteral(_displayName)})">
-                        Check Live Forecast
-                    </button>`;
-            } else {
-                popupContent += `<i>No forecast available: this site is not linked to an NHDPlus stream reach.</i>`;
-            }
-
-            // Rating-curve plot: only when GIS geometry + tailwater coefficients + Rp100 are all present.
             const heightFt = parseFloat(dam.Dam_Height_GIS_Ft);
             const lengthFt = parseFloat(dam.Dam_Length_GIS_Ft);
             const twA      = parseFloat(dam.Tailwater_a);
             const twB      = parseFloat(dam.Tailwater_b);
             const rp100Cms = parseFloat(dam.Rp100_cms);
-            if (isFinite(heightFt) && heightFt > 0
+            
+            const hasRatingCurves = isFinite(heightFt) && heightFt > 0
                 && isFinite(lengthFt) && lengthFt > 0
                 && isFinite(twA) && isFinite(twB)
-                && isFinite(rp100Cms) && rp100Cms > 0) {
+                && isFinite(rp100Cms) && rp100Cms > 0;
+
+            if (hasComid || hasRatingCurves) {
+                if (hasSafetyData) {
+                    popupContent += `<b>Dangerous Range:</b> ${qMinVal} - ${qMaxVal} cfs<br>`;
+                }
+                const safetyArgs = hasSafetyData ? `${qMinVal}, ${qMaxVal}` : `null, null`;
+                
+                let onClickActions = ['openCombinedPanel()'];
+                if (hasComid) onClickActions.push(`checkForecast('${dam.Reach_ID}', ${safetyArgs}, ${jsAttrLiteral(_displayName)})`);
+                if (hasRatingCurves) onClickActions.push(`showRatingCurves(${heightFt}, ${lengthFt}, ${twA}, ${twB}, ${rp100Cms}, ${jsAttrLiteral(_displayName)})`);
+                
                 popupContent += `
-                    <button class="btn-check" onclick="showRatingCurves(${heightFt}, ${lengthFt}, ${twA}, ${twB}, ${rp100Cms}, ${jsAttrLiteral(_displayName)})">
-                        Show Rating Curves
+                    <button class="btn-check" onclick="${onClickActions.join('; ')}">
+                        Check Live Forecast
                     </button>`;
+            } else {
+                popupContent += `<i>No forecast or rating curve available for this site.</i>`;
             }
 
             popupContent += `</div>`;
@@ -583,6 +583,19 @@ function renderMarkers() {
     }
 }
 
+window.openCombinedPanel = () => {
+    const cModal = document.getElementById('combinedModal');
+    cModal.classList.add('is-open');
+    
+    if (cModal.style.transform !== 'none') {
+        cModal.style.transform = 'none';
+        cModal.style.top = '80px';
+        cModal.style.left = 'calc(50% - 500px)';
+    }
+    document.getElementById('forecastContainer').style.display = 'none';
+    document.getElementById('ratingCurvesContainer').style.display = 'none';
+};
+
 // 4. National Water Model Forecast (NOAA NWPS API, NHDPlus V2 COMID = Reach_ID)
 // Medium-range only: ~10d 3-hourly ensemble mean + member spread as uncertainty band.
 // Units: API returns ft³/s (cfs) — no conversion needed.
@@ -592,12 +605,13 @@ async function checkForecast(comid, qMin, qMax, damName) {
     const hasSafetyRange = qMin !== null && !isNaN(qMin) && qMax !== null && !isNaN(qMax);
 
     // FIX: Clear out the old header immediately so it doesn't distract the user while loading
-    document.getElementById('statusDisplay').innerHTML = `<strong>${damName}</strong><br><span style="color:#888;">Loading forecast details...</span>`;
+    document.getElementById('statusDisplay').innerHTML = `<strong>${damName} Forecast</strong><br><span style="color:#888;">Loading forecast details...</span>`;
 
     // Show modal + spinner immediately
+    document.getElementById('forecastContainer').style.display = 'flex';
     document.getElementById('forecastSpinner').style.display = 'block';
     document.getElementById('forecastChart').style.display = 'none';
-    document.getElementById('forecastModal').classList.add('is-open');
+
     if (forecastChart) { forecastChart.destroy(); forecastChart = null; }
 
     try {
@@ -680,7 +694,7 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
         new Date(p.validTime).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit' })
     );
 
-    let statusText = `<strong>${damName}</strong><br>`;
+    let statusText = `<strong>${damName} Forecast</strong><br>`;
     statusText += `Current Forecast: ${currentCfs != null ? currentCfs.toFixed(0) : 'N/A'} cfs`;
 
     if (hasSafetyRange) {
@@ -798,13 +812,83 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
 // Inputs: height + length in ft, tailwater coeffs (D[m] = a * Q[cms]^b), Rp100 in cms.
 // Display: Q in cfs on x-axis, depth in ft on y-axis.
 function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
-    document.getElementById('ratingCurvesModal').classList.add('is-open');
+    document.getElementById('ratingCurvesContainer').style.display = 'flex';
 
-    const { tailwater, conjugate, flip } =
-        window.LHDHydraulics.buildRatingCurvesFt(heightFt, lengthFt, a, b, rp100Cms);
+    const P = heightFt / window.LHDHydraulics.constants.M_TO_FT;
+    const L = lengthFt / window.LHDHydraulics.constants.M_TO_FT;
+    const CMS_TO_CFS = window.LHDHydraulics.constants.CMS_TO_CFS;
+    const M_TO_FT = window.LHDHydraulics.constants.M_TO_FT;
+    const ERROR_TOLERANCE_CFS = 0.0005;
+
+    const { tailwater, conjugate, flip, dangerConj, dangerFlip } =
+        window.LHDHydraulics.buildRatingCurvesFt(heightFt, lengthFt, a, b, rp100Cms, 500);
+
+    const intersections = [];
+    for (let i = 0; i < tailwater.length - 1; i++) {
+        if (conjugate[i].y !== null && conjugate[i+1].y !== null && tailwater[i].y !== null && tailwater[i+1].y !== null) {
+            const diff1 = tailwater[i].y - conjugate[i].y;
+            const diff2 = tailwater[i+1].y - conjugate[i+1].y;
+            if (diff1 * diff2 <= 0 && diff1 !== diff2) {
+                const f_conj = (Qcfs) => {
+                    const Q = Qcfs / CMS_TO_CFS;
+                    const yt = window.LHDHydraulics.tailwaterDepth(Q, a, b);
+                    const H = window.LHDHydraulics.weirHSimp(Q, L);
+                    const y2 = window.LHDHydraulics.calcY2Simp(H, P);
+                    if (yt === null || y2 === null) return null;
+                    return (yt - y2) * M_TO_FT;
+                };
+                const exactX = window.LHDHydraulics.bisect(f_conj, tailwater[i].x * 0.99, tailwater[i+1].x * 1.01, ERROR_TOLERANCE_CFS);
+                if (exactX !== null) {
+                    const exactQ = exactX / CMS_TO_CFS;
+                    const exactY = window.LHDHydraulics.tailwaterDepth(exactQ, a, b) * M_TO_FT;
+                    intersections.push({x: exactX, y: exactY, label: 'Intersection (Tailwater & Conjugate)'});
+                    
+                    const yf = window.LHDHydraulics.computeYFlipAdv(exactQ, L, P);
+                    const exactYFlip = yf !== null ? yf * M_TO_FT : null;
+                    
+                    if (exactYFlip !== null && exactY <= exactYFlip) {
+                        dangerConj.push({ x: exactX, y: exactY });
+                        dangerFlip.push({ x: exactX, y: exactYFlip });
+                    }
+                }
+            }
+        }
+        if (flip[i].y !== null && flip[i+1].y !== null && tailwater[i].y !== null && tailwater[i+1].y !== null) {
+            const diff1 = tailwater[i].y - flip[i].y;
+            const diff2 = tailwater[i+1].y - flip[i+1].y;
+            if (diff1 * diff2 <= 0 && diff1 !== diff2) {
+                const f_flip = (Qcfs) => {
+                    const Q = Qcfs / CMS_TO_CFS;
+                    const yt = window.LHDHydraulics.tailwaterDepth(Q, a, b);
+                    const yf = window.LHDHydraulics.computeYFlipAdv(Q, L, P);
+                    if (yt === null || yf === null) return null;
+                    return (yt - yf) * M_TO_FT;
+                };
+                const exactX = window.LHDHydraulics.bisect(f_flip, tailwater[i].x * 0.99, tailwater[i+1].x * 1.01, ERROR_TOLERANCE_CFS);
+                if (exactX !== null) {
+                    const exactQ = exactX / CMS_TO_CFS;
+                    const exactY = window.LHDHydraulics.tailwaterDepth(exactQ, a, b) * M_TO_FT;
+                    intersections.push({x: exactX, y: exactY, label: 'Intersection (Tailwater & Flip)'});
+                    
+                    const H = window.LHDHydraulics.weirHSimp(exactQ, L);
+                    const y2 = window.LHDHydraulics.calcY2Simp(H, P);
+                    const exactYConj = y2 !== null ? y2 * M_TO_FT : null;
+                    
+                    if (exactYConj !== null && exactY >= exactYConj) {
+                        dangerConj.push({ x: exactX, y: exactYConj });
+                        dangerFlip.push({ x: exactX, y: exactY });
+                    }
+                }
+            }
+        }
+    }
+
+    // Ensure the injected intersection points are in the correct sequential order
+    dangerConj.sort((a, b) => a.x - b.x);
+    dangerFlip.sort((a, b) => a.x - b.x);
 
     document.getElementById('ratingCurvesHeader').innerHTML =
-        `<strong>${damName}</strong><br>` +
+        `<strong>${damName} Rating Curve</strong><br>` +
         `<span style="color:#7f8c8d; font-size: 12px;">` +
         `P = ${heightFt.toFixed(1)} ft &nbsp;·&nbsp; L = ${lengthFt.toFixed(0)} ft &nbsp;·&nbsp; ` +
         `tailwater D = ${a.toPrecision(3)}·Q<sup>${b.toFixed(3)}</sup> ` +
@@ -818,33 +902,88 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
         data: {
             datasets: [
                 { label: 'Tailwater (yₜ)',  data: tailwater,
-                  borderColor: '#3498db', backgroundColor: '#3498db',
-                  pointRadius: 0, borderWidth: 2, tension: 0.2, spanGaps: true },
-                { label: 'Conjugate depth (y₂)', data: conjugate,
-                  borderColor: '#27ae60', backgroundColor: '#27ae60',
-                  pointRadius: 0, borderWidth: 2, tension: 0.2, spanGaps: true },
-                { label: 'Flip depth (y_flip)', data: flip,
-                  borderColor: '#e74c3c', backgroundColor: '#e74c3c',
+                  order: 1, borderColor: '#3498db', backgroundColor: '#3498db',
                   pointRadius: 0, borderWidth: 2, tension: 0.2, spanGaps: true,
-                  borderDash: [6, 4] },
+                  pointStyle: 'line' },
+                { label: 'Conjugate depth (y₂)', data: conjugate,
+                  order: 1, borderColor: '#27ae60', backgroundColor: '#27ae60',
+                  pointRadius: 0, borderWidth: 2, tension: 0.2, spanGaps: true,
+                  pointStyle: 'line' },
+                { label: 'Flip depth (y_flip)', data: flip,
+                  order: 1, borderColor: '#e74c3c', backgroundColor: '#e74c3c',
+                  pointRadius: 0, borderWidth: 2, tension: 0.2, spanGaps: true,
+                  borderDash: [6, 4], pointStyle: 'line' },
+                { label: 'Danger Zone Conj', data: dangerConj,
+                  order: 1, borderColor: 'transparent', backgroundColor: 'transparent',
+                  pointRadius: 0, borderWidth: 0, tension: 0.2, spanGaps: false },
+                { label: 'Danger Zone', data: dangerFlip,
+                  order: 1, borderColor: 'transparent', backgroundColor: 'rgba(231, 76, 60, 0.25)',
+                  pointRadius: 0, borderWidth: 0, tension: 0.2, spanGaps: false, fill: '-1' },
+                { label: 'Intersections', data: intersections,
+                  order: 0, type: 'scatter', borderColor: '#2c3e50', backgroundColor: '#2c3e50',
+                  pointRadius: 5, pointHoverRadius: 7, pointHitRadius: 15, showLine: false },
             ],
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             parsing: false,
+            onClick: (event, elements, chart) => {
+                if (elements.length > 0) {
+                    const element = elements[0];
+                    const dataset = chart.data.datasets[element.datasetIndex];
+                    if (dataset.label === 'Intersections') {
+                        const pt = dataset.data[element.index];
+                        alert(`${pt.label}\n\nCoordinates:\nx: ${pt.x.toFixed(2)} cfs\ny: ${pt.y.toFixed(2)} ft`);
+                    }
+                }
+            },
             plugins: {
-                legend: { labels: { usePointStyle: true } },
+                legend: { 
+                    labels: { 
+                        usePointStyle: true,
+                        filter: (item) => !item.text.includes('Danger Zone') && !item.text.includes('Intersections')
+                    } 
+                },
                 tooltip: {
+                    filter: (tooltipItem) => !tooltipItem.dataset.label.includes('Danger Zone'),
                     callbacks: {
-                        title: (items) => `Q = ${items[0].parsed.x.toFixed(0)} cfs`,
-                        label: (item) => `${item.dataset.label}: ${item.parsed.y.toFixed(2)} ft`,
+                        title: (items) => {
+                            if (items[0].dataset.label === 'Intersections') return items[0].raw.label;
+                            return `Q = ${items[0].parsed.x.toFixed(0)} cfs`;
+                        },
+                        label: (item) => {
+                            if (item.dataset.label === 'Intersections') {
+                                return `x: ${item.parsed.x.toFixed(2)} cfs, y: ${item.parsed.y.toFixed(2)} ft`;
+                            }
+                            return `${item.dataset.label}: ${item.parsed.y.toFixed(2)} ft`;
+                        },
                     },
                 },
+                zoom: {
+                    limits: {
+                        x: {min: 'original', max: 'original'},
+                        y: {min: 'original', max: 'original'}
+                    },
+                    pan: {
+                        enabled: true,
+                        mode: 'xy',
+                    },
+                    zoom: {
+                        wheel: {
+                            enabled: true,
+                        },
+                        pinch: {
+                            enabled: true
+                        },
+                        mode: 'xy',
+                    }
+                }
             },
             scales: {
                 x: {
-                    type: 'logarithmic',
+                    type: 'linear',
+                    position: 'bottom',
                     title: { display: true, text: 'Discharge Q (cfs)' },
                 },
                 y: {
@@ -877,16 +1016,11 @@ legend.addTo(map);
 window.addEventListener('resize', () => { map.invalidateSize(); });
 
 // --- Draggable + resizable floating panels (forecast + rating curves) ---
-function closeForecastPanel() {
-    document.getElementById('forecastModal').classList.remove('is-open');
+function closeCombinedPanel() {
+    document.getElementById('combinedModal').classList.remove('is-open');
     document.getElementById('forecastSliderWrap').style.display = 'none';
 }
-window.closeForecastPanel = closeForecastPanel;
-
-function closeRatingCurvesPanel() {
-    document.getElementById('ratingCurvesModal').classList.remove('is-open');
-}
-window.closeRatingCurvesPanel = closeRatingCurvesPanel;
+window.closeCombinedPanel = closeCombinedPanel;
 
 function enablePanelDragResize(panelId, headerId, onResize) {
     const panel  = document.getElementById(panelId);
@@ -993,10 +1127,11 @@ function enablePanelDragResize(panelId, headerId, onResize) {
     });
 }
 
-enablePanelDragResize('forecastModal', 'forecastModalHeader',
-    () => { if (forecastChart) forecastChart.resize(); });
-enablePanelDragResize('ratingCurvesModal', 'ratingCurvesModalHeader',
-    () => { if (ratingCurvesChart) ratingCurvesChart.resize(); });
+enablePanelDragResize('combinedModal', 'combinedModalHeader',
+    () => { 
+        if (forecastChart) forecastChart.resize(); 
+        if (ratingCurvesChart) ratingCurvesChart.resize(); 
+    });
 
 document.getElementById('forecastSlider').addEventListener('input', function () {
     const days = parseInt(this.value);
@@ -1229,7 +1364,7 @@ async function loadStateBoundaries(url) {
     }
 }
 
-loadStateBoundaries('data/cb_2025_us_state_20m_conus.json');
+loadStateBoundaries('boundaries/cb_2025_us_state_20m_conus.json');
 
 // --- Global Escape Key Handler ---
 document.addEventListener('keydown', (e) => {
@@ -1273,11 +1408,8 @@ document.addEventListener('keydown', (e) => {
         if (typeof window.closeSearchPanel === 'function') {
             window.closeSearchPanel();
         }
-        if (typeof window.closeForecastPanel === 'function') {
-            window.closeForecastPanel();
-        }
-        if (typeof window.closeRatingCurvesPanel === 'function') {
-            window.closeRatingCurvesPanel();
+        if (typeof window.closeCombinedPanel === 'function') {
+            window.closeCombinedPanel();
         }
         map.closePopup();
     }

@@ -401,6 +401,12 @@ class CrossSection:
         ax.plot(Qs, np.array(Y_Flips), label="Flip Depth", color='gray', linestyle='--')
         ax.plot(Qs, Y_Ts, label="Tailwater Depth", color='dodgerblue', linestyle='-')
         ax.plot(Qs, np.array(Y_Conjugates), label="Sequent Depth", color='gray', linestyle='-')
+        
+        Y_C_arr = np.array(Y_Conjugates)
+        Y_F_arr = np.array(Y_Flips)
+        Y_T_arr = np.array(Y_Ts)
+        danger_cond = (Y_T_arr >= Y_C_arr) & (Y_T_arr <= Y_F_arr)
+        ax.fill_between(Qs, Y_C_arr, Y_F_arr, where=danger_cond, color='red', alpha=0.15, label='Danger Zone')
         ax.grid(True)
         ax.set_xlim(left=0)
         ax.set_ylim(bottom=0)
