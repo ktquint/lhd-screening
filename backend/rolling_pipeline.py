@@ -283,6 +283,7 @@ def _process_huc8(
     vaa_df=None,
     keep_raw_tiles: bool = False,
     retry_failed: bool = False,
+    arc_workers: int | None = None,
 ) -> None:
     label = f"HUC{len(key)} {key}"
     huc_dir = local_root / _huc_dirname(key)
@@ -362,9 +363,10 @@ def _process_huc8(
     entry["arc_at"] = _now()
     _save_ledger(ledger_path, ledger)
 
+    arc_workers_arg = ["--workers", str(arc_workers if arc_workers is not None else workers)]
     _run_step("run_arc_batch", [
         py, f"{backend}/run_arc_batch.py",
-        *staging_arg, *dams_arg, *common_workers,
+        *staging_arg, *dams_arg, *arc_workers_arg,
     ])
     _run_step("run_analysis_batch", [
         py, f"{backend}/run_analysis_batch.py",
@@ -569,6 +571,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
                 vaa_df=vaa_df,
                 keep_raw_tiles=args.keep_raw_tiles,
                 retry_failed=args.retry_failed,
+                arc_workers=args.arc_workers,
             )
         except (subprocess.CalledProcessError, Exception) as e:
             # Catches both subprocess failures (the original error path) and
@@ -1044,6 +1047,13 @@ def main() -> None:
                              "drops. [default: 6]")
     parser.add_argument("--min-free-gb", type=float, default=600.0,
                         help="Min free GB on staging root before starting a new batch [default: 600]")
+    parser.add_argument("--arc-workers", type=int, default=None, metavar="N",
+                        help="Override worker count for run_arc_batch only (other "
+                             "steps still use --workers). Useful for isolating "
+                             "ARC's segfault: --arc-workers 1 runs every dam "
+                             "through ARC serially to rule out a thread-safety "
+                             "issue in ARC's shared-memory paths. Defaults to "
+                             "--workers if not set.")
     parser.add_argument("--workers", type=int, default=8,
                         help="Worker count forwarded to subprocess steps [default: 8]")
     parser.add_argument("--existing-data-dir", type=Path, action="append", default=None,
