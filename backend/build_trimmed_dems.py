@@ -27,11 +27,34 @@ import math
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 import geopandas as gpd
 from pyproj import Transformer
+
+_FAILURES_FILENAME = "dam_failures.json"
+
+
+def _load_failures(staging_dir: Path) -> Dict[int, dict]:
+    p = staging_dir / _FAILURES_FILENAME
+    if not p.exists():
+        return {}
+    try:
+        with open(p) as f:
+            raw = json.load(f)
+        return {int(k): v for k, v in raw.items()}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_failures(staging_dir: Path, failures: Dict[int, dict]) -> None:
+    p = staging_dir / _FAILURES_FILENAME
+    out = {str(k): v for k, v in failures.items()}
+    tmp = p.with_suffix(p.suffix + ".tmp")
+    tmp.write_text(json.dumps(out, indent=2))
+    tmp.replace(p)
 
 try:
     import gdal
@@ -198,13 +221,29 @@ def main() -> None:
     items = list(dam_tiles.items())
     if args.limit:
         items = items[: args.limit]
-    total = len(items)
 
+    # Skip dams already on record as failed in a prior run. rolling_pipeline's
+    # --retry-failed flag wipes this file before invoking us; standalone
+    # callers can delete dam_failures.json by hand.
+    failures = _load_failures(staging_dir)
+    if failures:
+        before = len(items)
+        items = [(did, fns) for did, fns in items if did not in failures]
+        n_skipped = before - len(items)
+        if n_skipped:
+            print(
+                f"Skipping {n_skipped} dam(s) marked failed in "
+                f"{_FAILURES_FILENAME}. Delete the file or rerun "
+                f"rolling_pipeline with --retry-failed to retry them.\n"
+            )
+
+    total = len(items)
     print(
         f"Building trimmed DEMs + constant land cover for {total} dams "
         f"(workers={args.workers}, buffer={args.buffer_m:g} m)\n"
     )
 
+    results: Dict[int, str] = {}
     counts: Dict[str, int] = {}
     with ThreadPoolExecutor(max_workers=args.workers) as ex:
         futures = {
@@ -223,11 +262,31 @@ def main() -> None:
             except Exception as e:
                 status = f"worker-error:{e}"
                 _log(f"  ! Dam {dam_id} worker error: {e}")
+            results[dam_id] = status
             counts[status] = counts.get(status, 0) + 1
+
+    # Persist this run's per-dam outcomes:
+    #   - ok / cached     → drop from failures (success this round)
+    #   - anything else   → add/refresh failure record
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    n_new_failures = 0
+    for dam_id, status in results.items():
+        if status in ("ok", "cached"):
+            failures.pop(dam_id, None)
+        else:
+            failures[dam_id] = {
+                "stage": "build_trimmed_dems",
+                "cause": status,
+                "at": now,
+            }
+            n_new_failures += 1
+    _save_failures(staging_dir, failures)
 
     print("\nSummary:")
     for status in sorted(counts):
         print(f"  {status:<20} {counts[status]}")
+    print(f"\nFailure registry: {len(failures)} dam(s) on record "
+          f"(+{n_new_failures} this run) → {_FAILURES_FILENAME}")
 
 
 if __name__ == "__main__":

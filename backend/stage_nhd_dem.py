@@ -511,8 +511,64 @@ def run_stage(
         print("=" * 60)
         print("Step 4 — Downloading DEM Tiles")
         print("=" * 60)
+
+        # On a partial-HUC retry after auto-prune, the manifest already
+        # references every tile the HUC ever needed, but most of those tiles
+        # are only needed by dams that either already cleared
+        # build_trimmed_dems (cache check: dem_<id>.tif + constant_land.tif
+        # + Manning_n.txt all exist) OR have been marked failed in a prior
+        # run (dam_failures.json — build_trimmed_dems will skip them).
+        # Skip downloading tiles ONLY referenced by such dams.
+        dem_out_dir = staging_dir / "DEM"
+        land_out_dir = staging_dir / "LAND"
+
+        def _dam_trim_done(did: int) -> bool:
+            return (
+                (dem_out_dir / str(did) / f"dem_{did}.tif").exists()
+                and (land_out_dir / str(did) / "constant_land.tif").exists()
+                and (land_out_dir / str(did) / "Manning_n.txt").exists()
+            )
+
+        failed_ids: set = set()
+        failures_path = staging_dir / "dam_failures.json"
+        if failures_path.exists():
+            try:
+                with open(failures_path) as f:
+                    failed_ids = {int(k) for k in json.load(f).keys()}
+            except (OSError, json.JSONDecodeError, ValueError):
+                failed_ids = set()
+
+        needed_tiles: set = set()
+        n_done = n_failed = n_pending = 0
+        for did, fnames in manifest.items():
+            if _dam_trim_done(did):
+                n_done += 1
+            elif did in failed_ids:
+                n_failed += 1
+            else:
+                n_pending += 1
+                needed_tiles.update(fnames)
+        n_total_unique = len(tile_catalog)
+        skipped = n_total_unique - len(needed_tiles)
+        if skipped > 0:
+            parts = []
+            if n_done:
+                parts.append(f"{n_done} dam(s) with cached trimmed DEM")
+            if n_failed:
+                parts.append(f"{n_failed} dam(s) marked failed")
+            print(
+                f"Skipping {skipped}/{n_total_unique} tile(s) — only "
+                f"referenced by {' and '.join(parts)}. "
+                f"{n_pending} dam(s) still need raw tiles."
+            )
+            download_catalog = {
+                fn: meta for fn, meta in tile_catalog.items() if fn in needed_tiles
+            }
+        else:
+            download_catalog = tile_catalog
+
         rename_map = download_all_tiles(
-            tile_catalog, raw_dem_dir,
+            download_catalog, raw_dem_dir,
             workers=download_workers,
             force=force_tiles,
         )

@@ -282,6 +282,7 @@ def _process_huc8(
     nwm_ids: set[int] | None = None,
     vaa_df=None,
     keep_raw_tiles: bool = False,
+    retry_failed: bool = False,
 ) -> None:
     label = f"HUC{len(key)} {key}"
     huc_dir = local_root / _huc_dirname(key)
@@ -289,6 +290,14 @@ def _process_huc8(
     dams_csv = huc_dir / "dams.csv"
     dams_subset.drop(columns=["_GROUP"], errors="ignore").to_csv(dams_csv, index=False)
     dam_ids = [int(x) for x in dams_subset["OBJECTID"].tolist()]
+
+    # --retry-failed: drop this bundle's failure registry so build_trimmed_dems
+    # re-attempts every dam and stage_nhd_dem re-downloads every tile they need.
+    if retry_failed:
+        failures_path = huc_dir / "dam_failures.json"
+        if failures_path.exists():
+            failures_path.unlink()
+            print(f"  → cleared {failures_path.name} (--retry-failed)")
 
     entry = ledger.setdefault(key, {})
     entry["huc_level"] = len(key)
@@ -559,6 +568,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
                 nwm_dataset=nwm_ds, nwm_ids=nwm_ids,
                 vaa_df=vaa_df,
                 keep_raw_tiles=args.keep_raw_tiles,
+                retry_failed=args.retry_failed,
             )
         except (subprocess.CalledProcessError, Exception) as e:
             # Catches both subprocess failures (the original error path) and
@@ -1070,6 +1080,14 @@ def main() -> None:
                              "pure local-disk reclamation. tile_manifest.json "
                              "keeps the dam → tile + URL mapping plus a "
                              "deletion stamp.")
+    parser.add_argument("--retry-failed", action="store_true",
+                        help="By default, build_trimmed_dems writes a per-bundle "
+                             "dam_failures.json and skips listed dams on retry; "
+                             "stage_nhd_dem also skips downloading tiles only "
+                             "referenced by those dams. Pass --retry-failed to "
+                             "wipe dam_failures.json on every bundle the main "
+                             "loop visits, forcing one more attempt (useful "
+                             "after fixing an upstream issue like a TNM outage).")
     parser.add_argument("--aggregate", action="store_true",
                         help="Walk RESULTS/<dam_id>/analysis_summary.json under the "
                              "staging root + each --existing-data-dir and write "
