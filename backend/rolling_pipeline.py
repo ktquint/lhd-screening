@@ -1047,13 +1047,14 @@ def main() -> None:
                              "drops. [default: 6]")
     parser.add_argument("--min-free-gb", type=float, default=600.0,
                         help="Min free GB on staging root before starting a new batch [default: 600]")
-    parser.add_argument("--arc-workers", type=int, default=None, metavar="N",
-                        help="Override worker count for run_arc_batch only (other "
-                             "steps still use --workers). Useful for isolating "
-                             "ARC's segfault: --arc-workers 1 runs every dam "
-                             "through ARC serially to rule out a thread-safety "
-                             "issue in ARC's shared-memory paths. Defaults to "
-                             "--workers if not set.")
+    parser.add_argument("--arc-workers", type=int, default=1, metavar="N",
+                        help="Worker count for run_arc_batch only (other steps "
+                             "use --workers). Defaults to 1 because ARC's "
+                             "shared-memory paths aren't thread-safe — running "
+                             "multiple ARC instances in one process causes a "
+                             "Windows access violation (0xC0000005) that takes "
+                             "the whole batch down. Raise this if upstream "
+                             "ARC ever fixes the races.")
     parser.add_argument("--workers", type=int, default=8,
                         help="Worker count forwarded to subprocess steps [default: 8]")
     parser.add_argument("--existing-data-dir", type=Path, action="append", default=None,
