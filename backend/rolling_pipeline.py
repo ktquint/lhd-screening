@@ -497,10 +497,14 @@ def _cmd_run(args: argparse.Namespace) -> None:
         if ledger.get(h, {}).get("status") == "partial"
     )
 
+    if args.reverse:
+        pending = list(reversed(pending))
+
     print(
         f"HUC{level} batches in CSV: {len(groups)} | "
         f"done (ready/archived): {len(groups) - len(pending)} | "
         f"pending: {len(pending)} (incl. {n_partial} partial being retried)"
+        + (" | order: reversed" if args.reverse else "")
     )
     if existing_dirs:
         print(f"Existing data dirs: {', '.join(str(d) for d in existing_dirs)}")
@@ -1047,14 +1051,16 @@ def main() -> None:
                              "drops. [default: 6]")
     parser.add_argument("--min-free-gb", type=float, default=600.0,
                         help="Min free GB on staging root before starting a new batch [default: 600]")
-    parser.add_argument("--arc-workers", type=int, default=1, metavar="N",
+    parser.add_argument("--arc-workers", type=int, default=4, metavar="N",
                         help="Worker count for run_arc_batch only (other steps "
-                             "use --workers). Defaults to 1 because ARC's "
-                             "shared-memory paths aren't thread-safe — running "
-                             "multiple ARC instances in one process causes a "
-                             "Windows access violation (0xC0000005) that takes "
-                             "the whole batch down. Raise this if upstream "
-                             "ARC ever fixes the races.")
+                             "use --workers). run_arc_batch now parallelizes "
+                             "via ProcessPoolExecutor instead of threads, since "
+                             "the upstream ARC package keeps its config in "
+                             "module-level globals that raced across threads "
+                             "in one process (Windows access violation "
+                             "0xC0000005). Separate processes don't share "
+                             "those globals, so this is safe to raise — bound "
+                             "mainly by CPU/RAM per dam.")
     parser.add_argument("--workers", type=int, default=8,
                         help="Worker count forwarded to subprocess steps [default: 8]")
     parser.add_argument("--existing-data-dir", type=Path, action="append", default=None,
@@ -1064,6 +1070,14 @@ def main() -> None:
     parser.add_argument("--huc8", type=str, default=None, metavar="KEY",
                         help="Process only this HUC group key, matching the active "
                              "--huc-level (e.g. '140600' at level 6). Exact match.")
+    parser.add_argument("--reverse", action="store_true",
+                        help="Walk pending HUC batches from the highest key down "
+                             "instead of the lowest key up. Lets a second instance "
+                             "run concurrently against the other end of the list "
+                             "without re-doing the same batches the forward "
+                             "instance already claimed — they only risk meeting "
+                             "(and re-touching) the same batch once both runs "
+                             "reach the middle.")
     parser.add_argument("--mark-archived", type=str, default=None, metavar="KEY",
                         help="Mark the given HUC group key as archived in the ledger and exit")
     parser.add_argument("--consolidate", type=str, default=None, metavar="KEY",

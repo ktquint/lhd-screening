@@ -29,9 +29,8 @@ import argparse
 import json
 import re
 import sys
-import threading
 import traceback
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -46,12 +45,11 @@ from lhd_processor.lhd_arc import ArcDam
 _REPO_ROOT = _BACKEND_ROOT.parent
 DEFAULT_DAMS_CSV = _REPO_ROOT / "data" / "full_lhd_website.csv"
 
-_print_lock = threading.Lock()
-
 
 def _log(msg: str) -> None:
-    with _print_lock:
-        print(msg, flush=True)
+    # Each worker is its own process now, so stdout interleaving is the OS's
+    # problem, not ours — no lock needed.
+    print(msg, flush=True)
 
 
 # ---------------------------------------------------------------------------
@@ -221,7 +219,7 @@ def main() -> None:
 
     counts: Dict[str, int] = {}
     failures: Dict[int, str] = {}
-    with ThreadPoolExecutor(max_workers=args.workers) as ex:
+    with ProcessPoolExecutor(max_workers=args.workers) as ex:
         futures = {
             ex.submit(
                 _process_dam, i + 1, total, dam_id, lat, lon,
