@@ -895,6 +895,51 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
         `(SI) &nbsp;·&nbsp; Q<sub>max</sub> = ${(rp100Cms * 35.3147).toFixed(0)} cfs (Rp100)` +
         `</span>`;
 
+    const htmlLegendPlugin = {
+        id: 'htmlLegend',
+        afterUpdate(chart) {
+            const container = document.getElementById('ratingCurvesLegend');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            const datasets = chart.data.datasets;
+            
+            datasets.forEach((dataset, index) => {
+                if (dataset.label.includes('Danger Zone') || dataset.label.includes('Intersections')) return;
+                
+                const meta = chart.getDatasetMeta(index);
+                const isHidden = meta.hidden === true || (meta.hidden === null && dataset.hidden === true);
+                
+                const legendItem = document.createElement('div');
+                legendItem.style.display = 'flex';
+                legendItem.style.alignItems = 'center';
+                legendItem.style.cursor = 'pointer';
+                legendItem.style.userSelect = 'none';
+                legendItem.style.opacity = isHidden ? '0.5' : '1';
+                
+                const colorLine = document.createElement('div');
+                colorLine.style.width = '24px';
+                colorLine.style.height = '0px';
+                colorLine.style.borderTop = `2px ${dataset.borderDash ? 'dashed' : 'solid'} ${dataset.borderColor}`;
+                colorLine.style.marginRight = '6px';
+                
+                const labelText = document.createElement('span');
+                labelText.innerHTML = dataset.label; // Parses HTML like <sub>
+                labelText.style.textDecoration = isHidden ? 'line-through' : 'none';
+                
+                legendItem.appendChild(colorLine);
+                legendItem.appendChild(labelText);
+                
+                legendItem.addEventListener('click', () => {
+                    meta.hidden = !isHidden;
+                    chart.update();
+                });
+                
+                container.appendChild(legendItem);
+            });
+        }
+    };
+
     const ctx = document.getElementById('ratingCurvesChart').getContext('2d');
     if (ratingCurvesChart) ratingCurvesChart.destroy();
     ratingCurvesChart = new Chart(ctx, {
@@ -909,7 +954,7 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
                   order: 1, borderColor: '#27ae60', backgroundColor: '#27ae60',
                   pointRadius: 0, borderWidth: 2, tension: 0.2, spanGaps: true,
                   pointStyle: 'line' },
-                { label: 'Flip depth (y_flip)', data: flip,
+                { label: 'Flip depth (y<sub>flip</sub>)', data: flip,
                   order: 1, borderColor: '#e74c3c', backgroundColor: '#e74c3c',
                   pointRadius: 0, borderWidth: 2, tension: 0.2, spanGaps: true,
                   borderDash: [6, 4], pointStyle: 'line' },
@@ -940,10 +985,7 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
             },
             plugins: {
                 legend: { 
-                    labels: { 
-                        usePointStyle: true,
-                        filter: (item) => !item.text.includes('Danger Zone') && !item.text.includes('Intersections')
-                    } 
+                    display: false // Disable the default canvas legend
                 },
                 tooltip: {
                     filter: (tooltipItem) => !tooltipItem.dataset.label.includes('Danger Zone'),
@@ -956,7 +998,8 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
                             if (item.dataset.label === 'Intersections') {
                                 return `x: ${item.parsed.x.toFixed(2)} cfs, y: ${item.parsed.y.toFixed(2)} ft`;
                             }
-                            return `${item.dataset.label}: ${item.parsed.y.toFixed(2)} ft`;
+                            const cleanLabel = item.dataset.label.replace(/<[^>]*>?/gm, ''); // Strip HTML tags for canvas tooltip
+                            return `${cleanLabel}: ${item.parsed.y.toFixed(2)} ft`;
                         },
                     },
                 },
@@ -992,6 +1035,7 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
                 },
             },
         },
+        plugins: [htmlLegendPlugin]
     });
 }
 window.showRatingCurves = showRatingCurves;
