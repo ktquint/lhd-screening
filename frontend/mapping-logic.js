@@ -18,6 +18,8 @@
 // 1. Initialize Map with multiple base layers
 let forecastChart;
 let ratingCurvesChart;
+let srcChart;
+let _srcDataPromise = null;
 let allDams = [];
 let _forecastState = null; // { allPoints, hasSafetyRange, qMin, qMax, damName }
 let markers = L.layerGroup();
@@ -557,6 +559,7 @@ function renderMarkers() {
                 let onClickActions = ['openCombinedPanel()'];
                 if (hasComid) onClickActions.push(`checkForecast('${dam.Reach_ID}', ${safetyArgs}, ${jsAttrLiteral(_displayName)})`);
                 if (hasRatingCurves) onClickActions.push(`showRatingCurves(${heightFt}, ${lengthFt}, ${twA}, ${twB}, ${rp100Cms}, ${jsAttrLiteral(_displayName)})`);
+                if (hasComid) onClickActions.push(`showSyntheticRatingCurve('${dam.Reach_ID}', ${jsAttrLiteral(_displayName)})`);
                 
                 popupContent += `
                     <button class="btn-check" onclick="${onClickActions.join('; ')}">
@@ -594,6 +597,7 @@ window.openCombinedPanel = () => {
     }
     document.getElementById('forecastContainer').style.display = 'none';
     document.getElementById('ratingCurvesContainer').style.display = 'none';
+    document.getElementById('srcContainer').style.display = 'none';
 };
 
 // 4. National Water Model Forecast (NOAA NWPS API, NHDPlus V2 COMID = Reach_ID)
@@ -995,6 +999,86 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
     });
 }
 window.showRatingCurves = showRatingCurves;
+
+// 5b. Synthetic Rating Curve (SRC): Manning's-equation stage-discharge curve for the
+// dam's NHDPlus V2 reach, derived offline from hydrofabric bankfull channel geometry
+// (see backend/build_synthetic_rating_curves.py). In-channel only.
+function _loadSrcData() {
+    if (!_srcDataPromise) {
+        _srcDataPromise = fetch('data/synthetic_rating_curves.json').then(r => r.json());
+    }
+    return _srcDataPromise;
+}
+
+async function showSyntheticRatingCurve(comid, damName) {
+    comid = String(comid).replace(/\.0+$/, '');
+    const container = document.getElementById('srcContainer');
+    const header = document.getElementById('srcHeader');
+    container.style.display = 'flex';
+    header.innerHTML = `<strong>${damName} Synthetic Rating Curve</strong><br>` +
+        `<span style="color:#7f8c8d; font-size: 12px;">Loading...</span>`;
+
+    const CMS_TO_CFS = window.LHDHydraulics.constants.CMS_TO_CFS;
+    const M_TO_FT = window.LHDHydraulics.constants.M_TO_FT;
+
+    const srcData = await _loadSrcData();
+    const curve = srcData[comid];
+
+    if (srcChart) { srcChart.destroy(); srcChart = null; }
+
+    if (!curve) {
+        header.innerHTML = `<strong>${damName} Synthetic Rating Curve</strong><br>` +
+            `<span style="color:#7f8c8d; font-size: 12px;">No synthetic rating curve available for reach ${comid}.</span>`;
+        return;
+    }
+
+    const points = curve.stage_m.map((s, i) => ({
+        x: curve.discharge_cms[i] * CMS_TO_CFS,
+        y: s * M_TO_FT,
+    }));
+    const bankfullFt = curve.bankfull_stage_m * M_TO_FT;
+
+    header.innerHTML =
+        `<strong>${damName} Synthetic Rating Curve</strong><br>` +
+        `<span style="color:#7f8c8d; font-size: 12px;">` +
+        `Reach ${comid} &nbsp;·&nbsp; n = ${curve.manning_n} &nbsp;·&nbsp; S = ${curve.slope} &nbsp;·&nbsp; ` +
+        `bankfull stage = ${bankfullFt.toFixed(1)} ft &nbsp;·&nbsp; in-channel only (no floodplain spreading)` +
+        `</span>`;
+
+    const ctx = document.getElementById('srcChart').getContext('2d');
+    srcChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            datasets: [
+                { label: 'Synthetic rating curve', data: points,
+                  order: 1, borderColor: '#8e44ad', backgroundColor: '#8e44ad',
+                  pointRadius: 0, borderWidth: 2, tension: 0.2, pointStyle: 'line' },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { usePointStyle: true } },
+                tooltip: {
+                    callbacks: {
+                        label: (item) => `Q = ${item.parsed.x.toFixed(0)} cfs, stage = ${item.parsed.y.toFixed(2)} ft`,
+                    },
+                },
+                zoom: {
+                    limits: { x: { min: 'original', max: 'original' }, y: { min: 'original', max: 'original' } },
+                    pan: { enabled: true, mode: 'xy' },
+                    zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' },
+                },
+            },
+            scales: {
+                x: { type: 'linear', position: 'bottom', title: { display: true, text: 'Discharge Q (cfs)' } },
+                y: { title: { display: true, text: 'Stage (ft)' }, beginAtZero: true },
+            },
+        },
+    });
+}
+window.showSyntheticRatingCurve = showSyntheticRatingCurve;
 
 // 5. Legend and Filter Integration
 const legend = L.control({ position: 'bottomright' });
