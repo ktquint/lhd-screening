@@ -634,13 +634,17 @@ async function checkForecast(comid, qMin, qMax, damName) {
         nowFloor.setMinutes(0, 0, 0);
         const nowMs = nowFloor.getTime();
 
-        const rawPoints = mrMean.map((p, i) => ({
-            validTime: p.validTime,
-            validMs:   new Date(p.validTime).getTime(),
-            flow:  p.flow,
-            upper: Math.max(...mrMembers.map(m => m[i]?.flow ?? p.flow)),
-            lower: Math.min(...mrMembers.map(m => m[i]?.flow ?? p.flow))
-        }));
+        const rawPoints = mrMean.map((p, i) => {
+            const upper = Math.max(...mrMembers.map(m => m[i]?.flow ?? p.flow));
+            const lower = Math.min(...mrMembers.map(m => m[i]?.flow ?? p.flow));
+            return {
+                validTime: p.validTime,
+                validMs:   new Date(p.validTime).getTime(),
+                flow:  p.flow,
+                upper: Math.max(upper, p.flow),
+                lower: Math.min(lower, p.flow)
+            };
+        });
 
         // Interpolate a synthetic point at the current floored hour
         const afterIdx = rawPoints.findIndex(p => p.validMs > nowMs);
