@@ -2,15 +2,21 @@
 Build synthetic stage-vs-discharge rating curves (SRC) for every dam's NHDPlus V2
 reach (Reach_ID / COMID) in full_lhd_website.csv.
 
-Source: s3://lynker-spatial/tabular/riverml_channel_geometry_with_ahg.parquet
-(NOAA/Lynker hydrofabric, open NODD bucket, anonymous access, no AWS billing).
-That table gives per-feature_id (= COMID) bankfull top width, bankfull depth,
-bankfull area/perimeter, Manning's roughness, and channel slope. We back out an
-equivalent trapezoidal channel from those four bankfull quantities and evaluate
-Manning's equation, Q = (1/n)*A*R^(2/3)*S^(1/2), over a range of stages.
+Primary method — AHG (at-a-station hydraulic geometry):
+    depth  = y_coef * Q^y_exp
+    width  = tw_coef * Q^tw_exp
+These power-law coefficients are taken directly from the Lynker hydrofabric, which
+calibrates them to match NWM Retrospective v3.0 routing.  Because AHG is fit across
+the full observed flow range (including out-of-bank events), it implicitly captures
+floodplain spreading — the curve naturally flattens at high flows just as NWM does.
+Q extends from near-zero up to the NWM p100 (maximum) flow for each reach
+(sourced from frontend/data/nwm_fdc.json built by build_nwm_fdc.py).
 
-In-channel only (no floodplain spreading) -- fine for screening as long as the
-dangerous-flow range stays roughly in-bank.
+Fallback — Manning's trapezoid:
+Used when AHG coefficients are missing or physically unreasonable (y_exp outside
+0.1–0.9).  In-channel only; limited to 2× bankfull stage.
+
+Source: s3://lynker-spatial/tabular/riverml_channel_geometry_with_ahg.parquet
 
 Usage:
     python backend/build_synthetic_rating_curves.py
@@ -38,10 +44,18 @@ _CACHE_PATH = _BACKEND_ROOT / "cache" / "riverml_channel_geometry_with_ahg.parqu
 DEFAULT_CSV = _REPO_ROOT / "data" / "full_lhd_website.csv"
 DEFAULT_OUT = _REPO_ROOT / "frontend" / "data" / "synthetic_rating_curves.json"
 
+_N_CURVE_POINTS = 60
+_AHG_Y_EXP_MIN, _AHG_Y_EXP_MAX = 0.1, 0.9   # reject outliers outside Leopold & Maddock range
+_Q_MAX_BUFFER = 1.1                            # extend 10% past FDC p100
+_Q_MAX_FALLBACK_MULT = 20.0                    # × Q_bf when FDC unavailable
+
+# Manning's trapezoid fallback
 _N_STAGE_POINTS = 40
-_STAGE_MAX_MULTIPLIER = 2.0  # evaluate up to 2x bankfull depth
+_STAGE_MAX_MULTIPLIER = 2.0
 _MIN_SLOPE = 1e-4
-_MIN_BOTTOM_WIDTH_FRAC = 0.05  # floor bottom width at this fraction of top width
+_MIN_BOTTOM_WIDTH_FRAC = 0.05
+
+DEFAULT_FDC = _REPO_ROOT / "frontend" / "data" / "nwm_fdc.json"
 
 
 def _log(msg: str) -> None:
@@ -65,16 +79,47 @@ def _load_channel_geometry(parquet_path: Path, feature_ids: set[int]) -> pd.Data
         parquet_path,
         columns=[
             "feature_id",
-            "owp_y_bf",
-            "owp_tw_bf",
-            "bf_area",
-            "owp_roughness_bathy",
-            "owp_roughness_no_bathy",
-            "slope",
+            "owp_y_bf", "owp_tw_bf", "bf_area",
+            "owp_roughness_bathy", "owp_roughness_no_bathy", "slope",
+            "y_coef", "y_exp", "tw_coef", "tw_exp",
         ],
         filters=[("feature_id", "in", feature_ids)],
     )
     return table.to_pandas()
+
+
+def _ahg_rating_curve(row: pd.Series, q_max_cms: float | None = None) -> dict | None:
+    """AHG-based SRC: depth = y_coef * Q^y_exp, calibrated to NWM Retrospective v3.0."""
+    y_coef  = float(row.get("y_coef",  np.nan))
+    y_exp   = float(row.get("y_exp",   np.nan))
+    tw_coef = float(row.get("tw_coef", np.nan))
+    tw_exp  = float(row.get("tw_exp",  np.nan))
+    y_bf    = float(row.get("owp_y_bf", np.nan))
+
+    if not (np.isfinite(y_coef) and y_coef > 0 and
+            np.isfinite(y_exp) and _AHG_Y_EXP_MIN <= y_exp <= _AHG_Y_EXP_MAX):
+        return None
+
+    # Bankfull discharge from AHG inversion: y_bf = y_coef * Q_bf^y_exp
+    Q_bf = ((y_bf / y_coef) ** (1.0 / y_exp)
+            if np.isfinite(y_bf) and y_bf > 0 else 10.0)
+
+    q_upper = max(q_max_cms or 0.0, Q_bf * _Q_MAX_FALLBACK_MULT) * _Q_MAX_BUFFER
+    q_upper = max(q_upper, 1.0)
+
+    Q     = np.logspace(np.log10(max(Q_bf * 1e-4, 1e-3)), np.log10(q_upper), _N_CURVE_POINTS)
+    stage = y_coef * Q ** y_exp
+
+    tw_bf = float(row.get("owp_tw_bf", np.nan))
+    return {
+        "stage_m":       [round(float(s), 4) for s in stage],
+        "discharge_cms": [round(float(q), 4) for q in Q],
+        "bankfull_stage_m": round(float(y_coef * Q_bf ** y_exp), 4),
+        "bankfull_tw_m":    round(float(tw_bf), 4) if np.isfinite(tw_bf) else None,
+        "y_coef": round(y_coef, 6),
+        "y_exp":  round(y_exp,  6),
+        "method": "ahg",
+    }
 
 
 def _trapezoid_rating_curve(row: pd.Series) -> dict | None:
@@ -115,23 +160,37 @@ def _trapezoid_rating_curve(row: pd.Series) -> dict | None:
         "side_slope": round(side_slope, 4),
         "manning_n": round(float(n), 4),
         "slope": round(slope, 6),
+        "method": "trapezoid",
     }
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--csv", type=Path, default=DEFAULT_CSV)
-    ap.add_argument("--out", type=Path, default=DEFAULT_OUT)
-    ap.add_argument("--force-download", action="store_true", help="re-download the parquet even if cached")
+    ap.add_argument("--csv",          type=Path, default=DEFAULT_CSV)
+    ap.add_argument("--out",          type=Path, default=DEFAULT_OUT)
+    ap.add_argument("--fdc",          type=Path, default=DEFAULT_FDC,
+                    help="nwm_fdc.json from build_nwm_fdc.py (provides Q_max per reach)")
+    ap.add_argument("--force-download", action="store_true")
     args = ap.parse_args()
 
     if not args.csv.exists():
-        _log(f"ERROR: {args.csv} not found")
-        return 1
+        _log(f"ERROR: {args.csv} not found"); return 1
+
+    # Load FDC for Q_max per ComID (p100 = index 12 in the 13-value array)
+    fdc: dict = {}
+    if args.fdc.exists():
+        with open(args.fdc) as f:
+            raw = json.load(f)
+        raw.pop("_meta", None)
+        # p100 is the last value (index 12) — maximum NWM flow
+        fdc = {k: v[12] for k, v in raw.items() if isinstance(v, list) and len(v) == 13}
+        _log(f"Loaded Q_max for {len(fdc):,} reaches from {args.fdc.name}")
+    else:
+        _log(f"WARNING: {args.fdc} not found — Q_max will use 20×Q_bf fallback")
 
     _log(f"Loading {args.csv} ...")
     df = pd.read_csv(args.csv, low_memory=False)
-    reach_ids = pd.to_numeric(df["Reach_ID"], errors="coerce").dropna().astype(int)
+    reach_ids   = pd.to_numeric(df["Reach_ID"], errors="coerce").dropna().astype(int)
     feature_ids = set(reach_ids.unique().tolist())
     _log(f"{len(feature_ids)} unique Reach_ID/COMID values across {len(df)} dams")
 
@@ -142,12 +201,23 @@ def main() -> int:
     _log(f"Matched {len(geom)}/{len(feature_ids)} reaches in hydrofabric")
 
     curves: dict[str, dict] = {}
+    n_ahg = n_trap = n_fail = 0
     for _, row in geom.iterrows():
-        curve = _trapezoid_rating_curve(row)
+        comid_str = str(int(row["feature_id"]))
+        q_max = fdc.get(comid_str)
+        curve = _ahg_rating_curve(row, q_max_cms=q_max)
         if curve is not None:
-            curves[str(int(row["feature_id"]))] = curve
+            n_ahg += 1
+        else:
+            curve = _trapezoid_rating_curve(row)
+            if curve is not None:
+                n_trap += 1
+            else:
+                n_fail += 1
+        if curve is not None:
+            curves[comid_str] = curve
 
-    _log(f"Computed synthetic rating curves for {len(curves)} reaches")
+    _log(f"Curves: {n_ahg} AHG, {n_trap} trapezoid fallback, {n_fail} failed")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with open(args.out, "w") as f:

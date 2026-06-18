@@ -1040,11 +1040,14 @@ async function showSyntheticRatingCurve(comid, damName) {
     }));
     const bankfullFt = curve.bankfull_stage_m * M_TO_FT;
 
+    const methodLabel = curve.method === 'ahg'
+        ? `AHG-calibrated (NWM Retro v3.0) &nbsp;·&nbsp; y = ${curve.y_coef}·Q<sup>${curve.y_exp}</sup>`
+        : `Manning's trapezoid &nbsp;·&nbsp; n = ${curve.manning_n} &nbsp;·&nbsp; S = ${curve.slope} &nbsp;·&nbsp; in-channel only`;
     header.innerHTML =
         `<strong>${damName} Synthetic Rating Curve</strong><br>` +
         `<span style="color:#7f8c8d; font-size: 12px;">` +
-        `Reach ${comid} &nbsp;·&nbsp; n = ${curve.manning_n} &nbsp;·&nbsp; S = ${curve.slope} &nbsp;·&nbsp; ` +
-        `bankfull stage = ${bankfullFt.toFixed(1)} ft &nbsp;·&nbsp; in-channel only (no floodplain spreading)` +
+        `Reach ${comid} &nbsp;·&nbsp; ${methodLabel} &nbsp;·&nbsp; ` +
+        `bankfull stage = ${bankfullFt.toFixed(1)} ft` +
         `</span>`;
 
     const ctx = document.getElementById('srcChart').getContext('2d');

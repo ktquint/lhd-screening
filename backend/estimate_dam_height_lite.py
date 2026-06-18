@@ -345,7 +345,8 @@ def _load_channel_geometry(comids: set[int]) -> pd.DataFrame:
     tbl = pq.read_table(
         HYDROFABRIC_PKL,
         columns=["feature_id", "owp_y_bf", "owp_tw_bf", "bf_area",
-                 "owp_roughness_bathy", "owp_roughness_no_bathy", "slope"],
+                 "owp_roughness_bathy", "owp_roughness_no_bathy", "slope",
+                 "y_coef", "y_exp"],
         filters=[("feature_id", "in", comids)],
     )
     df = tbl.to_pandas().set_index("feature_id")
@@ -355,33 +356,66 @@ def _load_channel_geometry(comids: set[int]) -> pd.DataFrame:
 _MIN_SLOPE = 1e-4
 _MIN_BW_FRAC = 0.05
 _N_SRC_PTS = 60
-_SRC_STAGE_MULT = 2.5
+_AHG_Y_EXP_MIN, _AHG_Y_EXP_MAX = 0.1, 0.9
 
 
-def _build_src(geom_row: pd.Series):
-    """Return a callable stage_m -> discharge_cms from trapezoidal Manning's.
+def _build_src(geom_row: pd.Series, q_max_cms: Optional[float] = None):
+    """Return a (stage→Q) callable built from AHG when available, Manning's trapezoid otherwise.
 
-    Returns None if the geometry is degenerate.
+    AHG (primary): depth = y_coef * Q^y_exp — the same relationship NWM uses
+    internally for routing, calibrated across the full flow range including
+    out-of-bank flows.  Q extends to q_max_cms (NWM p100) so the curve covers
+    100% of the FDC.
+
+    Trapezoid (fallback): Manning's equation on equivalent trapezoidal cross-section,
+    in-channel only, capped at 2.5× bankfull stage.
     """
-    y_bf  = float(geom_row["owp_y_bf"])
-    tw_bf = float(geom_row["owp_tw_bf"])
-    area  = float(geom_row["bf_area"])
-    slope = float(geom_row["slope"])
-    n     = geom_row["owp_roughness_bathy"]
+    y_coef = float(geom_row.get("y_coef", np.nan))
+    y_exp  = float(geom_row.get("y_exp",  np.nan))
+    y_bf   = float(geom_row.get("owp_y_bf", np.nan))
+
+    use_ahg = (
+        np.isfinite(y_coef) and y_coef > 0 and
+        np.isfinite(y_exp) and _AHG_Y_EXP_MIN <= y_exp <= _AHG_Y_EXP_MAX
+    )
+
+    if use_ahg:
+        Q_bf = ((y_bf / y_coef) ** (1.0 / y_exp)
+                if np.isfinite(y_bf) and y_bf > 0 else 10.0)
+        q_upper = max(q_max_cms or 0.0, Q_bf * 20.0) * 1.1
+        q_upper = max(q_upper, 1.0)
+
+        Q      = np.logspace(np.log10(max(Q_bf * 1e-4, 1e-3)), np.log10(q_upper), _N_SRC_PTS)
+        stages = y_coef * Q ** y_exp
+
+        def src(stage_m: float) -> Optional[float]:
+            if stage_m <= 0:
+                return 0.0
+            return float(np.interp(stage_m, stages, Q))
+
+        src.stages = stages
+        src.Q      = Q
+        src.y_bf   = float(y_coef * Q_bf ** y_exp) if np.isfinite(Q_bf) else y_bf
+        src.method = "ahg"
+        return src
+
+    # --- Manning's trapezoid fallback ---
+    tw_bf = float(geom_row.get("owp_tw_bf", np.nan))
+    area  = float(geom_row.get("bf_area",   np.nan))
+    slope = float(geom_row.get("slope",     np.nan))
+    n     = geom_row.get("owp_roughness_bathy")
     if pd.isna(n) or float(n) <= 0:
-        n = geom_row["owp_roughness_no_bathy"]
+        n = geom_row.get("owp_roughness_no_bathy")
 
     if not all(np.isfinite(v) and v > 0 for v in (y_bf, tw_bf, area, float(n) if n is not None else 0)):
         return None
 
     slope = max(float(slope) if np.isfinite(slope) else _MIN_SLOPE, _MIN_SLOPE)
     n = float(n)
-
     z  = max((tw_bf - area / y_bf) / y_bf, 0.0)
     bw = max(tw_bf - 2 * z * y_bf, _MIN_BW_FRAC * tw_bf)
 
-    stages = np.linspace(1e-3, y_bf * _SRC_STAGE_MULT, _N_SRC_PTS)
-    width  = bw + 2 * z * stages
+    stages = np.linspace(1e-3, y_bf * 2.5, _N_SRC_PTS)
     a_arr  = stages * bw + z * stages ** 2
     perim  = bw + 2 * stages * np.sqrt(1 + z ** 2)
     R      = a_arr / perim
@@ -391,12 +425,13 @@ def _build_src(geom_row: pd.Series):
         if stage_m <= 0:
             return 0.0
         if stage_m > stages[-1]:
-            return None  # beyond curve range
+            return None
         return float(np.interp(stage_m, stages, Q))
 
     src.stages = stages
     src.Q      = Q
     src.y_bf   = y_bf
+    src.method = "trapezoid"
     return src
 
 
@@ -870,9 +905,12 @@ def process_dam(
     if geom_row is None:
         flags.append("no_hydrofabric_geometry")
 
-    src = _build_src(geom_row) if geom_row is not None else None
+    q_max_cms = fdc_dn.get("q100") if fdc_dn else None
+    src = _build_src(geom_row, q_max_cms=q_max_cms) if geom_row is not None else None
     if src is None:
         flags.append("no_src")
+    elif getattr(src, "method", None) == "trapezoid":
+        flags.append("src_trapezoid_fallback")
 
     # --- 6. NWM FDC ---
     fdc_dn = nwm_fdc.get(comid_dn)
