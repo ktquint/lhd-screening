@@ -145,11 +145,38 @@ def _run_step(name: str, cmd: List[str]) -> None:
     subprocess.run(cmd, check=True)
 
 
+def _build_existing_index(
+    existing_dirs: List[Path],
+) -> Dict[tuple, Path]:
+    """Scan existing staging trees and return {(sub, dam_id): path}.
+
+    Handles both layouts:
+      flat:        existing_dir/DEM/{dam_id}/
+      HUC-bundled: existing_dir/huc6_140600/DEM/{dam_id}/   ← ARC pipeline output
+    """
+    index: Dict[tuple, Path] = {}
+    for src_root in existing_dirs:
+        roots_to_scan = [src_root] + list(src_root.glob("huc*_*"))
+        for root in roots_to_scan:
+            for sub in _REUSE_SUBDIRS:
+                sub_dir = root / sub
+                if not sub_dir.is_dir():
+                    continue
+                for entry in sub_dir.iterdir():
+                    try:
+                        dam_id = int(entry.name)
+                    except ValueError:
+                        continue
+                    if entry.is_dir():
+                        index.setdefault((sub, dam_id), entry)
+    return index
+
+
 def _link_existing_data(
-    huc_dir: Path, dam_ids: List[int], existing_dirs: List[Path]
+    huc_dir: Path,
+    dam_ids: List[int],
+    existing_index: Dict[tuple, Path],
 ) -> Dict[str, Dict[str, str]]:
-    if not existing_dirs:
-        return {}
     links: Dict[str, Dict[str, str]] = {}
     n_total = 0
     for did in dam_ids:
@@ -158,17 +185,17 @@ def _link_existing_data(
             target = huc_dir / sub / str(did)
             if target.exists() or target.is_symlink():
                 continue
-            for src_root in existing_dirs:
-                candidate = src_root / sub / str(did)
-                try:
-                    if candidate.is_dir() and any(candidate.iterdir()):
-                        target.parent.mkdir(parents=True, exist_ok=True)
-                        target.symlink_to(candidate.resolve())
-                        per_dam[sub] = str(candidate.resolve())
-                        n_total += 1
-                        break
-                except OSError:
-                    continue
+            src = existing_index.get((sub, did))
+            if src is None:
+                continue
+            try:
+                if any(src.iterdir()):
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.symlink_to(src.resolve())
+                    per_dam[sub] = str(src.resolve())
+                    n_total += 1
+            except OSError:
+                continue
         if per_dam:
             links[str(did)] = per_dam
     if n_total:
@@ -446,7 +473,7 @@ def _process_huc(
     ledger: Dict[str, dict],
     ledger_path: Path,
     workers: int,
-    existing_dirs: List[Path],
+    existing_index: Dict[tuple, Path],
     vaa_df,
     geom_df: pd.DataFrame,
     fdc: Dict[str, list],
@@ -464,7 +491,7 @@ def _process_huc(
     entry.update({"huc_level": len(key), "dam_ids": dam_ids,
                   "status": "staging", "staged_at": _now()})
 
-    external_links = _link_existing_data(huc_dir, dam_ids, existing_dirs)
+    external_links = _link_existing_data(huc_dir, dam_ids, existing_index)
     if external_links:
         prev = entry.get("external_links", {})
         prev.update(external_links)
@@ -584,6 +611,15 @@ def _cmd_run(args: argparse.Namespace) -> None:
         print("Nothing to do.")
         return
 
+    # Build existing-data index once — handles both flat and HUC-bundled layouts
+    existing_index: Dict[tuple, Path] = {}
+    if existing_dirs:
+        print(f"\nIndexing existing data from: {', '.join(str(d) for d in existing_dirs)} ...")
+        existing_index = _build_existing_index(existing_dirs)
+        n_dem  = sum(1 for sub, _ in existing_index if sub == "DEM")
+        n_strm = sum(1 for sub, _ in existing_index if sub == "STRM")
+        print(f"  Found {n_dem} DEM dirs, {n_strm} STRM dirs across existing trees.")
+
     # --- Load shared assets once ---
     print("\nLoading shared assets ...")
 
@@ -627,7 +663,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
         try:
             _process_huc(
                 key, group, local_root, ledger, ledger_path,
-                args.workers, existing_dirs, vaa_df, geom_df, fdc,
+                args.workers, existing_index, vaa_df, geom_df, fdc,
                 args.search_up, args.search_dn,
             )
         except Exception as e:
