@@ -67,6 +67,7 @@ from screening.wsp import (
 _PARQUET_URL  = "lynker-spatial/tabular/riverml_channel_geometry_with_ahg.parquet"
 _CACHE_PATH   = _BACKEND / "cache" / "riverml_channel_geometry_with_ahg.parquet"
 _DEFAULT_FDC  = _BACKEND.parent / "frontend" / "data" / "nwm_fdc.json"
+_DEFAULT_SRC  = _BACKEND.parent / "frontend" / "data" / "synthetic_rating_curves.json"
 _RAW_DEM_DIR  = _BACKEND / "cache" / "raw_3dep"
 _FLOWLINE_DIR = _BACKEND / "cache" / "flowlines"
 _DEM_OUT_DIR  = _BACKEND / "cache" / "dem_trimmed"
@@ -399,19 +400,28 @@ def main() -> int:
         Q = 1.0
         _log(f"WARNING: ep50 not in nwm_fdc.json for COMID {args.comid} — Q={Q} cms; pass --Q to override")
 
-    # --- Tailwater depth y_T: wse_ds - AHG depth(Q) ---
+    # --- Tailwater depth y_T from synthetic rating curve at Q ---
     y_T = None
-    if args.comid in geom_df.index:
+    src_dict: dict = {}
+    if _DEFAULT_SRC.exists():
+        with open(_DEFAULT_SRC) as _f:
+            src_dict = json.load(_f)
+    src = src_dict.get(str(args.comid))
+    if src:
+        q_arr = src["discharge_cms"]
+        s_arr = src["stage_m"]
+        y_T = float(np.interp(Q, q_arr, s_arr))
+        _log(f"y_T = {y_T:.3f} m  (SRC interpolated at Q={Q:.3f} cms, method={src.get('method')})")
+    if y_T is None and args.comid in geom_df.index:
         row = geom_df.loc[args.comid]
         y_coef = float(row["y_coef"])
         y_exp  = float(row["y_exp"])
         if np.isfinite(y_coef) and y_coef > 0 and np.isfinite(y_exp) and y_exp > 0:
-            depth_ds = float(y_coef * Q ** y_exp)
-            y_T = max(wse_ds - depth_ds, 0.01)
-            _log(f"y_T = {y_T:.3f} m  (AHG depth at Q = {depth_ds:.3f} m)")
-    if y_T is None:
+            y_T = float(y_coef * Q ** y_exp)
+            _log(f"y_T = {y_T:.3f} m  (AHG fallback: y_coef*Q^y_exp)")
+    if y_T is None or y_T <= 0:
         y_T = max(delta_wse * 0.1, 0.1)
-        _log(f"WARNING: AHG unavailable — y_T = 10% of ΔWSE = {y_T:.3f} m")
+        _log(f"WARNING: SRC+AHG unavailable — y_T = 10% of ΔWSE = {y_T:.3f} m")
 
     # --- Energy balance ---
     H, P = solve_weir_geom(Q, tw_bf, y_T, delta_wse)

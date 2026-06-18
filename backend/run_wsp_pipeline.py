@@ -81,6 +81,7 @@ import pynhd as nhd
 _REPO_ROOT     = _BACKEND_ROOT.parent
 DEFAULT_CSV    = _REPO_ROOT / "data" / "full_lhd_website.csv"
 DEFAULT_FDC    = _REPO_ROOT / "frontend" / "data" / "nwm_fdc.json"
+DEFAULT_SRC    = _REPO_ROOT / "frontend" / "data" / "synthetic_rating_curves.json"
 _PARQUET_URL   = "lynker-spatial/tabular/riverml_channel_geometry_with_ahg.parquet"
 _PARQUET_CACHE = _BACKEND_ROOT / "cache" / "riverml_channel_geometry_with_ahg.parquet"
 
@@ -236,6 +237,14 @@ def _load_fdc(fdc_path: Path) -> Dict[str, list]:
     return raw
 
 
+def _load_src(src_path: Path) -> Dict[str, dict]:
+    """Load synthetic rating curves keyed by COMID string."""
+    if not src_path.exists():
+        return {}
+    with open(src_path) as f:
+        return json.load(f)
+
+
 def _load_parquet(comids: set[int]) -> pd.DataFrame:
     if not _PARQUET_CACHE.exists():
         print("[wsp_pipeline] Downloading Lynker parquet (~188 MB, one-time) ...")
@@ -280,6 +289,7 @@ def _process_dam(
     vaa_df: pd.DataFrame,
     geom_df: pd.DataFrame,
     fdc: Dict[str, list],
+    src_dict: Dict[str, dict],
     search_up: float = 50.0,
     search_dn: float = 500.0,
 ) -> dict:
@@ -351,15 +361,21 @@ def _process_dam(
     if Q is None:
         Q = 1.0
 
-    # y_T: wse_ds - AHG depth(Q) at dam reach
+    # y_T: tailwater depth = SRC stage interpolated at Q; fallback to raw AHG depth
     y_T = None
-    if comid in geom_df.index:
+    src = src_dict.get(str(comid))
+    if src:
+        q_arr = src["discharge_cms"]
+        s_arr = src["stage_m"]
+        if q_arr and s_arr:
+            y_T = float(np.interp(Q, q_arr, s_arr))
+    if y_T is None and comid in geom_df.index:
         row = geom_df.loc[comid]
         y_coef = float(row["y_coef"])
         y_exp  = float(row["y_exp"])
         if np.isfinite(y_coef) and y_coef > 0 and np.isfinite(y_exp) and y_exp > 0:
-            y_T = max(wse_ds - float(y_coef * Q ** y_exp), 0.01)
-    if y_T is None:
+            y_T = float(y_coef * Q ** y_exp)
+    if y_T is None or y_T <= 0:
         y_T = max(delta_wse * 0.1, 0.1)
 
     # Energy balance
@@ -397,6 +413,7 @@ def _run_wsp_batch(
     vaa_df: pd.DataFrame,
     geom_df: pd.DataFrame,
     fdc: Dict[str, list],
+    src_dict: Dict[str, dict],
     workers: int,
     search_up: float,
     search_dn: float,
@@ -419,7 +436,7 @@ def _run_wsp_batch(
         futures = {
             ex.submit(
                 _process_dam, dam_id, lat, lon, comid,
-                huc_dir, vaa_df, geom_df, fdc, search_up, search_dn
+                huc_dir, vaa_df, geom_df, fdc, src_dict, search_up, search_dn
             ): dam_id
             for dam_id, lat, lon, comid in jobs
         }
@@ -477,6 +494,7 @@ def _process_huc(
     vaa_df,
     geom_df: pd.DataFrame,
     fdc: Dict[str, list],
+    src_dict: Dict[str, dict],
     search_up: float,
     search_dn: float,
 ) -> None:
@@ -524,7 +542,7 @@ def _process_huc(
 
     print(f"\n  → run_wsp_batch ({len(dam_ids)} dams, {workers} workers)")
     ok, failed = _run_wsp_batch(
-        huc_dir, dams_subset, vaa_df, geom_df, fdc,
+        huc_dir, dams_subset, vaa_df, geom_df, fdc, src_dict,
         workers, search_up, search_dn,
     )
 
@@ -632,6 +650,9 @@ def _cmd_run(args: argparse.Namespace) -> None:
     fdc = _load_fdc(DEFAULT_FDC)
     print(f"  FDC loaded: {len(fdc):,} reaches")
 
+    src_dict = _load_src(DEFAULT_SRC)
+    print(f"  SRC loaded: {len(src_dict):,} reaches")
+
     # Collect all COMIDs (dam + upstream) for parquet preload
     all_comids: set[int] = set()
     for _, g in pending:
@@ -663,7 +684,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
         try:
             _process_huc(
                 key, group, local_root, ledger, ledger_path,
-                args.workers, existing_index, vaa_df, geom_df, fdc,
+                args.workers, existing_index, vaa_df, geom_df, fdc, src_dict,
                 args.search_up, args.search_dn,
             )
         except Exception as e:

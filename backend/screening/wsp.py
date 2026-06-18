@@ -221,14 +221,15 @@ def sample_dem_along_flowlines(
 
     df = pd.DataFrame(records).sort_values("x_m").reset_index(drop=True)
 
-    # Orientation sanity check (mirrors reach.py): upstream (x < 0) should be
-    # higher than downstream (x > 0). NHDPlus flowline coords are not always
-    # ordered upstream→downstream — if the profile is inverted, flip x signs.
+    # Orientation sanity check: upstream (x < 0) should be higher on average
+    # than downstream (x > 0).  NHDPlus flowline coords are not consistently
+    # ordered upstream→downstream, so flip x signs when the profile is inverted.
+    # Use median (robust to nodata outliers) and require only 1 cell per side.
     valid = df[df["elev_m"].notna()]
-    up_elev = valid.loc[valid["x_m"] < -5, "elev_m"]
-    dn_elev = valid.loc[valid["x_m"] >  5, "elev_m"]
-    if len(up_elev) >= 3 and len(dn_elev) >= 3:
-        if up_elev.mean() < dn_elev.mean():
+    up_elev = valid.loc[valid["x_m"] < -10, "elev_m"]
+    dn_elev = valid.loc[valid["x_m"] >  10, "elev_m"]
+    if len(up_elev) >= 1 and len(dn_elev) >= 1:
+        if up_elev.median() < dn_elev.median():
             df["x_m"] = -df["x_m"]
             df = df.sort_values("x_m").reset_index(drop=True)
 
@@ -289,25 +290,25 @@ def pick_upstream_node(
 def pick_downstream_node(
     profile: pd.DataFrame,
     search_m: float = _DEFAULT_SEARCH_M_DN,
+    skip_m: float = 10.0,
 ) -> pd.Series:
-    """Slope-match downstream node picker (mirrors pick_downstream_cell in reach.py).
+    """Downstream node picker: minimum-elevation cell in [skip_m, search_m].
 
-    Reference slope = median |dElev/dx| of cells in [0, search_m] downstream.
-    Returns the downstream cell whose gradient is closest (relative) to that
-    reference — the point where normal-depth channel conditions have recovered.
-    Falls back to the first downstream cell.
+    Finds the lowest point in the downstream window, which corresponds to the
+    maximum energy drop across the dam.  Skipping the immediate zone (skip_m)
+    avoids landing in the turbulent plunge pool.  Falls back to the first
+    available downstream cell if the window is empty.
     """
-    downstream = profile[profile["x_m"] > 0].copy()
+    downstream = profile[
+        (profile["x_m"] > skip_m) & (profile["x_m"] <= search_m)
+    ].copy()
+    if downstream.empty:
+        # widen to anything downstream
+        downstream = profile[profile["x_m"] > 0].copy()
     if downstream.empty:
         return profile.iloc[(profile["x_m"].abs()).argsort()[:1]].iloc[0]
 
-    grad = _grad_abs(profile)
-    downstream = downstream.assign(grad_abs=grad[downstream.index])
-
-    ref_band = downstream[downstream["x_m"] <= search_m]
-    ref_slope = float(ref_band["grad_abs"].median()) if not ref_band.empty else 0.0
-    if ref_slope <= 0:
+    valid = downstream.dropna(subset=["elev_m"])
+    if valid.empty:
         return downstream.sort_values("x_m").iloc[0]
-
-    downstream["slope_diff"] = (downstream["grad_abs"] - ref_slope).abs() / ref_slope
-    return downstream.loc[downstream["slope_diff"].idxmin()]
+    return valid.loc[valid["elev_m"].idxmin()]
