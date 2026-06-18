@@ -560,6 +560,7 @@ function renderMarkers() {
                 if (hasComid) onClickActions.push(`checkForecast('${dam.Reach_ID}', ${safetyArgs}, ${jsAttrLiteral(_displayName)})`);
                 if (hasRatingCurves) onClickActions.push(`showRatingCurves(${heightFt}, ${lengthFt}, ${twA}, ${twB}, ${rp100Cms}, ${jsAttrLiteral(_displayName)})`);
                 if (hasComid) onClickActions.push(`showSyntheticRatingCurve('${dam.Reach_ID}', ${jsAttrLiteral(_displayName)})`);
+                if (hasComid) onClickActions.push(`showFlowDurationCurve('${dam.Reach_ID}', ${jsAttrLiteral(_displayName)})`);
                 
                 popupContent += `
                     <button class="btn-check" onclick="${onClickActions.join('; ')}">
@@ -598,6 +599,7 @@ window.openCombinedPanel = () => {
     document.getElementById('forecastContainer').style.display = 'none';
     document.getElementById('ratingCurvesContainer').style.display = 'none';
     document.getElementById('srcContainer').style.display = 'none';
+    document.getElementById('fdcContainer').style.display = 'none';
 };
 
 // 4. National Water Model Forecast (NOAA NWPS API, NHDPlus V2 COMID = Reach_ID)
@@ -1079,6 +1081,117 @@ async function showSyntheticRatingCurve(comid, damName) {
     });
 }
 window.showSyntheticRatingCurve = showSyntheticRatingCurve;
+
+// 5b-ii. Flow Duration Curve (FDC): NWM Retrospective v3.0 percentile flows
+// for the dam's NHDPlus V2 reach, pre-computed via CIROH NWM API v2.
+// Data file: frontend/data/nwm_fdc.json (built by backend/build_nwm_fdc.py).
+let _fdcDataPromise = null;
+let fdcChart = null;
+
+function _loadFdcData() {
+    if (!_fdcDataPromise) {
+        _fdcDataPromise = fetch('data/nwm_fdc.json').then(r => r.json());
+    }
+    return _fdcDataPromise;
+}
+
+async function showFlowDurationCurve(comid, damName) {
+    comid = String(comid).replace(/\.0+$/, '');
+    const container = document.getElementById('fdcContainer');
+    const header    = document.getElementById('fdcHeader');
+    container.style.display = 'flex';
+    header.innerHTML = `<strong>${damName} Flow Duration Curve</strong><br>` +
+        `<span style="color:#7f8c8d; font-size: 12px;">Loading…</span>`;
+
+    const CMS_TO_CFS = window.LHDHydraulics.constants.CMS_TO_CFS;
+
+    const fdcData = await _loadFdcData();
+    const meta    = fdcData._meta || {};
+    const pcts    = meta.percentiles || [0,2,5,10,20,25,30,50,75,90,95,99,100];
+    const flows   = fdcData[comid];
+
+    if (fdcChart) { fdcChart.destroy(); fdcChart = null; }
+
+    if (!flows) {
+        header.innerHTML = `<strong>${damName} Flow Duration Curve</strong><br>` +
+            `<span style="color:#7f8c8d; font-size: 12px;">No FDC available for reach ${comid}.</span>`;
+        return;
+    }
+
+    // Convert to (exceedance %, flow cfs) — sort left=high flow, right=low flow
+    const exceedance = pcts.map(p => 100 - p).reverse();
+    const flows_cfs  = [...flows].reverse().map(q => q !== null ? q * CMS_TO_CFS : null);
+
+    const points = exceedance.map((e, i) => ({
+        x: e,
+        y: flows_cfs[i],
+    })).filter(pt => pt.y !== null && pt.y > 0);
+
+    const q50_cfs = (() => {
+        const i = pcts.indexOf(50);
+        return i >= 0 && flows[i] != null ? (flows[i] * CMS_TO_CFS).toFixed(0) : null;
+    })();
+
+    header.innerHTML =
+        `<strong>${damName} Flow Duration Curve</strong><br>` +
+        `<span style="color:#7f8c8d; font-size: 12px;">` +
+        `Reach ${comid} &nbsp;·&nbsp; NWM Retrospective v3.0` +
+        (q50_cfs ? ` &nbsp;·&nbsp; Q50 = ${q50_cfs} cfs` : '') +
+        `</span>`;
+
+    const ctx = document.getElementById('fdcChart').getContext('2d');
+    fdcChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            datasets: [
+                {
+                    label: 'NWM FDC',
+                    data: points,
+                    order: 1,
+                    borderColor: '#2471a3',
+                    backgroundColor: 'rgba(36,113,163,0.12)',
+                    fill: true,
+                    pointRadius: 3,
+                    borderWidth: 2,
+                    tension: 0.3,
+                    pointStyle: 'circle',
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { usePointStyle: true } },
+                tooltip: {
+                    callbacks: {
+                        label: (item) =>
+                            `Q = ${item.parsed.y.toFixed(0)} cfs  (exceeded ${item.parsed.x.toFixed(0)}% of time)`,
+                    },
+                },
+                zoom: {
+                    limits: { x: { min: 'original', max: 'original' }, y: { min: 'original', max: 'original' } },
+                    pan: { enabled: true, mode: 'xy' },
+                    zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' },
+                },
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    min: 0,
+                    max: 100,
+                    title: { display: true, text: 'Exceedance probability (%)' },
+                    reverse: false,
+                },
+                y: {
+                    type: 'logarithmic',
+                    title: { display: true, text: 'Discharge Q (cfs)' },
+                },
+            },
+        },
+    });
+}
+window.showFlowDurationCurve = showFlowDurationCurve;
 
 // 5. Legend and Filter Integration
 const legend = L.control({ position: 'bottomright' });
