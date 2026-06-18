@@ -219,11 +219,20 @@ def sample_dem_along_flowlines(
                 "col": col,
             })
 
-    return (
-        pd.DataFrame(records)
-        .sort_values("x_m")
-        .reset_index(drop=True)
-    )
+    df = pd.DataFrame(records).sort_values("x_m").reset_index(drop=True)
+
+    # Orientation sanity check (mirrors reach.py): upstream (x < 0) should be
+    # higher than downstream (x > 0). NHDPlus flowline coords are not always
+    # ordered upstream→downstream — if the profile is inverted, flip x signs.
+    valid = df[df["elev_m"].notna()]
+    up_elev = valid.loc[valid["x_m"] < -5, "elev_m"]
+    dn_elev = valid.loc[valid["x_m"] >  5, "elev_m"]
+    if len(up_elev) >= 3 and len(dn_elev) >= 3:
+        if up_elev.mean() < dn_elev.mean():
+            df["x_m"] = -df["x_m"]
+            df = df.sort_values("x_m").reset_index(drop=True)
+
+    return df
 
 
 # ---------------------------------------------------------------------------
@@ -231,13 +240,25 @@ def sample_dem_along_flowlines(
 # ---------------------------------------------------------------------------
 
 def _grad_abs(profile: pd.DataFrame) -> np.ndarray:
-    """|dElev/dx| at each profile cell; NaN elevations are linearly interpolated."""
+    """|dElev/dx| at each profile cell; NaN elevations are linearly interpolated.
+
+    Handles duplicate x values (e.g. at reach junctions) the same way
+    reach.py's _gradient does: collapse to unique x, compute, broadcast back.
+    """
     x = profile["x_m"].values.astype(float)
     y = profile["elev_m"].values.astype(float)
     if len(x) < 2:
         return np.zeros(len(x))
     y_filled = pd.Series(y).interpolate(method="linear", limit_direction="both").values
-    return np.abs(np.gradient(y_filled, x))
+
+    unique_x, inverse = np.unique(x, return_inverse=True)
+    if len(unique_x) < 2:
+        return np.zeros(len(x))
+    if len(unique_x) == len(x):
+        return np.abs(np.gradient(y_filled, x))
+    _, first_idx = np.unique(x, return_index=True)
+    grad_unique = np.gradient(y_filled[first_idx], unique_x)
+    return np.abs(grad_unique[inverse])
 
 
 def pick_upstream_node(

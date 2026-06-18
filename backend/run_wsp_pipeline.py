@@ -306,12 +306,18 @@ def _process_dam(
     if delta_wse <= 0 or not np.isfinite(delta_wse):
         return {"dam_id": dam_id, "status": "negative_delta_wse"}
 
-    # Crest length from upstream reach owp_tw_bf
-    if upstream_comid is None or upstream_comid not in geom_df.index:
-        return {"dam_id": dam_id, "status": "no_upstream_tw_bf"}
-    tw_bf = float(geom_df.loc[upstream_comid, "owp_tw_bf"])
-    if not (np.isfinite(tw_bf) and tw_bf > 0):
-        return {"dam_id": dam_id, "status": f"invalid_tw_bf:{tw_bf}"}
+    # Crest length: upstream reach owp_tw_bf, fall back to dam reach owp_tw_bf
+    tw_bf = None
+    tw_source = None
+    for cid, label in ((upstream_comid, "upstream"), (comid, "dam_reach")):
+        if cid is not None and cid in geom_df.index:
+            v = float(geom_df.loc[cid, "owp_tw_bf"])
+            if np.isfinite(v) and v > 0:
+                tw_bf = v
+                tw_source = label
+                break
+    if tw_bf is None:
+        return {"dam_id": dam_id, "status": "no_tw_bf"}
 
     # Q: ep50 → fallback
     Q = _ep50(comid, fdc)
@@ -348,6 +354,7 @@ def _process_dam(
         "Q_cms":           round(float(Q), 4),
         "us_x_m":          round(float(us_node["x_m"]), 2),
         "ds_x_m":          round(float(ds_node["x_m"]), 2),
+        "tw_source":       tw_source,
         "method":          "nhd_wsp",
         "completed_at":    _now(),
     }
