@@ -46,7 +46,7 @@ DEFAULT_OUT = _REPO_ROOT / "frontend" / "data" / "synthetic_rating_curves.json"
 
 _N_CURVE_POINTS = 60
 _AHG_Y_EXP_MIN, _AHG_Y_EXP_MAX = 0.1, 0.9   # reject outliers outside Leopold & Maddock range
-_Q_MAX_BUFFER = 1.1                            # extend 10% past FDC p100
+_Q_MAX_BUFFER = 1.0                            # cap at FDC p100
 _Q_MAX_FALLBACK_MULT = 20.0                    # × Q_bf when FDC unavailable
 
 # Manning's trapezoid fallback
