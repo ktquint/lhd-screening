@@ -104,7 +104,7 @@ def _ahg_rating_curve(row: pd.Series, q_max_cms: float | None = None) -> dict | 
     Q_bf = ((y_bf / y_coef) ** (1.0 / y_exp)
             if np.isfinite(y_bf) and y_bf > 0 else 10.0)
 
-    q_upper = max(q_max_cms or 0.0, Q_bf * _Q_MAX_FALLBACK_MULT) * _Q_MAX_BUFFER
+    q_upper = (q_max_cms * _Q_MAX_BUFFER if q_max_cms else Q_bf * _Q_MAX_FALLBACK_MULT)
     q_upper = max(q_upper, 1.0)
 
     Q     = np.logspace(np.log10(max(Q_bf * 1e-4, 1e-3)), np.log10(q_upper), _N_CURVE_POINTS)
