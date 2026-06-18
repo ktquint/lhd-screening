@@ -309,7 +309,7 @@ def main() -> int:
                     help="baseflow discharge (cms); default: NWM FDC ep50 for COMID")
     ap.add_argument("--search-up",   type=float, default=50.0,
                     help="upstream flat-zone search window (m) [50]")
-    ap.add_argument("--search-dn",   type=float, default=500.0,
+    ap.add_argument("--target-dn",   type=float, default=75.0,
                     help="downstream slope-match search window (m) [500]")
     args = ap.parse_args()
 
@@ -364,7 +364,7 @@ def main() -> int:
 
     # --- Energy nodes ---
     us_node = pick_upstream_node(profile, search_m=args.search_up)
-    ds_node = pick_downstream_node(profile, search_m=args.search_dn)
+    ds_node = pick_downstream_node(profile, target_m=args.target_dn)
     wse_us = float(us_node["elev_m"])
     wse_ds = float(ds_node["elev_m"])
     delta_wse = wse_us - wse_ds

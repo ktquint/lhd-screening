@@ -291,7 +291,7 @@ def _process_dam(
     fdc: Dict[str, list],
     src_dict: Dict[str, dict],
     search_up: float = 50.0,
-    search_dn: float = 500.0,
+    target_dn: float = 75.0,
 ) -> dict:
     """Run WSP geometry estimate for one dam. Returns a result dict."""
     result_dir = huc_dir / "WSP_RESULTS" / str(dam_id)
@@ -335,7 +335,7 @@ def _process_dam(
         return {"dam_id": dam_id, "status": "insufficient_dem_coverage"}
 
     us_node = pick_upstream_node(profile, search_m=search_up)
-    ds_node = pick_downstream_node(profile, search_m=search_dn)
+    ds_node = pick_downstream_node(profile, target_m=target_dn)
     wse_us   = float(us_node["elev_m"])
     wse_ds   = float(ds_node["elev_m"])
     delta_wse = wse_us - wse_ds
@@ -416,7 +416,7 @@ def _run_wsp_batch(
     src_dict: Dict[str, dict],
     workers: int,
     search_up: float,
-    search_dn: float,
+    target_dn: float,
 ) -> Tuple[List[int], List[int]]:
     """Run WSP for every dam in dams_subset. Returns (ok_ids, failed_ids)."""
     jobs = [
@@ -436,7 +436,7 @@ def _run_wsp_batch(
         futures = {
             ex.submit(
                 _process_dam, dam_id, lat, lon, comid,
-                huc_dir, vaa_df, geom_df, fdc, src_dict, search_up, search_dn
+                huc_dir, vaa_df, geom_df, fdc, src_dict, search_up, target_dn
             ): dam_id
             for dam_id, lat, lon, comid in jobs
         }
@@ -496,7 +496,7 @@ def _process_huc(
     fdc: Dict[str, list],
     src_dict: Dict[str, dict],
     search_up: float,
-    search_dn: float,
+    target_dn: float,
 ) -> None:
     label = f"HUC{len(key)} {key}"
     huc_dir = local_root / _huc_dirname(key)
@@ -543,7 +543,7 @@ def _process_huc(
     print(f"\n  → run_wsp_batch ({len(dam_ids)} dams, {workers} workers)")
     ok, failed = _run_wsp_batch(
         huc_dir, dams_subset, vaa_df, geom_df, fdc, src_dict,
-        workers, search_up, search_dn,
+        workers, search_up, target_dn,
     )
 
     size_bytes = _dir_size_bytes(huc_dir)
@@ -685,7 +685,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
             _process_huc(
                 key, group, local_root, ledger, ledger_path,
                 args.workers, existing_index, vaa_df, geom_df, fdc, src_dict,
-                args.search_up, args.search_dn,
+                args.search_up, args.target_dn,
             )
         except Exception as e:
             print(f"\nFATAL: HUC{level} {key} failed: {e}")
@@ -857,8 +857,8 @@ def main() -> None:
     parser.add_argument("--reverse", action="store_true")
     parser.add_argument("--search-up", type=float, default=50.0,
                         help="Upstream flat-zone search window (m) [50]")
-    parser.add_argument("--search-dn", type=float, default=500.0,
-                        help="Downstream slope-match search window (m) [500]")
+    parser.add_argument("--target-dn", type=float, default=75.0,
+                        help="Target distance downstream for normal-depth reference node (m) [75]")
     parser.add_argument("--status",       action="store_true")
     parser.add_argument("--aggregate",    action="store_true")
     parser.add_argument("--locate",       type=str, default=None, metavar="DAM_ID")

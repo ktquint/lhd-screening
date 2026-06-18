@@ -287,28 +287,27 @@ def pick_upstream_node(
     return upstream.loc[upstream["grad_abs"].idxmin()]
 
 
+_DEFAULT_TARGET_M_DN = 75.0   # aim for this distance past the hydraulic jump
+
 def pick_downstream_node(
     profile: pd.DataFrame,
+    target_m: float = _DEFAULT_TARGET_M_DN,
     search_m: float = _DEFAULT_SEARCH_M_DN,
-    skip_m: float = 10.0,
 ) -> pd.Series:
-    """Downstream node picker: minimum-elevation cell in [skip_m, search_m].
+    """Downstream node picker: cell nearest to target_m downstream.
 
-    Finds the lowest point in the downstream window, which corresponds to the
-    maximum energy drop across the dam.  Skipping the immediate zone (skip_m)
-    avoids landing in the turbulent plunge pool.  Falls back to the first
-    available downstream cell if the window is empty.
+    Targets a fixed distance (default 75 m) where normal depth should be
+    restored for a typical LHD, avoiding both the turbulent plunge pool
+    (too close) and the cumulative channel slope (too far).  Falls back to
+    the closest available downstream cell if nothing is within search_m.
     """
     downstream = profile[
-        (profile["x_m"] > skip_m) & (profile["x_m"] <= search_m)
-    ].copy()
+        (profile["x_m"] > 0) & (profile["x_m"] <= search_m)
+    ].dropna(subset=["elev_m"])
     if downstream.empty:
-        # widen to anything downstream
-        downstream = profile[profile["x_m"] > 0].copy()
+        downstream = profile[profile["x_m"] > 0].dropna(subset=["elev_m"])
     if downstream.empty:
         return profile.iloc[(profile["x_m"].abs()).argsort()[:1]].iloc[0]
-
-    valid = downstream.dropna(subset=["elev_m"])
-    if valid.empty:
-        return downstream.sort_values("x_m").iloc[0]
-    return valid.loc[valid["elev_m"].idxmin()]
+    return downstream.iloc[
+        (downstream["x_m"] - target_m).abs().argsort()[:1]
+    ].iloc[0]
