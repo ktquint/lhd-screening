@@ -1205,6 +1205,17 @@ async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
             backgroundColor: 'rgba(231,76,60,0.20)',
             pointStyle: 'rect',
         });
+        fdcDatasets.push({
+            label: '_qMin',
+            data: [{ x: 0, y: qMin }, { x: 100, y: qMin }],
+            order: 0,
+            borderColor: '#e74c3c',
+            borderWidth: 3,
+            borderDash: [8, 4],
+            pointRadius: 0,
+            fill: false,
+            pointStyle: false,
+        });
     }
     fdcDatasets.push({
         label: 'NWM FDC',
@@ -1227,7 +1238,7 @@ async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { labels: { usePointStyle: true } },
+                legend: { labels: { usePointStyle: true, filter: (item) => !item.text.startsWith('_') } },
                 tooltip: {
                     callbacks: {
                         label: (item) =>
