@@ -539,12 +539,12 @@ function renderMarkers() {
                     <b>Fatalities:</b> ${fatalities}<br>
                     <hr>`;
             
-            const heightFt = parseFloat(dam.Dam_Height_GIS_Ft);
-            const lengthFt = parseFloat(dam.Dam_Length_GIS_Ft);
+            const heightFt = parseFloat(dam.Dam_Height_WSP_Ft);
+            const lengthFt = parseFloat(dam.Dam_Length_WSP_Ft);
             const twA      = parseFloat(dam.Tailwater_a);
             const twB      = parseFloat(dam.Tailwater_b);
             const rp100Cms = parseFloat(dam.Rp100_cms);
-            
+
             const hasRatingCurves = isFinite(heightFt) && heightFt > 0
                 && isFinite(lengthFt) && lengthFt > 0
                 && isFinite(twA) && isFinite(twB)
@@ -555,11 +555,10 @@ function renderMarkers() {
                     popupContent += `<b>Dangerous Range:</b> ${qMinVal} - ${qMaxVal} cfs<br>`;
                 }
                 const safetyArgs = hasSafetyData ? `${qMinVal}, ${qMaxVal}` : `null, null`;
-                
+
                 let onClickActions = ['openCombinedPanel()'];
                 if (hasComid) onClickActions.push(`checkForecast('${dam.Reach_ID}', ${safetyArgs}, ${jsAttrLiteral(_displayName)})`);
                 if (hasRatingCurves) onClickActions.push(`showRatingCurves(${heightFt}, ${lengthFt}, ${twA}, ${twB}, ${rp100Cms}, ${jsAttrLiteral(_displayName)})`);
-                if (hasComid) onClickActions.push(`showSyntheticRatingCurve('${dam.Reach_ID}', ${jsAttrLiteral(_displayName)})`);
                 if (hasComid) onClickActions.push(`showFlowDurationCurve('${dam.Reach_ID}', ${jsAttrLiteral(_displayName)}, ${safetyArgs})`);
                 
                 popupContent += `
@@ -598,7 +597,6 @@ window.openCombinedPanel = () => {
     }
     document.getElementById('forecastContainer').style.display = 'none';
     document.getElementById('ratingCurvesContainer').style.display = 'none';
-    document.getElementById('srcContainer').style.display = 'none';
     document.getElementById('fdcContainer').style.display = 'none';
 };
 
