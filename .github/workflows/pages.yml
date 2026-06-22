@@ -31,6 +31,8 @@ jobs:
           cp -r frontend/. _site/
           rm -rf _site/data
           cp -r data _site/data
+          cp -r frontend/data/fdc _site/data/fdc
+          cp -r frontend/data/src _site/data/src
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
