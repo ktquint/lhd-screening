@@ -539,8 +539,8 @@ function renderMarkers() {
                     <b>Fatalities:</b> ${fatalities}<br>
                     <hr>`;
             
-            const heightFt = parseFloat(dam.Dam_Height_WSP_Ft);
-            const lengthFt = parseFloat(dam.Dam_Length_WSP_Ft);
+            const heightFt = parseFloat(dam.Dam_Height_WSP_Ft) || parseFloat(dam.Dam_Height_GIS_Ft);
+            const lengthFt = parseFloat(dam.Dam_Length_WSP_Ft) || parseFloat(dam.Dam_Length_GIS_Ft);
             const twA      = parseFloat(dam.Tailwater_a);
             const twB      = parseFloat(dam.Tailwater_b);
             const rp100Cms = parseFloat(dam.Rp100_cms);
