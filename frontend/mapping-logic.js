@@ -485,20 +485,27 @@ function renderMarkers() {
 
             // Backend writes the envelope in cms; NWPS forecasts are in cfs. Convert at parse.
             const CMS_TO_CFS = 35.3147;
-            let qMinVal = Math.round(parseFloat(dam.Qmin_env) * CMS_TO_CFS);
-            let qMaxVal = Math.round(parseFloat(dam.Qmax_env) * CMS_TO_CFS);
-            
-            if (qMinVal >= 100) qMinVal = Math.round(qMinVal / 100) * 100;
-            if (qMaxVal >= 100) qMaxVal = Math.round(qMaxVal / 100) * 100;
+            const qMinRaw = parseFloat(dam.Qmin_env) * CMS_TO_CFS;
+            const qMaxRaw = parseFloat(dam.Qmax_env) * CMS_TO_CFS;
+
+            // Rounded values for display only
+            const _round = (v) => v >= 100 ? Math.round(v / 100) * 100 : Math.round(v);
+            const qMinDisplay = _round(qMinRaw);
+            const qMaxDisplay = _round(qMaxRaw);
+
             const hasComid = dam.Reach_ID !== undefined && dam.Reach_ID !== null && String(dam.Reach_ID).trim() !== '';
-            const hasSafetyData = !isNaN(qMinVal) && hasComid;
-            
+            const hasSafetyData = isFinite(qMinRaw) && isFinite(qMaxRaw) && hasComid;
+
+            const _wspH = parseFloat(dam.Dam_Height_WSP_Ft);
+            const _wspL = parseFloat(dam.Dam_Length_WSP_Ft);
+            const hasNwmGeom = isFinite(_wspH) && _wspH > 0 && isFinite(_wspL) && _wspL > 0;
+
             // Determine marker color based on data priority tier
-            let markerColor = '#95a5a6'; // Default: Gray (Missing hydro link / screening safety data)
+            let markerColor = '#95a5a6'; // Default: Gray
             if (fatalities > 0) {
                 markerColor = '#e74c3c'; // Priority 1: Red (Fatality recorded)
-            } else if (hasSafetyData) {
-                markerColor = '#f1c40f'; // Priority 2: Yellow (Dangerous flow range calculated)
+            } else if (hasNwmGeom) {
+                markerColor = '#f1c40f'; // Priority 2: Yellow (NWM height + width available)
             } else if (hasComid) {
                 markerColor = '#3498db'; // Priority 3: Blue (Live forecast available)
             }
@@ -548,14 +555,13 @@ function renderMarkers() {
 
             if (hasComid || hasRatingCurves) {
                 if (hasSafetyData) {
-                    popupContent += `<b>Dangerous Range:</b> ${qMinVal} - ${qMaxVal} cfs<br>`;
+                    popupContent += `<b>Dangerous Range:</b> ${qMinDisplay} - ${qMaxDisplay} cfs<br>`;
                 }
-                const safetyArgs = hasSafetyData ? `${qMinVal}, ${qMaxVal}` : `null, null`;
+                const safetyArgs = hasSafetyData ? `${qMinRaw}, ${qMaxRaw}` : `null, null`;
 
                 let onClickActions = ['openCombinedPanel()'];
                 if (hasComid) onClickActions.push(`checkForecast('${dam.Reach_ID}', ${safetyArgs}, ${jsAttrLiteral(_displayName)})`);
                 if (hasRatingCurves) onClickActions.push(`showRatingCurves(${heightFt}, ${lengthFt}, '${dam.Reach_ID}', ${jsAttrLiteral(_displayName)})`);
-                if (hasComid) onClickActions.push(`showSyntheticRatingCurve('${dam.Reach_ID}', ${jsAttrLiteral(_displayName)})`);
                 if (hasComid) onClickActions.push(`showFlowDurationCurve('${dam.Reach_ID}', ${jsAttrLiteral(_displayName)}, ${safetyArgs})`);
                 
                 popupContent += `
@@ -594,7 +600,6 @@ window.openCombinedPanel = () => {
     }
     document.getElementById('forecastContainer').style.display = 'none';
     document.getElementById('ratingCurvesContainer').style.display = 'none';
-    document.getElementById('srcContainer').style.display = 'none';
     document.getElementById('fdcContainer').style.display = 'none';
 };
 
@@ -1029,7 +1034,7 @@ function _loadSrcData() {
     return _srcDataPromise;
 }
 
-async function showSyntheticRatingCurve(comid, damName) {
+async function showSyntheticRatingCurve(comid, damName, heightFt = null, lengthFt = null) {
     comid = String(comid).replace(/\.0+$/, '');
     const container = document.getElementById('srcContainer');
     const header = document.getElementById('srcHeader');
@@ -1051,8 +1056,9 @@ async function showSyntheticRatingCurve(comid, damName) {
         return;
     }
 
+    const srcQs = curve.discharge_cms;
     const points = curve.stage_m.map((s, i) => ({
-        x: curve.discharge_cms[i] * CMS_TO_CFS,
+        x: srcQs[i] * CMS_TO_CFS,
         y: s * M_TO_FT,
     }));
     const bankfullFt = curve.bankfull_stage_m * M_TO_FT;
@@ -1067,16 +1073,41 @@ async function showSyntheticRatingCurve(comid, damName) {
         `bankfull stage = ${bankfullFt.toFixed(1)} ft` +
         `</span>`;
 
+    const datasets = [
+        { label: 'Synthetic rating curve', data: points,
+          order: 1, borderColor: '#8e44ad', backgroundColor: '#8e44ad',
+          pointRadius: 0, borderWidth: 2, tension: 0.2, pointStyle: 'line' },
+    ];
+
+    const hasGeom = isFinite(heightFt) && heightFt > 0 && isFinite(lengthFt) && lengthFt > 0;
+    if (hasGeom) {
+        const P = heightFt / M_TO_FT;
+        const L = lengthFt / M_TO_FT;
+        const conjugatePoints = [];
+        const flipPoints = [];
+        for (const Q of srcQs) {
+            const Qcfs = Q * CMS_TO_CFS;
+            const H  = window.LHDHydraulics.weirHSimp(Q, L);
+            const y2 = window.LHDHydraulics.calcY2Simp(H, P);
+            const yf = window.LHDHydraulics.computeYFlipAdv(Q, L, P);
+            conjugatePoints.push({ x: Qcfs, y: y2 !== null ? y2 * M_TO_FT : null });
+            flipPoints.push(     { x: Qcfs, y: yf !== null ? yf * M_TO_FT : null });
+        }
+        datasets.push(
+            { label: 'Conjugate depth (y₂)', data: conjugatePoints,
+              order: 1, borderColor: '#27ae60', backgroundColor: '#27ae60',
+              pointRadius: 0, borderWidth: 2, tension: 0.2, spanGaps: true, pointStyle: 'line' },
+            { label: 'Flip depth (y_flip)', data: flipPoints,
+              order: 1, borderColor: '#e74c3c', backgroundColor: '#e74c3c',
+              pointRadius: 0, borderWidth: 2, tension: 0.2, spanGaps: true,
+              borderDash: [6, 4], pointStyle: 'line' },
+        );
+    }
+
     const ctx = document.getElementById('srcChart').getContext('2d');
     srcChart = new Chart(ctx, {
         type: 'line',
-        data: {
-            datasets: [
-                { label: 'Synthetic rating curve', data: points,
-                  order: 1, borderColor: '#8e44ad', backgroundColor: '#8e44ad',
-                  pointRadius: 0, borderWidth: 2, tension: 0.2, pointStyle: 'line' },
-            ],
-        },
+        data: { datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
