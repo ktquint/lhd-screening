@@ -7,6 +7,5 @@
 - Run scripts: `micromamba run -n lhd-environment python ...`
 
 ## Git
-- Active branch: `nwm-rating-curves` (ARC-free WSP geometry pipeline)
-- Main branch: `main`
-- Push to branch only unless explicitly asked to ff main.
+- Active branch: `main`
+- Push directly to `main` unless otherwise specified.
