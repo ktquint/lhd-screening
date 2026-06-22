@@ -560,7 +560,7 @@ function renderMarkers() {
                 if (hasComid) onClickActions.push(`checkForecast('${dam.Reach_ID}', ${safetyArgs}, ${jsAttrLiteral(_displayName)})`);
                 if (hasRatingCurves) onClickActions.push(`showRatingCurves(${heightFt}, ${lengthFt}, ${twA}, ${twB}, ${rp100Cms}, ${jsAttrLiteral(_displayName)})`);
                 if (hasComid) onClickActions.push(`showSyntheticRatingCurve('${dam.Reach_ID}', ${jsAttrLiteral(_displayName)})`);
-                if (hasComid) onClickActions.push(`showFlowDurationCurve('${dam.Reach_ID}', ${jsAttrLiteral(_displayName)})`);
+                if (hasComid) onClickActions.push(`showFlowDurationCurve('${dam.Reach_ID}', ${jsAttrLiteral(_displayName)}, ${safetyArgs})`);
                 
                 popupContent += `
                     <button class="btn-check" onclick="${onClickActions.join('; ')}">
@@ -1102,8 +1102,9 @@ function _loadFdcData() {
     return _fdcDataPromise;
 }
 
-async function showFlowDurationCurve(comid, damName) {
+async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
     comid = String(comid).replace(/\.0+$/, '');
+    const hasDangerRange = qMin !== null && !isNaN(qMin) && qMax !== null && !isNaN(qMax);
     const container = document.getElementById('fdcContainer');
     const header    = document.getElementById('fdcHeader');
     container.style.display = 'flex';
@@ -1146,25 +1147,38 @@ async function showFlowDurationCurve(comid, damName) {
         (q50_cfs ? ` &nbsp;·&nbsp; Q50 = ${q50_cfs} cfs` : '') +
         `</span>`;
 
+    const fdcDatasets = [];
+    if (hasDangerRange) {
+        fdcDatasets.push({
+            label: 'Dangerous Flow Range',
+            data: [{ x: 0, y: qMax }, { x: 100, y: qMax }],
+            order: 0,
+            borderColor: '#e74c3c',
+            borderWidth: 3,
+            borderDash: [8, 4],
+            pointRadius: 0,
+            fill: { target: { value: qMin }, above: 'rgba(231,76,60,0.20)', below: 'rgba(231,76,60,0.20)' },
+            backgroundColor: 'rgba(231,76,60,0.20)',
+            pointStyle: 'rect',
+        });
+    }
+    fdcDatasets.push({
+        label: 'NWM FDC',
+        data: points,
+        order: 1,
+        borderColor: '#2471a3',
+        backgroundColor: 'rgba(36,113,163,0.12)',
+        fill: true,
+        pointRadius: 3,
+        borderWidth: 2,
+        tension: 0.3,
+        pointStyle: 'circle',
+    });
+
     const ctx = document.getElementById('fdcChart').getContext('2d');
     fdcChart = new Chart(ctx, {
         type: 'line',
-        data: {
-            datasets: [
-                {
-                    label: 'NWM FDC',
-                    data: points,
-                    order: 1,
-                    borderColor: '#2471a3',
-                    backgroundColor: 'rgba(36,113,163,0.12)',
-                    fill: true,
-                    pointRadius: 3,
-                    borderWidth: 2,
-                    tension: 0.3,
-                    pointStyle: 'circle',
-                },
-            ],
-        },
+        data: { datasets: fdcDatasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
