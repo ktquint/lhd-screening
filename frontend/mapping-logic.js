@@ -539,16 +539,12 @@ function renderMarkers() {
                     <b>Fatalities:</b> ${fatalities}<br>
                     <hr>`;
             
-            const heightFt = parseFloat(dam.Dam_Height_WSP_Ft) || parseFloat(dam.Dam_Height_GIS_Ft);
-            const lengthFt = parseFloat(dam.Dam_Length_WSP_Ft) || parseFloat(dam.Dam_Length_GIS_Ft);
-            const twA      = parseFloat(dam.Tailwater_a);
-            const twB      = parseFloat(dam.Tailwater_b);
-            const rp100Cms = parseFloat(dam.Rp100_cms);
+            const heightFt = parseFloat(dam.Dam_Height_WSP_Ft);
+            const lengthFt = parseFloat(dam.Dam_Length_WSP_Ft);
 
             const hasRatingCurves = isFinite(heightFt) && heightFt > 0
                 && isFinite(lengthFt) && lengthFt > 0
-                && isFinite(twA) && isFinite(twB)
-                && isFinite(rp100Cms) && rp100Cms > 0;
+                && hasComid;
 
             if (hasComid || hasRatingCurves) {
                 if (hasSafetyData) {
@@ -558,7 +554,7 @@ function renderMarkers() {
 
                 let onClickActions = ['openCombinedPanel()'];
                 if (hasComid) onClickActions.push(`checkForecast('${dam.Reach_ID}', ${safetyArgs}, ${jsAttrLiteral(_displayName)})`);
-                if (hasRatingCurves) onClickActions.push(`showRatingCurves(${heightFt}, ${lengthFt}, ${twA}, ${twB}, ${rp100Cms}, ${jsAttrLiteral(_displayName)})`);
+                if (hasRatingCurves) onClickActions.push(`showRatingCurves(${heightFt}, ${lengthFt}, '${dam.Reach_ID}', ${jsAttrLiteral(_displayName)})`);
                 if (hasComid) onClickActions.push(`showFlowDurationCurve('${dam.Reach_ID}', ${jsAttrLiteral(_displayName)}, ${safetyArgs})`);
                 
                 popupContent += `
@@ -817,10 +813,29 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
 }
 
 // 4b. Rating curves (tailwater / conjugate / flip) computed client-side.
-// Inputs: height + length in ft, tailwater coeffs (D[m] = a * Q[cms]^b), Rp100 in cms.
+// Tailwater comes from the NWM synthetic rating curve (SRC) for the dam's reach.
 // Display: Q in cfs on x-axis, depth in ft on y-axis.
-function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
+async function showRatingCurves(heightFt, lengthFt, comid, damName) {
     document.getElementById('ratingCurvesContainer').style.display = 'flex';
+    document.getElementById('ratingCurvesHeader').innerHTML =
+        `<strong>${damName} Rating Curve</strong><br>` +
+        `<span style="color:#7f8c8d; font-size: 12px;">Loading SRC…</span>`;
+
+    const srcData = await _loadSrcData();
+    const comidStr = String(comid).replace(/\.0+$/, '');
+    const curve = srcData[comidStr];
+
+    if (!curve || !curve.discharge_cms || !curve.stage_m || curve.discharge_cms.length < 2) {
+        document.getElementById('ratingCurvesHeader').innerHTML =
+            `<strong>${damName} Rating Curve</strong><br>` +
+            `<span style="color:#7f8c8d; font-size: 12px;">No SRC available for reach ${comidStr}.</span>`;
+        return;
+    }
+
+    const srcQs  = curve.discharge_cms;
+    const srcDs  = curve.stage_m;
+    const qMaxCms = srcQs[srcQs.length - 1];
+    const twFn = (Q) => window.LHDHydraulics.interpLinear(Q, srcQs, srcDs);
 
     const P = heightFt / window.LHDHydraulics.constants.M_TO_FT;
     const L = lengthFt / window.LHDHydraulics.constants.M_TO_FT;
@@ -829,7 +844,7 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
     const ERROR_TOLERANCE_CFS = 0.0005;
 
     const { tailwater, conjugate, flip, dangerConj, dangerFlip } =
-        window.LHDHydraulics.buildRatingCurvesFt(heightFt, lengthFt, a, b, rp100Cms, 500);
+        window.LHDHydraulics.buildRatingCurvesFt(heightFt, lengthFt, twFn, qMaxCms, 500);
 
     const intersections = [];
     for (let i = 0; i < tailwater.length - 1; i++) {
@@ -839,7 +854,7 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
             if (diff1 * diff2 <= 0 && diff1 !== diff2) {
                 const f_conj = (Qcfs) => {
                     const Q = Qcfs / CMS_TO_CFS;
-                    const yt = window.LHDHydraulics.tailwaterDepth(Q, a, b);
+                    const yt = twFn(Q);
                     const H = window.LHDHydraulics.weirHSimp(Q, L);
                     const y2 = window.LHDHydraulics.calcY2Simp(H, P);
                     if (yt === null || y2 === null) return null;
@@ -848,12 +863,12 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
                 const exactX = window.LHDHydraulics.bisect(f_conj, tailwater[i].x * 0.99, tailwater[i+1].x * 1.01, ERROR_TOLERANCE_CFS);
                 if (exactX !== null) {
                     const exactQ = exactX / CMS_TO_CFS;
-                    const exactY = window.LHDHydraulics.tailwaterDepth(exactQ, a, b) * M_TO_FT;
+                    const exactY = twFn(exactQ) * M_TO_FT;
                     intersections.push({x: exactX, y: exactY, label: 'Intersection (Tailwater & Conjugate)'});
-                    
+
                     const yf = window.LHDHydraulics.computeYFlipAdv(exactQ, L, P);
                     const exactYFlip = yf !== null ? yf * M_TO_FT : null;
-                    
+
                     if (exactYFlip !== null && exactY <= exactYFlip) {
                         dangerConj.push({ x: exactX, y: exactY });
                         dangerFlip.push({ x: exactX, y: exactYFlip });
@@ -867,7 +882,7 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
             if (diff1 * diff2 <= 0 && diff1 !== diff2) {
                 const f_flip = (Qcfs) => {
                     const Q = Qcfs / CMS_TO_CFS;
-                    const yt = window.LHDHydraulics.tailwaterDepth(Q, a, b);
+                    const yt = twFn(Q);
                     const yf = window.LHDHydraulics.computeYFlipAdv(Q, L, P);
                     if (yt === null || yf === null) return null;
                     return (yt - yf) * M_TO_FT;
@@ -875,13 +890,13 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
                 const exactX = window.LHDHydraulics.bisect(f_flip, tailwater[i].x * 0.99, tailwater[i+1].x * 1.01, ERROR_TOLERANCE_CFS);
                 if (exactX !== null) {
                     const exactQ = exactX / CMS_TO_CFS;
-                    const exactY = window.LHDHydraulics.tailwaterDepth(exactQ, a, b) * M_TO_FT;
+                    const exactY = twFn(exactQ) * M_TO_FT;
                     intersections.push({x: exactX, y: exactY, label: 'Intersection (Tailwater & Flip)'});
-                    
+
                     const H = window.LHDHydraulics.weirHSimp(exactQ, L);
                     const y2 = window.LHDHydraulics.calcY2Simp(H, P);
                     const exactYConj = y2 !== null ? y2 * M_TO_FT : null;
-                    
+
                     if (exactYConj !== null && exactY >= exactYConj) {
                         dangerConj.push({ x: exactX, y: exactYConj });
                         dangerFlip.push({ x: exactX, y: exactY });
@@ -891,7 +906,6 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
         }
     }
 
-    // Ensure the injected intersection points are in the correct sequential order
     dangerConj.sort((a, b) => a.x - b.x);
     dangerFlip.sort((a, b) => a.x - b.x);
 
@@ -899,8 +913,7 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
         `<strong>${damName} Rating Curve</strong><br>` +
         `<span style="color:#7f8c8d; font-size: 12px;">` +
         `P = ${heightFt.toFixed(1)} ft &nbsp;·&nbsp; L = ${lengthFt.toFixed(0)} ft &nbsp;·&nbsp; ` +
-        `tailwater D = ${a.toPrecision(3)}·Q<sup>${b.toFixed(3)}</sup> ` +
-        `(SI) &nbsp;·&nbsp; Q<sub>max</sub> = ${(rp100Cms * 35.3147).toFixed(0)} cfs (Rp100)` +
+        `Tailwater: NWM SRC (reach ${comidStr}) &nbsp;·&nbsp; Q<sub>max</sub> = ${(qMaxCms * CMS_TO_CFS).toFixed(0)} cfs` +
         `</span>`;
 
     const ctx = document.getElementById('ratingCurvesChart').getContext('2d');
