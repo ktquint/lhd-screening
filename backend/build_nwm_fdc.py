@@ -116,6 +116,9 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--csv",        type=Path, default=DEFAULT_CSV)
     ap.add_argument("--out",        type=Path, default=DEFAULT_OUT)
+    ap.add_argument("--split-dir",  type=Path,
+                    default=DEFAULT_OUT.parent / "fdc",
+                    help="Also write one JSON file per ComID here (default: frontend/data/fdc/)")
     ap.add_argument("--batch-size", type=int,  default=200,
                     help="ComIDs per API request (default: 200)")
     ap.add_argument("--resume",     action="store_true",
@@ -160,16 +163,16 @@ def main() -> int:
         print(f"  batch {i}/{len(batches)}: {len(fetched)}/{len(batch)} ok "
               f"({elapsed:.1f}s) — {len(result):,} total", flush=True)
 
-        # Write incrementally every 10 batches
+        # Write incrementally every 10 batches (monolithic only; split written at end)
         if i % 10 == 0 or i == len(batches):
             _write(result, args.out)
 
-    _write(result, args.out)
+    _write(result, args.out, args.split_dir)
     print(f"\nDone in {time.time()-t0:.0f}s — {len(result):,} ComIDs → {args.out}", flush=True)
     return 0
 
 
-def _write(result: dict, out_path: Path) -> None:
+def _write(result: dict, out_path: Path, split_dir: Path | None = None) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "_meta": {
@@ -183,6 +186,13 @@ def _write(result: dict, out_path: Path) -> None:
         json.dump(payload, f, separators=(",", ":"))
     size_kb = out_path.stat().st_size / 1024
     print(f"  → wrote {out_path} ({size_kb:.0f} KB)", flush=True)
+
+    if split_dir:
+        split_dir.mkdir(parents=True, exist_ok=True)
+        for comid, flows in result.items():
+            with open(split_dir / f"{comid}.json", "w") as f:
+                json.dump(flows, f, separators=(",", ":"))
+        print(f"  → wrote {len(result)} per-COMID files to {split_dir}", flush=True)
 
 
 if __name__ == "__main__":

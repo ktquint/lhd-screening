@@ -168,6 +168,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--csv",          type=Path, default=DEFAULT_CSV)
     ap.add_argument("--out",          type=Path, default=DEFAULT_OUT)
+    ap.add_argument("--split-dir",    type=Path,
+                    default=DEFAULT_OUT.parent / "src",
+                    help="Also write one JSON file per ComID here (default: frontend/data/src/)")
     ap.add_argument("--fdc",          type=Path, default=DEFAULT_FDC,
                     help="nwm_fdc.json from build_nwm_fdc.py (provides Q_max per reach)")
     ap.add_argument("--force-download", action="store_true")
@@ -223,6 +226,14 @@ def main() -> int:
     with open(args.out, "w") as f:
         json.dump(curves, f, separators=(",", ":"))
     _log(f"Wrote {args.out} ({args.out.stat().st_size / 1e6:.1f} MB)")
+
+    if args.split_dir:
+        args.split_dir.mkdir(parents=True, exist_ok=True)
+        for comid, curve in curves.items():
+            with open(args.split_dir / f"{comid}.json", "w") as f:
+                json.dump(curve, f, separators=(",", ":"))
+        _log(f"Wrote {len(curves)} per-COMID files to {args.split_dir}")
+
     return 0
 
 

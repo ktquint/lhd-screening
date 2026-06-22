@@ -19,7 +19,7 @@
 let forecastChart;
 let ratingCurvesChart;
 let srcChart;
-let _srcDataPromise = null;
+const _srcCache = new Map();
 let allDams = [];
 let _forecastState = null; // { allPoints, hasSafetyRange, qMin, qMax, damName }
 let markers = L.layerGroup();
@@ -828,9 +828,8 @@ async function showRatingCurves(heightFt, lengthFt, comid, damName) {
         `<strong>${damName} Rating Curve</strong><br>` +
         `<span style="color:#7f8c8d; font-size: 12px;">Loading SRC…</span>`;
 
-    const srcData = await _loadSrcData();
     const comidStr = String(comid).replace(/\.0+$/, '');
-    const curve = srcData[comidStr];
+    const curve = await _loadSrcData(comidStr);
 
     if (!curve || !curve.discharge_cms || !curve.stage_m || curve.discharge_cms.length < 2) {
         document.getElementById('ratingCurvesHeader').innerHTML =
@@ -1027,11 +1026,11 @@ window.showRatingCurves = showRatingCurves;
 // 5b. Synthetic Rating Curve (SRC): Manning's-equation stage-discharge curve for the
 // dam's NHDPlus V2 reach, derived offline from hydrofabric bankfull channel geometry
 // (see backend/build_synthetic_rating_curves.py). In-channel only.
-function _loadSrcData() {
-    if (!_srcDataPromise) {
-        _srcDataPromise = fetch('data/synthetic_rating_curves.json').then(r => r.json());
+function _loadSrcData(comid) {
+    if (!_srcCache.has(comid)) {
+        _srcCache.set(comid, fetch(`data/src/${comid}.json`).then(r => r.ok ? r.json() : null).catch(() => null));
     }
-    return _srcDataPromise;
+    return _srcCache.get(comid);
 }
 
 async function showSyntheticRatingCurve(comid, damName, heightFt = null, lengthFt = null) {
@@ -1045,8 +1044,7 @@ async function showSyntheticRatingCurve(comid, damName, heightFt = null, lengthF
     const CMS_TO_CFS = window.LHDHydraulics.constants.CMS_TO_CFS;
     const M_TO_FT = window.LHDHydraulics.constants.M_TO_FT;
 
-    const srcData = await _loadSrcData();
-    const curve = srcData[comid];
+    const curve = await _loadSrcData(comid);
 
     if (srcChart) { srcChart.destroy(); srcChart = null; }
 
@@ -1136,14 +1134,15 @@ window.showSyntheticRatingCurve = showSyntheticRatingCurve;
 // 5b-ii. Flow Duration Curve (FDC): NWM Retrospective v3.0 percentile flows
 // for the dam's NHDPlus V2 reach, pre-computed via CIROH NWM API v2.
 // Data file: frontend/data/nwm_fdc.json (built by backend/build_nwm_fdc.py).
-let _fdcDataPromise = null;
+const _fdcCache = new Map();
+const _FDC_PERCENTILES = [0, 2, 5, 10, 20, 25, 30, 50, 75, 90, 95, 99, 100];
 let fdcChart = null;
 
-function _loadFdcData() {
-    if (!_fdcDataPromise) {
-        _fdcDataPromise = fetch('data/nwm_fdc.json').then(r => r.json());
+function _loadFdcData(comid) {
+    if (!_fdcCache.has(comid)) {
+        _fdcCache.set(comid, fetch(`data/fdc/${comid}.json`).then(r => r.ok ? r.json() : null).catch(() => null));
     }
-    return _fdcDataPromise;
+    return _fdcCache.get(comid);
 }
 
 async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
@@ -1157,10 +1156,8 @@ async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
 
     const CMS_TO_CFS = window.LHDHydraulics.constants.CMS_TO_CFS;
 
-    const fdcData = await _loadFdcData();
-    const meta    = fdcData._meta || {};
-    const pcts    = meta.percentiles || [0,2,5,10,20,25,30,50,75,90,95,99,100];
-    const flows   = fdcData[comid];
+    const flows = await _loadFdcData(comid);
+    const pcts  = _FDC_PERCENTILES;
 
     if (fdcChart) { fdcChart.destroy(); fdcChart = null; }
 
