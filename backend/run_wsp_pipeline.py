@@ -534,7 +534,8 @@ def _process_huc(
 
     _run_step("build_trimmed_dems",
               [py, f"{backend}/build_trimmed_dems.py",
-               "--staging-dir", str(huc_dir), "--workers", str(workers)])
+               "--staging-dir", str(huc_dir), "--workers", str(workers),
+               "--no-land"])
 
     entry["status"] = "wsp_running"
     entry["wsp_at"] = _now()
@@ -627,6 +628,10 @@ def _cmd_run(args: argparse.Namespace) -> None:
 
     if not pending:
         print("Nothing to do.")
+        try:
+            _cmd_aggregate(args)
+        except Exception as e:
+            print(f"  WARN aggregate step failed: {e}")
         return
 
     # Build existing-data index once — handles both flat and HUC-bundled layouts
