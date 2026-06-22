@@ -555,6 +555,7 @@ function renderMarkers() {
                 let onClickActions = ['openCombinedPanel()'];
                 if (hasComid) onClickActions.push(`checkForecast('${dam.Reach_ID}', ${safetyArgs}, ${jsAttrLiteral(_displayName)})`);
                 if (hasRatingCurves) onClickActions.push(`showRatingCurves(${heightFt}, ${lengthFt}, '${dam.Reach_ID}', ${jsAttrLiteral(_displayName)})`);
+                if (hasComid) onClickActions.push(`showSyntheticRatingCurve('${dam.Reach_ID}', ${jsAttrLiteral(_displayName)})`);
                 if (hasComid) onClickActions.push(`showFlowDurationCurve('${dam.Reach_ID}', ${jsAttrLiteral(_displayName)}, ${safetyArgs})`);
                 
                 popupContent += `
@@ -593,6 +594,7 @@ window.openCombinedPanel = () => {
     }
     document.getElementById('forecastContainer').style.display = 'none';
     document.getElementById('ratingCurvesContainer').style.display = 'none';
+    document.getElementById('srcContainer').style.display = 'none';
     document.getElementById('fdcContainer').style.display = 'none';
 };
 
