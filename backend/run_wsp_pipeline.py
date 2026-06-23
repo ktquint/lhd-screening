@@ -72,6 +72,7 @@ from screening.wsp import (
     pick_upstream_node,
     sample_dem_along_flowlines,
 )
+from compute_wsp_danger_range import run as _run_wsp_danger_range
 from lhd_processor.hydraulics import solve_weir_geom
 from stage_nhd_dem import load_vaa_df, run_stage as run_stage_nhd_dem
 
@@ -571,6 +572,21 @@ def _process_huc(
 # CLI subcommands
 # ---------------------------------------------------------------------------
 
+def _update_csv(args: argparse.Namespace, src_dict: Dict[str, dict] | None = None) -> None:
+    """Aggregate WSP geometry into the CSV, then compute NWM danger ranges."""
+    print("\nAggregating WSP geometry into master CSV …")
+    try:
+        _cmd_aggregate(args)
+    except Exception as e:
+        print(f"  WARN aggregate failed: {e}")
+
+    print("Computing NWM danger ranges …")
+    try:
+        _run_wsp_danger_range(csv_path=args.dams_csv, src_data=src_dict)
+    except Exception as e:
+        print(f"  WARN danger range computation failed: {e}")
+
+
 def _cmd_run(args: argparse.Namespace) -> None:
     local_root: Path = args.local_staging_root
     local_root.mkdir(parents=True, exist_ok=True)
@@ -626,12 +642,14 @@ def _cmd_run(args: argparse.Namespace) -> None:
           f"{len(pending)} pending ({n_partial} partial being retried)"
           + (" | reversed" if args.reverse else ""))
 
+    # Load SRC data early so it's available for danger range computation
+    # even in the "nothing to do" path.
+    src_dict = _load_src(DEFAULT_SRC)
+    print(f"  SRC loaded: {len(src_dict):,} reaches")
+
     if not pending:
         print("Nothing to do.")
-        try:
-            _cmd_aggregate(args)
-        except Exception as e:
-            print(f"  WARN aggregate step failed: {e}")
+        _update_csv(args, src_dict=src_dict)
         return
 
     # Build existing-data index once — handles both flat and HUC-bundled layouts
@@ -643,7 +661,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
         n_strm = sum(1 for sub, _ in existing_index if sub == "STRM")
         print(f"  Found {n_dem} DEM dirs, {n_strm} STRM dirs across existing trees.")
 
-    # --- Load shared assets once ---
+    # --- Load remaining shared assets ---
     print("\nLoading shared assets ...")
 
     vaa_df = None
@@ -654,9 +672,6 @@ def _cmd_run(args: argparse.Namespace) -> None:
 
     fdc = _load_fdc(DEFAULT_FDC)
     print(f"  FDC loaded: {len(fdc):,} reaches")
-
-    src_dict = _load_src(DEFAULT_SRC)
-    print(f"  SRC loaded: {len(src_dict):,} reaches")
 
     # Collect all COMIDs (dam + upstream) for parquet preload
     all_comids: set[int] = set()
@@ -681,6 +696,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
         if free < args.min_free_gb:
             print(f"\nFree space {free:.1f} GB < {args.min_free_gb} GB threshold — stopping.")
             print("Archive a ready bundle, then rerun.")
+            _update_csv(args, src_dict=src_dict)
             return
 
         print(f"\n{'=' * 60}")
@@ -701,11 +717,10 @@ def _cmd_run(args: argparse.Namespace) -> None:
             print("Halting. Investigate and rerun.")
             return
 
+        _update_csv(args, src_dict=src_dict)
+
     print("\nAll pending HUCs processed.")
-    try:
-        _cmd_aggregate(args)
-    except Exception as e:
-        print(f"  WARN aggregate step failed: {e}")
+    _update_csv(args, src_dict=src_dict)
 
 
 def _cmd_status(args: argparse.Namespace) -> None:
