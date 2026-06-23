@@ -87,10 +87,12 @@ from build_streamflow_csv import (  # noqa: E402  (sys.path tweak above)
     open_nwm_zarr,
     process_streamflow_with_ds,
 )
+from compute_wsp_danger_range import run as _run_wsp_danger_range  # noqa: E402
 from stage_nhd_dem import load_vaa_df, run_stage as run_stage_nhd_dem  # noqa: E402
 
 _REPO_ROOT = _BACKEND_ROOT.parent
 DEFAULT_DAMS_CSV = _REPO_ROOT / "data" / "full_lhd_website.csv"
+_SRC_JSON = _REPO_ROOT / "frontend" / "data" / "synthetic_rating_curves.json"
 
 # A HUC is skipped on rerun only when it is fully done. "partial" is NOT here
 # on purpose: those HUCs get re-attempted so transient upstream failures (e.g. a
@@ -539,6 +541,17 @@ def _cmd_run(args: argparse.Namespace) -> None:
                   "Falling back to per-HUC subprocess for stage_nhd_dem.")
             vaa_df = None
 
+    # Load SRC data once for NWM danger range computation across all HUC batches.
+    src_all: dict | None = None
+    if _SRC_JSON.exists():
+        try:
+            with open(_SRC_JSON) as _f:
+                src_all = json.load(_f)
+            print(f"Loaded SRC data ({len(src_all):,} reaches) for danger range computation.")
+        except Exception as e:
+            print(f"  WARN: could not load SRC data from {_SRC_JSON}: {e}")
+    else:
+        print(f"  WARN: {_SRC_JSON} not found — danger range step will be skipped.")
 
     for key, group in pending:
         free = _free_gb(local_root)
@@ -557,11 +570,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
             print(f"  python backend/rolling_pipeline.py "
                   f"--local-staging-root {local_root} --archive-to /Volumes/<drive>")
             print("…then rerun this command to continue.")
-            print("\nAuto-aggregating dangerous-flow columns into master CSV …")
-            try:
-                _cmd_aggregate(args)
-            except Exception as e:
-                print(f"  WARN aggregate step failed: {e}")
+            _update_csv(args, src_data=src_all)
             return
 
         print(f"\n{'=' * 60}")
@@ -600,16 +609,10 @@ def _cmd_run(args: argparse.Namespace) -> None:
             print("Halting loop. Investigate, then rerun.")
             return
 
-    print("\nAll pending HUCs processed.")
+        _update_csv(args, src_data=src_all)
 
-    # Refresh Qmin/Qmax columns on the master CSV from whatever analysis
-    # summaries now exist (across staging-root + each --existing-data-dir).
-    # Failure here shouldn't undo the pipeline run, so swallow exceptions.
-    print("\nAuto-aggregating dangerous-flow columns into master CSV …")
-    try:
-        _cmd_aggregate(args)
-    except Exception as e:
-        print(f"  WARN aggregate step failed: {e}")
+    print("\nAll pending HUCs processed.")
+    _update_csv(args, src_data=src_all)
 
 
 def _cmd_mark_archived(args: argparse.Namespace) -> None:
@@ -996,6 +999,21 @@ def _cmd_aggregate(args: argparse.Namespace) -> None:
     print(f"Wrote 9 columns (Qmin_env, Qmax_env, Qmin_stable, Qmax_stable, "
           f"Dam_Length_GIS_Ft, Dam_Height_GIS_Ft, Rp100_cms, Tailwater_a, "
           f"Tailwater_b) to {dams_csv}")
+
+
+def _update_csv(args: argparse.Namespace, src_data: dict | None = None) -> None:
+    """Aggregate ARC results then recompute NWM danger ranges into the master CSV."""
+    print("\nAggregating pipeline results into master CSV …")
+    try:
+        _cmd_aggregate(args)
+    except Exception as e:
+        print(f"  WARN aggregate failed: {e}")
+
+    print("Computing NWM danger ranges …")
+    try:
+        _run_wsp_danger_range(csv_path=args.dams_csv, src_data=src_data)
+    except Exception as e:
+        print(f"  WARN danger range computation failed: {e}")
 
 
 def _cmd_locate(args: argparse.Namespace) -> None:

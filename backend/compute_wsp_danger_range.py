@@ -80,26 +80,30 @@ def _danger_range_from_src(
     return float(min(danger_qs)), float(max(danger_qs))
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--csv", type=Path, default=DEFAULT_CSV)
-    parser.add_argument("--dry-run", action="store_true")
-    args = parser.parse_args()
+def run(
+    csv_path: Path = DEFAULT_CSV,
+    src_data: dict | None = None,
+    dry_run: bool = False,
+) -> None:
+    """Compute NWM-based Qmin_env/Qmax_env and write back to csv_path.
 
-    df = pd.read_csv(args.csv, low_memory=False)
+    src_data: pre-loaded synthetic_rating_curves.json dict. If None, loads
+    from SRC_JSON (useful when calling from rolling_pipeline to avoid
+    re-reading 11 MB per HUC batch).
+    """
+    df = pd.read_csv(csv_path, low_memory=False)
 
-    with open(SRC_JSON) as f:
-        src_all = json.load(f)
+    if src_data is None:
+        with open(SRC_JSON) as f:
+            src_data = json.load(f)
 
-    # Clear all existing Qmin/Qmax env values (ARC-derived)
+    # Clear all existing Qmin/Qmax env values and drop ARC-only columns
     df["Qmin_env"] = np.nan
     df["Qmax_env"] = np.nan
-
-    # Drop ARC-only columns
     drop = [c for c in ARC_COLS if c in df.columns]
-    df = df.drop(columns=drop)
-    print(f"Dropped ARC columns: {drop}")
+    if drop:
+        df = df.drop(columns=drop)
+        print(f"Dropped ARC columns: {drop}")
 
     has_wsp = (
         df["Dam_Height_WSP_Ft"].notna() & (df["Dam_Height_WSP_Ft"] > 0) &
@@ -110,7 +114,7 @@ def main() -> None:
     candidates["_comid_str"] = (
         candidates["Reach_ID"].astype(float).astype(int).astype(str)
     )
-    candidates = candidates[candidates["_comid_str"].isin(src_all)]
+    candidates = candidates[candidates["_comid_str"].isin(src_data)]
     print(f"Candidates (WSP + SRC): {len(candidates):,}")
 
     ok = failed = 0
@@ -119,7 +123,7 @@ def main() -> None:
 
     for idx, row in candidates.iterrows():
         comid = row["_comid_str"]
-        curve = src_all[comid]
+        curve = src_data[comid]
         src_qs = curve["discharge_cms"]
         src_ds = curve["stage_m"]
         if len(src_qs) < 2:
@@ -139,21 +143,28 @@ def main() -> None:
 
     print(f"Solved: {ok:,}  |  Failed/degenerate: {failed:,}")
 
-    if args.dry_run:
+    if dry_run:
         print("Dry run — no files written.")
         return
 
     df.loc[list(q_mins.keys()), "Qmin_env"] = list(q_mins.values())
     df.loc[list(q_maxs.keys()), "Qmax_env"] = list(q_maxs.values())
 
-    df.to_csv(args.csv, index=False)
-    print(f"Wrote {args.csv}")
+    df.to_csv(csv_path, index=False)
+    print(f"Wrote {csv_path}")
 
-    if FRONTEND_CSV.exists():
+    if FRONTEND_CSV.resolve() != csv_path.resolve() and FRONTEND_CSV.exists():
         df.to_csv(FRONTEND_CSV, index=False)
         print(f"Wrote {FRONTEND_CSV}")
-    else:
-        print(f"(Frontend CSV not found at {FRONTEND_CSV} — skipped)")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--csv", type=Path, default=DEFAULT_CSV)
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+    run(csv_path=args.csv, dry_run=args.dry_run)
 
 
 if __name__ == "__main__":
