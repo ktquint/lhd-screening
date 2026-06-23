@@ -118,18 +118,25 @@
         return sFinal * Hflip + P;
     }
 
-    // Tailwater rating curve from coefficients fit in cms→m: D = a * Q^b.
-    function tailwaterDepth(Q, a, b) {
-        if (!(Q > 0)) return null;
-        return a * Math.pow(Q, b);
+    // Linear interpolation on a sorted xs array. Clamps at the edges.
+    function interpLinear(x, xs, ys) {
+        if (x <= xs[0]) return ys[0];
+        if (x >= xs[xs.length - 1]) return ys[ys.length - 1];
+        let lo = 0, hi = xs.length - 1;
+        while (hi - lo > 1) {
+            const mid = (lo + hi) >> 1;
+            if (xs[mid] <= x) lo = mid; else hi = mid;
+        }
+        const t = (x - xs[lo]) / (xs[hi] - xs[lo]);
+        return ys[lo] + t * (ys[hi] - ys[lo]);
     }
 
     // Build the three curves for plotting. Returns ft on y, cfs on x.
     //   P_ft, L_ft : dam height + crest length (display units; converted to m)
-    //   a, b       : tailwater coefficients (Q in cms → D in m)
-    //   qMaxCms    : right edge of x range (Rp100); left edge is qMaxCms/200
+    //   twFn       : function (Q_cms) → tailwater depth (m)
+    //   qMaxCms    : right edge of x range; left edge is qMaxCms/200
     //   nPoints    : sample count (default 80)
-    function buildRatingCurvesFt(P_ft, L_ft, a, b, qMaxCms, nPoints = 80) {
+    function buildRatingCurvesFt(P_ft, L_ft, twFn, qMaxCms, nPoints = 80) {
         const P = P_ft / M_TO_FT;
         const L = L_ft / M_TO_FT;
         const qMin = Math.max(qMaxCms / 200, 0.05);
@@ -146,19 +153,19 @@
         const dangerFlip = [];
         for (const Q of qs) {
             const Qcfs = Q * CMS_TO_CFS;
-            const yt = tailwaterDepth(Q, a, b);
+            const yt = twFn(Q);
             const H  = weirHSimp(Q, L);
             const y2 = calcY2Simp(H, P);
             const yf = computeYFlipAdv(Q, L, P);
-            
-            const ytFt = yt !== null ? yt * M_TO_FT : null;
+
+            const ytFt = (yt !== null && isFinite(yt)) ? yt * M_TO_FT : null;
             const y2Ft = y2 !== null ? y2 * M_TO_FT : null;
             const yfFt = yf !== null ? yf * M_TO_FT : null;
-            
+
             tailwater.push({ x: Qcfs, y: ytFt });
             conjugate.push({ x: Qcfs, y: y2Ft });
             flip.push     ({ x: Qcfs, y: yfFt });
-            
+
             const isDanger = (ytFt !== null && y2Ft !== null && yfFt !== null) && (ytFt >= y2Ft && ytFt <= yfFt);
             dangerConj.push({ x: Qcfs, y: isDanger ? y2Ft : null });
             dangerFlip.push({ x: Qcfs, y: isDanger ? yfFt : null });
@@ -168,7 +175,7 @@
 
     global.LHDHydraulics = {
         weirHSimp, solveY1, solveFrSimp, calcY2Simp, computeYFlipAdv,
-        tailwaterDepth, buildRatingCurvesFt, bisect,
+        interpLinear, buildRatingCurvesFt, bisect,
         constants: { G, C_W, M_TO_FT, CMS_TO_CFS },
     };
 })(window);
