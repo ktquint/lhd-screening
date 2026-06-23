@@ -871,9 +871,12 @@ def _cmd_archive_to(args: argparse.Namespace) -> None:
     if not ledger:
         sys.exit(f"No ledger at {ledger_path}")
 
-    ready = [k for k, v in ledger.items() if v.get("status") == "ready_to_archive"]
+    statuses = {"ready_to_archive"}
+    if args.include_partial:
+        statuses.add("partial")
+    ready = [k for k, v in ledger.items() if v.get("status") in statuses]
     if not ready:
-        print("No bundles in ready_to_archive state. Nothing to do.")
+        print(f"No bundles in {statuses} state. Nothing to do.")
         return
 
     print(f"Archiving {len(ready)} bundle(s) → {dest}")
@@ -940,9 +943,12 @@ def main() -> None:
     parser.add_argument("--locate",       type=str, default=None, metavar="DAM_ID")
     parser.add_argument("--consolidate",  type=str, default=None, metavar="KEY")
     parser.add_argument("--mark-archived",type=str, default=None, metavar="KEY")
-    parser.add_argument("--archive-to",   type=Path, default=None, metavar="PATH",
+    parser.add_argument("--archive-to",      type=Path, default=None, metavar="PATH",
                         help="Consolidate + move + mark-archived for every "
                              "ready_to_archive bundle. One command clears the queue.")
+    parser.add_argument("--include-partial", action="store_true",
+                        help="With --archive-to: also move partial bundles "
+                             "(some dams failed) in addition to ready_to_archive ones.")
     args = parser.parse_args()
 
     if args.status:
