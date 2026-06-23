@@ -859,6 +859,62 @@ def _cmd_mark_archived(args: argparse.Namespace) -> None:
     print(f"HUC group {key} marked archived.")
 
 
+def _cmd_archive_to(args: argparse.Namespace) -> None:
+    """Consolidate + move + mark-archived for every ready_to_archive bundle."""
+    local_root: Path = args.local_staging_root
+    dest: Path = args.archive_to.resolve()
+    if not dest.is_dir():
+        sys.exit(f"--archive-to directory does not exist: {dest}")
+
+    ledger_path = local_root / "wsp_ledger.json"
+    ledger = _load_ledger(ledger_path)
+    if not ledger:
+        sys.exit(f"No ledger at {ledger_path}")
+
+    ready = [k for k, v in ledger.items() if v.get("status") == "ready_to_archive"]
+    if not ready:
+        print("No bundles in ready_to_archive state. Nothing to do.")
+        return
+
+    print(f"Archiving {len(ready)} bundle(s) → {dest}")
+    archived: List[str] = []
+    failed: List[Tuple[str, str]] = []
+    for key in sorted(ready):
+        huc_dir = local_root / _huc_dirname(key)
+        if not huc_dir.is_dir():
+            failed.append((key, f"bundle missing at {huc_dir}"))
+            continue
+        try:
+            print(f"\n[{key}] consolidating symlinks …")
+            moved, dangling = _consolidate_huc(huc_dir)
+            print(f"  moved {moved} symlinked dir(s)"
+                  + (f"; {len(dangling)} dangling skipped" if dangling else ""))
+
+            entry = ledger.setdefault(key, {})
+            entry.update({"consolidated": True, "consolidated_at": _now(),
+                          "consolidated_moves": moved})
+            entry.pop("external_links", None)
+
+            size_bytes = _dir_size_bytes(huc_dir)
+            print(f"[{key}] moving {size_bytes / 1e9:.1f} GB → {dest / huc_dir.name} …")
+            shutil.move(str(huc_dir), str(dest / huc_dir.name))
+
+            entry.update({"status": "archived", "archived_at": _now(),
+                          "archived_to": str(dest / huc_dir.name)})
+            _save_ledger(ledger_path, ledger)
+            print(f"[{key}] archived.")
+            archived.append(key)
+        except Exception as e:
+            _save_ledger(ledger_path, ledger)
+            print(f"[{key}] FAILED: {e}")
+            failed.append((key, str(e)))
+
+    print(f"\nDone. archived={len(archived)} failed={len(failed)}")
+    if failed:
+        for k, why in failed:
+            print(f"  ! {k}: {why}")
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -884,12 +940,17 @@ def main() -> None:
     parser.add_argument("--locate",       type=str, default=None, metavar="DAM_ID")
     parser.add_argument("--consolidate",  type=str, default=None, metavar="KEY")
     parser.add_argument("--mark-archived",type=str, default=None, metavar="KEY")
+    parser.add_argument("--archive-to",   type=Path, default=None, metavar="PATH",
+                        help="Consolidate + move + mark-archived for every "
+                             "ready_to_archive bundle. One command clears the queue.")
     args = parser.parse_args()
 
     if args.status:
         _cmd_status(args)
     elif args.locate:
         _cmd_locate(args)
+    elif args.archive_to:
+        _cmd_archive_to(args)
     elif args.consolidate:
         _cmd_consolidate(args)
     elif args.mark_archived:
