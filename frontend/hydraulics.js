@@ -134,12 +134,13 @@
     // Build the three curves for plotting. Returns ft on y, cfs on x.
     //   P_ft, L_ft : dam height + crest length (display units; converted to m)
     //   twFn       : function (Q_cms) → tailwater depth (m)
-    //   qMaxCms    : right edge of x range; left edge is qMaxCms/200
+    //   qMaxCms    : right edge of x range
+    //   qMinCms    : left edge of x range (defaults to qMaxCms/200 if omitted)
     //   nPoints    : sample count (default 80)
-    function buildRatingCurvesFt(P_ft, L_ft, twFn, qMaxCms, nPoints = 80) {
+    function buildRatingCurvesFt(P_ft, L_ft, twFn, qMaxCms, nPoints = 80, qMinCms = null) {
         const P = P_ft / M_TO_FT;
         const L = L_ft / M_TO_FT;
-        const qMin = Math.max(qMaxCms / 200, 0.05);
+        const qMin = qMinCms !== null ? Math.max(qMinCms, 1e-6) : Math.max(qMaxCms / 200, 0.05);
         const qs = [];
         const logLo = Math.log(qMin);
         const logHi = Math.log(qMaxCms);

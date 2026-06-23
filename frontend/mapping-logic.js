@@ -849,8 +849,9 @@ async function showRatingCurves(heightFt, lengthFt, comid, damName) {
     const M_TO_FT = window.LHDHydraulics.constants.M_TO_FT;
     const ERROR_TOLERANCE_CFS = 0.0005;
 
+    const qMinCms = srcQs[0];
     const { tailwater, conjugate, flip, dangerConj, dangerFlip } =
-        window.LHDHydraulics.buildRatingCurvesFt(heightFt, lengthFt, twFn, qMaxCms, 500);
+        window.LHDHydraulics.buildRatingCurvesFt(heightFt, lengthFt, twFn, qMaxCms, 500, qMinCms);
 
     const intersections = [];
     for (let i = 0; i < tailwater.length - 1; i++) {

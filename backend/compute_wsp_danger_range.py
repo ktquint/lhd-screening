@@ -61,7 +61,7 @@ def _danger_range_from_src(
     tw = interp1d(src_qs, src_ds, bounds_error=False,
                   fill_value=(src_ds[0], src_ds[-1]))
     q_max = src_qs[-1]
-    q_lo  = max(src_qs[0], q_max / 200)
+    q_lo  = max(src_qs[0], 1e-6)
     qs = np.exp(np.linspace(np.log(q_lo), np.log(q_max), n_points))
 
     danger_qs = []
