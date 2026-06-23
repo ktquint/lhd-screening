@@ -205,6 +205,36 @@ def _link_existing_data(
     return links
 
 
+def _prune_raw_dem_tiles(huc_dir: Path) -> Tuple[int, int]:
+    """Delete DEM/raw_3dep/ tiles and stamp the deletion in tile_manifest.json.
+
+    Returns (count_deleted, bytes_freed). Idempotent.
+    """
+    raw_dir = huc_dir / "DEM" / "raw_3dep"
+    if not raw_dir.exists():
+        return 0, 0
+    count = total_bytes = 0
+    for p in raw_dir.rglob("*"):
+        if p.is_file() and not p.is_symlink():
+            try:
+                total_bytes += p.stat().st_size
+            except OSError:
+                pass
+            count += 1
+    shutil.rmtree(raw_dir)
+    manifest_path = huc_dir / "tile_manifest.json"
+    if manifest_path.exists():
+        try:
+            manifest = json.loads(manifest_path.read_text())
+            manifest["raw_tiles_deleted_at"] = _now()
+            manifest["raw_tiles_deleted_count"] = count
+            manifest["raw_tiles_deleted_bytes"] = total_bytes
+            manifest_path.write_text(json.dumps(manifest, indent=2))
+        except (OSError, json.JSONDecodeError) as e:
+            print(f"  ! could not stamp tile_manifest.json: {e}")
+    return count, total_bytes
+
+
 def _consolidate_huc(huc_dir: Path) -> Tuple[int, List[str]]:
     moved, dangling = 0, []
     for sub in _REUSE_SUBDIRS:
@@ -548,6 +578,11 @@ def _process_huc(
         workers, search_up, target_dn,
     )
 
+    pruned, freed = _prune_raw_dem_tiles(huc_dir)
+    if pruned:
+        print(f"\n  Auto-pruned {pruned} raw 3DEP tile(s); freed {freed / 1e9:.1f} GB. "
+              f"Record retained in tile_manifest.json.")
+
     size_bytes = _dir_size_bytes(huc_dir)
     status = "ready_to_archive" if not failed else "partial"
     marker = {
@@ -859,6 +894,30 @@ def _cmd_mark_archived(args: argparse.Namespace) -> None:
     print(f"HUC group {key} marked archived.")
 
 
+def _cmd_prune_raw_all(args: argparse.Namespace) -> None:
+    """Delete DEM/raw_3dep/ from every bundle in the ledger."""
+    local_root: Path = args.local_staging_root
+    ledger = _load_ledger(local_root / "wsp_ledger.json")
+    if not ledger:
+        sys.exit(f"No ledger at {local_root / 'wsp_ledger.json'}")
+
+    total_files = total_bytes = 0
+    pruned_keys: List[str] = []
+    for key in sorted(ledger):
+        huc_dir = local_root / _huc_dirname(key)
+        if not huc_dir.is_dir():
+            continue
+        count, freed = _prune_raw_dem_tiles(huc_dir)
+        if count:
+            print(f"[{key}] deleted {count} tile(s); freed {freed / 1e9:.2f} GB")
+            total_files += count
+            total_bytes += freed
+            pruned_keys.append(key)
+
+    print(f"\nDone. {len(pruned_keys)} bundle(s); "
+          f"{total_files} tile(s); freed {total_bytes / 1e9:.1f} GB total.")
+
+
 def _cmd_archive_to(args: argparse.Namespace) -> None:
     """Consolidate + move + mark-archived for every ready_to_archive bundle."""
     local_root: Path = args.local_staging_root
@@ -892,6 +951,10 @@ def _cmd_archive_to(args: argparse.Namespace) -> None:
             moved, dangling = _consolidate_huc(huc_dir)
             print(f"  moved {moved} symlinked dir(s)"
                   + (f"; {len(dangling)} dangling skipped" if dangling else ""))
+
+            pruned, freed = _prune_raw_dem_tiles(huc_dir)
+            if pruned:
+                print(f"  deleted {pruned} raw 3DEP tile(s); freed {freed / 1e9:.1f} GB")
 
             entry = ledger.setdefault(key, {})
             entry.update({"consolidated": True, "consolidated_at": _now(),
@@ -944,17 +1007,22 @@ def main() -> None:
     parser.add_argument("--consolidate",  type=str, default=None, metavar="KEY")
     parser.add_argument("--mark-archived",type=str, default=None, metavar="KEY")
     parser.add_argument("--archive-to",      type=Path, default=None, metavar="PATH",
-                        help="Consolidate + move + mark-archived for every "
-                             "ready_to_archive bundle. One command clears the queue.")
+                        help="Consolidate + prune raw tiles + move + mark-archived "
+                             "for every ready_to_archive bundle.")
     parser.add_argument("--include-partial", action="store_true",
                         help="With --archive-to: also move partial bundles "
                              "(some dams failed) in addition to ready_to_archive ones.")
+    parser.add_argument("--prune-raw-all",   action="store_true",
+                        help="Delete DEM/raw_3dep/ tiles from every bundle in the "
+                             "ledger to reclaim disk space. Does not move or archive.")
     args = parser.parse_args()
 
     if args.status:
         _cmd_status(args)
     elif args.locate:
         _cmd_locate(args)
+    elif args.prune_raw_all:
+        _cmd_prune_raw_all(args)
     elif args.archive_to:
         _cmd_archive_to(args)
     elif args.consolidate:
