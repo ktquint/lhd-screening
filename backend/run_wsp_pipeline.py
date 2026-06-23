@@ -568,6 +568,10 @@ def _process_huc(
                "--staging-dir", str(huc_dir), "--workers", str(workers),
                "--no-land"])
 
+    pruned, freed = _prune_raw_dem_tiles(huc_dir)
+    if pruned:
+        print(f"\n  Pruned {pruned} raw 3DEP tile(s); freed {freed / 1e9:.1f} GB.")
+
     entry["status"] = "wsp_running"
     entry["wsp_at"] = _now()
     _save_ledger(ledger_path, ledger)
@@ -577,11 +581,6 @@ def _process_huc(
         huc_dir, dams_subset, vaa_df, geom_df, fdc, src_dict,
         workers, search_up, target_dn,
     )
-
-    pruned, freed = _prune_raw_dem_tiles(huc_dir)
-    if pruned:
-        print(f"\n  Auto-pruned {pruned} raw 3DEP tile(s); freed {freed / 1e9:.1f} GB. "
-              f"Record retained in tile_manifest.json.")
 
     size_bytes = _dir_size_bytes(huc_dir)
     status = "ready_to_archive" if not failed else "partial"
