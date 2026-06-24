@@ -329,7 +329,9 @@ def _process_dam(
     result_path = result_dir / "wsp_result.json"
     if result_path.exists():
         with open(result_path) as f:
-            return json.load(f)
+            data = json.load(f)
+        data["_from_cache"] = True
+        return data
 
     # Flowline
     strm_dir = huc_dir / "STRM" / str(dam_id)
@@ -459,8 +461,25 @@ def _run_wsp_batch(
     no_comid = [int(row["OBJECTID"]) for _, row in dams_subset.iterrows()
                 if pd.isna(row.get("Reach_ID"))]
 
+    def _result_path(did: int) -> Path:
+        return huc_dir / "WSP_RESULTS" / str(did) / "wsp_result.json"
+
+    def _cache_result(res: dict) -> None:
+        """Write any result (ok or failed) so the dam is skipped on retry."""
+        rp = _result_path(res["dam_id"])
+        if not rp.exists():
+            rp.parent.mkdir(parents=True, exist_ok=True)
+            with open(rp, "w") as f:
+                json.dump(res, f, indent=2)
+
     ok: List[int] = []
-    failed: List[int] = list(no_comid)
+    failed: List[int] = []
+
+    # Dams with no COMID can never be processed — record immediately.
+    for did in no_comid:
+        failed.append(did)
+        _cache_result({"dam_id": did, "status": "no_comid"})
+
     n = len(jobs)
 
     with ThreadPoolExecutor(max_workers=workers) as ex:
@@ -478,17 +497,20 @@ def _run_wsp_batch(
             except Exception as e:
                 print(f"  [{i}/{n}] Dam {dam_id}: EXCEPTION — {e}")
                 failed.append(dam_id)
+                _cache_result({"dam_id": dam_id, "status": f"exception:{e}"})
                 continue
             status = res.get("status", "?")
+            is_new = not res.get("_from_cache", False)
             if status == "ok":
                 ok.append(dam_id)
-                if i % 50 == 0 or i == n:
+                if is_new and (i % 50 == 0 or i == n):
                     print(f"  [{i}/{n}] Dam {dam_id}: ok  "
                           f"P={res['P_height_m']:.2f} m  L={res['crest_length_m']:.1f} m")
             else:
                 failed.append(dam_id)
-                if status != "wsp_result.json already existed":
+                if is_new:
                     print(f"  [{i}/{n}] Dam {dam_id}: {status}")
+                _cache_result(res)
 
     return ok, failed
 
@@ -583,7 +605,14 @@ def _process_huc(
     )
 
     size_bytes = _dir_size_bytes(huc_dir)
-    status = "ready_to_archive" if not failed else "partial"
+    # Promote to ready_to_archive if every failure has a cached result file
+    # (meaning all failures are permanent — retrying won't help).
+    # Keep "partial" only when the batch was interrupted before some dams ran.
+    all_failures_filed = all(
+        (huc_dir / "WSP_RESULTS" / str(did) / "wsp_result.json").exists()
+        for did in failed
+    )
+    status = "ready_to_archive" if (not failed or all_failures_filed) else "partial"
     marker = {
         "huc": key, "huc_level": len(key), "status": status,
         "dam_count": len(dam_ids), "ok": ok, "failed": failed,

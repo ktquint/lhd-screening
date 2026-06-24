@@ -490,8 +490,8 @@ function renderMarkers() {
 
             // Rounded values for display only
             const _round = (v) => v >= 100 ? Math.round(v / 100) * 100 : Math.round(v);
-            const qMinDisplay = _round(qMinRaw);
-            const qMaxDisplay = _round(qMaxRaw);
+            const qMinDisplay = _round(qMinRaw).toLocaleString();
+            const qMaxDisplay = _round(qMaxRaw).toLocaleString();
 
             const hasComid = dam.Reach_ID !== undefined && dam.Reach_ID !== null && String(dam.Reach_ID).trim() !== '';
             const hasSafetyData = isFinite(qMinRaw) && isFinite(qMaxRaw) && hasComid;
@@ -501,13 +501,13 @@ function renderMarkers() {
             const hasNwmGeom = isFinite(_wspH) && _wspH > 0 && isFinite(_wspL) && _wspL > 0;
 
             // Determine marker color based on data priority tier
-            let markerColor = '#95a5a6'; // Default: Gray
+            let markerColor = '#7f8c8d'; // Default: Gray
             if (fatalities > 0) {
-                markerColor = '#e74c3c'; // Priority 1: Red (Fatality recorded)
+                markerColor = '#c0392b'; // Priority 1: Red (Fatality recorded)
             } else if (hasNwmGeom) {
-                markerColor = '#f1c40f'; // Priority 2: Yellow (NWM height + width available)
+                markerColor = '#e67e22'; // Priority 2: Orange (NWM height + width available)
             } else if (hasComid) {
-                markerColor = '#3498db'; // Priority 3: Blue (Live forecast available)
+                markerColor = '#2980b9'; // Priority 3: Blue (Live forecast available)
             }
 
 
@@ -543,7 +543,7 @@ function renderMarkers() {
                 <div class="popup-content">
                     <strong>${_displayName}</strong><br>
                     <b>Location:</b> ${location}<br>
-                    <b>Fatalities:</b> ${fatalities}<br>
+                    ${fatalities > 0 ? `<b>Fatalities:</b> ${fatalities}<br>` : ''}
                     <hr>`;
             
             const heightFt = parseFloat(dam.Dam_Height_WSP_Ft);
@@ -1222,7 +1222,8 @@ async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
         borderColor: '#2471a3',
         backgroundColor: 'rgba(36,113,163,0.12)',
         fill: true,
-        pointRadius: 3,
+        pointRadius: 0,
+        pointHitRadius: 10,
         borderWidth: 2,
         tension: 0.3,
         pointStyle: 'circle',
@@ -1273,9 +1274,9 @@ legend.onAdd = function (map) {
     const div = L.DomUtil.create('div', 'info legend');
     div.innerHTML = `
         <strong>Dam Status</strong><br>
-        <i style="background: #e74c3c"></i> Fatality Recorded<br>
-        <i style="background: #f1c40f"></i> Dangerous Range Calculated<br>
-        <i style="background: #3498db"></i> Live Forecast Available<br>
+        <i style="background: #c0392b"></i> Fatality Recorded<br>
+        <i style="background: #e67e22"></i> Dangerous Range Calculated<br>
+        <i style="background: #2980b9"></i> Live Forecast Available<br>
         <i style="background: #95a5a6"></i> Location Info Only
     `;
 
