@@ -452,15 +452,6 @@ def _run_wsp_batch(
     target_dn: float,
 ) -> Tuple[List[int], List[int]]:
     """Run WSP for every dam in dams_subset. Returns (ok_ids, failed_ids)."""
-    jobs = [
-        (int(row["OBJECTID"]), float(row["Latitude"]), float(row["Longitude"]),
-         int(float(row["Reach_ID"])))
-        for _, row in dams_subset.iterrows()
-        if pd.notna(row.get("Reach_ID"))
-    ]
-    no_comid = [int(row["OBJECTID"]) for _, row in dams_subset.iterrows()
-                if pd.isna(row.get("Reach_ID"))]
-
     def _result_path(did: int) -> Path:
         return huc_dir / "WSP_RESULTS" / str(did) / "wsp_result.json"
 
@@ -474,11 +465,27 @@ def _run_wsp_batch(
 
     ok: List[int] = []
     failed: List[int] = []
+    jobs = []
 
-    # Dams with no COMID can never be processed — record immediately.
-    for did in no_comid:
-        failed.append(did)
-        _cache_result({"dam_id": did, "status": "no_comid"})
+    # Pre-scan: classify already-cached dams and build jobs only for new ones.
+    for _, row in dams_subset.iterrows():
+        dam_id = int(row["OBJECTID"])
+        rp = _result_path(dam_id)
+        if rp.exists():
+            with open(rp) as f:
+                data = json.load(f)
+            (ok if data.get("status") == "ok" else failed).append(dam_id)
+            continue
+        if pd.isna(row.get("Reach_ID")):
+            failed.append(dam_id)
+            _cache_result({"dam_id": dam_id, "status": "no_comid"})
+            continue
+        jobs.append((dam_id, float(row["Latitude"]), float(row["Longitude"]),
+                     int(float(row["Reach_ID"]))))
+
+    n_pre = len(ok) + len(failed)
+    if n_pre:
+        print(f"  Pre-cached: {len(ok)} ok, {len(failed)} failed — skipping.")
 
     n = len(jobs)
 
@@ -500,16 +507,14 @@ def _run_wsp_batch(
                 _cache_result({"dam_id": dam_id, "status": f"exception:{e}"})
                 continue
             status = res.get("status", "?")
-            is_new = not res.get("_from_cache", False)
             if status == "ok":
                 ok.append(dam_id)
-                if is_new and (i % 50 == 0 or i == n):
+                if i % 50 == 0 or i == n:
                     print(f"  [{i}/{n}] Dam {dam_id}: ok  "
                           f"P={res['P_height_m']:.2f} m  L={res['crest_length_m']:.1f} m")
             else:
                 failed.append(dam_id)
-                if is_new:
-                    print(f"  [{i}/{n}] Dam {dam_id}: {status}")
+                print(f"  [{i}/{n}] Dam {dam_id}: {status}")
                 _cache_result(res)
 
     return ok, failed

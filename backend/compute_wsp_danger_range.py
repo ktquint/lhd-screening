@@ -11,8 +11,8 @@ Also drops ARC-only columns that are no longer used:
   Dam_Height_GIS_Ft, Dam_Length_GIS_Ft, Tailwater_a, Tailwater_b,
   Rp100_cms, Qmin_stable, Qmax_stable
 
-Clears any pre-existing ARC-derived Qmin_env / Qmax_env values so only
-NWM-derived values remain.
+Incremental: dams that already have Qmin_env are skipped, so each
+pipeline batch only solves newly-added dams.
 
 Writes to both data/full_lhd_website.csv and frontend/data/full_lhd_website.csv.
 
@@ -87,9 +87,9 @@ def run(
 ) -> None:
     """Compute NWM-based Qmin_env/Qmax_env and write back to csv_path.
 
+    Incremental: dams that already have a Qmin_env value are skipped.
     src_data: pre-loaded synthetic_rating_curves.json dict. If None, loads
-    from SRC_JSON (useful when calling from rolling_pipeline to avoid
-    re-reading 11 MB per HUC batch).
+    from SRC_JSON (avoids re-reading 11 MB per HUC batch when called in a loop).
     """
     df = pd.read_csv(csv_path, low_memory=False)
 
@@ -97,20 +97,25 @@ def run(
         with open(SRC_JSON) as f:
             src_data = json.load(f)
 
-    # Clear all existing Qmin/Qmax env values and drop ARC-only columns
-    df["Qmin_env"] = np.nan
-    df["Qmax_env"] = np.nan
+    # Drop legacy ARC-only columns (no-op once already removed)
     drop = [c for c in ARC_COLS if c in df.columns]
     if drop:
         df = df.drop(columns=drop)
         print(f"Dropped ARC columns: {drop}")
+
+    # Ensure columns exist without wiping previously-solved values
+    if "Qmin_env" not in df.columns:
+        df["Qmin_env"] = np.nan
+    if "Qmax_env" not in df.columns:
+        df["Qmax_env"] = np.nan
 
     has_wsp = (
         df["Dam_Height_WSP_Ft"].notna() & (df["Dam_Height_WSP_Ft"] > 0) &
         df["Dam_Length_WSP_Ft"].notna() & (df["Dam_Length_WSP_Ft"] > 0)
     )
     has_comid = df["Reach_ID"].notna()
-    candidates = df[has_wsp & has_comid].copy()
+    needs_compute = df["Qmin_env"].isna()
+    candidates = df[has_wsp & has_comid & needs_compute].copy()
     candidates["_comid_str"] = (
         candidates["Reach_ID"].astype(float).astype(int).astype(str)
     )
