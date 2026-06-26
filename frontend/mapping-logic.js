@@ -502,12 +502,10 @@ function renderMarkers() {
 
             // Determine marker color based on data priority tier
             let markerColor = '#7f8c8d'; // Default: Gray
-            if (fatalities > 0) {
-                markerColor = '#c0392b'; // Priority 1: Red (Fatality recorded)
-            } else if (hasNwmGeom) {
-                markerColor = '#e67e22'; // Priority 2: Orange (NWM height + width available)
+            if (hasNwmGeom) {
+                markerColor = '#e67e22'; // Priority 1: Orange (NWM height + width available)
             } else if (hasComid) {
-                markerColor = '#2980b9'; // Priority 3: Blue (Live forecast available)
+                markerColor = '#2980b9'; // Priority 2: Blue (Live forecast available)
             }
 
 
