@@ -1151,40 +1151,6 @@ async function showSyntheticRatingCurve(comid, damName, heightFt = null, lengthF
         );
     }
 
-    const forecastRange = await _getForecastRange(comid);
-    const forecastAnnotations = forecastRange ? {
-        forecastBand: {
-            type: 'box',
-            xMin: forecastRange.forecastMin,
-            xMax: forecastRange.forecastMax,
-            backgroundColor: 'rgba(52,152,219,0.12)',
-            borderColor: 'rgba(52,152,219,0.5)',
-            borderWidth: 1,
-            label: {
-                display: true,
-                content: '10-day forecast',
-                font: { size: 10 },
-                color: '#2471a3',
-                position: { x: 'center', y: 'start' },
-            },
-        },
-        forecastCurrent: {
-            type: 'line',
-            scaleID: 'x',
-            value: forecastRange.currentFlow,
-            borderColor: 'rgba(52,152,219,0.8)',
-            borderWidth: 1.5,
-            borderDash: [4, 3],
-            label: {
-                display: true,
-                content: 'now',
-                font: { size: 9 },
-                color: '#2471a3',
-                position: 'end',
-            },
-        },
-    } : {};
-
     const ctx = document.getElementById('srcChart').getContext('2d');
     srcChart = new Chart(ctx, {
         type: 'line',
@@ -1199,7 +1165,6 @@ async function showSyntheticRatingCurve(comid, damName, heightFt = null, lengthF
                         label: (item) => `Q = ${item.parsed.x.toFixed(0)} cfs, stage = ${item.parsed.y.toFixed(2)} ft`,
                     },
                 },
-                annotation: { annotations: forecastAnnotations },
                 zoom: {
                     limits: { x: { min: 'original', max: 'original' }, y: { min: 'original', max: 'original' } },
                     pan: { enabled: true, mode: 'xy' },
@@ -1312,40 +1277,6 @@ async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
         pointStyle: 'circle',
     });
 
-    const fdcForecast = await _getForecastRange(comid);
-    const fdcAnnotations = fdcForecast ? {
-        forecastBand: {
-            type: 'box',
-            yMin: fdcForecast.forecastMin,
-            yMax: fdcForecast.forecastMax,
-            backgroundColor: 'rgba(52,152,219,0.12)',
-            borderColor: 'rgba(52,152,219,0.5)',
-            borderWidth: 1,
-            label: {
-                display: true,
-                content: '10-day forecast',
-                font: { size: 10 },
-                color: '#2471a3',
-                position: { x: 'end', y: 'center' },
-            },
-        },
-        forecastCurrent: {
-            type: 'line',
-            scaleID: 'y',
-            value: fdcForecast.currentFlow,
-            borderColor: 'rgba(52,152,219,0.8)',
-            borderWidth: 1.5,
-            borderDash: [4, 3],
-            label: {
-                display: true,
-                content: 'now',
-                font: { size: 9 },
-                color: '#2471a3',
-                position: 'end',
-            },
-        },
-    } : {};
-
     const ctx = document.getElementById('fdcChart').getContext('2d');
     fdcChart = new Chart(ctx, {
         type: 'line',
@@ -1361,7 +1292,6 @@ async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
                             `Q = ${item.parsed.y.toFixed(0)} cfs  (exceeded ${item.parsed.x.toFixed(0)}% of time)`,
                     },
                 },
-                annotation: { annotations: fdcAnnotations },
                 zoom: {
                     limits: { x: { min: 'original', max: 'original' }, y: { min: 'original', max: 'original' } },
                     pan: { enabled: true, mode: 'xy' },
