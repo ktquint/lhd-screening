@@ -43,6 +43,7 @@ Other flags
     --locate DAM_ID         print HUC batch for a dam and exit
     --consolidate KEY       replace symlinks with real files for a bundle
     --mark-archived KEY     flip ledger status to archived
+    --restore KEY|all       move archived bundle(s) back to local-staging-root
 """
 from __future__ import annotations
 
@@ -1014,6 +1015,65 @@ def _cmd_archive_to(args: argparse.Namespace) -> None:
             print(f"  ! {k}: {why}")
 
 
+def _cmd_restore(args: argparse.Namespace) -> None:
+    """Move archived bundles back to local_staging_root and reset ledger status."""
+    local_root: Path = args.local_staging_root
+    ledger_path = local_root / "wsp_ledger.json"
+    ledger = _load_ledger(ledger_path)
+    if not ledger:
+        sys.exit(f"No ledger at {ledger_path}")
+
+    keys_arg: Optional[str] = args.restore
+    if keys_arg and keys_arg.lower() != "all":
+        targets = [k.strip() for k in keys_arg.split(",")]
+        missing = [k for k in targets if k not in ledger]
+        if missing:
+            sys.exit(f"Keys not in ledger: {', '.join(missing)}")
+        to_restore = targets
+    else:
+        to_restore = [k for k, v in ledger.items() if v.get("status") == "archived"]
+
+    if not to_restore:
+        print("No archived bundles to restore.")
+        return
+
+    print(f"Restoring {len(to_restore)} bundle(s) → {local_root}")
+    restored, failed = [], []
+    for key in sorted(to_restore):
+        entry = ledger[key]
+        archived_to = entry.get("archived_to")
+        if not archived_to:
+            failed.append((key, "no archived_to in ledger"))
+            continue
+        src = Path(archived_to)
+        if not src.is_dir():
+            failed.append((key, f"source not found: {src}"))
+            continue
+        dest = local_root / _huc_dirname(key)
+        if dest.exists():
+            failed.append((key, f"destination already exists: {dest}"))
+            continue
+        try:
+            size_bytes = _dir_size_bytes(src)
+            print(f"[{key}] moving {size_bytes / 1e9:.1f} GB → {dest} …")
+            shutil.move(str(src), str(dest))
+            entry.update({"status": "ready_to_archive"})
+            for field in ("archived_at", "archived_to"):
+                entry.pop(field, None)
+            _save_ledger(ledger_path, ledger)
+            print(f"[{key}] restored.")
+            restored.append(key)
+        except Exception as e:
+            _save_ledger(ledger_path, ledger)
+            print(f"[{key}] FAILED: {e}")
+            failed.append((key, str(e)))
+
+    print(f"\nDone. restored={len(restored)} failed={len(failed)}")
+    if failed:
+        for k, why in failed:
+            print(f"  ! {k}: {why}")
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -1048,6 +1108,10 @@ def main() -> None:
     parser.add_argument("--prune-raw-all",   action="store_true",
                         help="Delete DEM/raw_3dep/ tiles from every bundle in the "
                              "ledger to reclaim disk space. Does not move or archive.")
+    parser.add_argument("--restore", type=str, default=None, metavar="KEY|all",
+                        help="Move archived bundle(s) back to local-staging-root and "
+                             "reset ledger status to ready_to_archive. Pass a single "
+                             "HUC key, a comma-separated list, or 'all'.")
     args = parser.parse_args()
 
     if args.status:
@@ -1062,6 +1126,8 @@ def main() -> None:
         _cmd_consolidate(args)
     elif args.mark_archived:
         _cmd_mark_archived(args)
+    elif args.restore:
+        _cmd_restore(args)
     elif args.aggregate:
         _cmd_aggregate(args)
     else:
