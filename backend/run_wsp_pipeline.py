@@ -577,14 +577,33 @@ def _process_huc(
 
     py      = sys.executable
     backend = str(_BACKEND_ROOT)
-    stage_args = ["--staging-dir", str(huc_dir), "--dams-csv", str(dams_csv),
+
+    # Only stage dams that don't already have a wsp_result.json — avoids
+    # re-downloading DEMs for dams that are already done or permanently failed.
+    results_dir = huc_dir / "WSP_RESULTS"
+    pending_ids = [
+        did for did in dam_ids
+        if not (results_dir / str(did) / "wsp_result.json").exists()
+    ]
+    if pending_ids and len(pending_ids) < len(dam_ids):
+        pending_csv = huc_dir / "dams_pending.csv"
+        dams_subset[dams_subset["OBJECTID"].astype(int).isin(pending_ids)] \
+            .drop(columns=["_GROUP"], errors="ignore") \
+            .to_csv(pending_csv, index=False)
+        print(f"  Staging {len(pending_ids)} of {len(dam_ids)} dams "
+              f"({len(dam_ids) - len(pending_ids)} already have results)")
+        stage_csv = pending_csv
+    else:
+        stage_csv = dams_csv
+
+    stage_args = ["--staging-dir", str(huc_dir), "--dams-csv", str(stage_csv),
                   "--workers", str(workers), "--download-workers", str(workers)]
 
     # stage_nhd_dem — in-process if vaa_df already loaded, else subprocess
     if vaa_df is not None:
         print(f"\n  → stage_nhd_dem (in-process, shared VAA table)")
         run_stage_nhd_dem(
-            staging_dir=huc_dir, dams_csv=dams_csv,
+            staging_dir=huc_dir, dams_csv=stage_csv,
             workers=workers, download_workers=workers, vaa_df=vaa_df,
         )
     else:
