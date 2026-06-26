@@ -20,6 +20,7 @@ let forecastChart;
 let ratingCurvesChart;
 let srcChart;
 const _srcCache = new Map();
+const _forecastCache = new Map();
 let allDams = [];
 let _forecastState = null; // { allPoints, hasSafetyRange, qMin, qMax, damName }
 let markers = L.layerGroup();
@@ -573,7 +574,8 @@ function renderMarkers() {
 
             popupContent += `</div>`;
             marker.bindPopup(popupContent);
-            markers.addLayer(marker); 
+            if (hasComid) marker.on('click', () => prefetchForecast(dam.Reach_ID));
+            markers.addLayer(marker);
         }
     });
     
@@ -606,6 +608,17 @@ window.openCombinedPanel = () => {
 // 4. National Water Model Forecast (NOAA NWPS API, NHDPlus V2 COMID = Reach_ID)
 // Medium-range only: ~10d 3-hourly ensemble mean + member spread as uncertainty band.
 // Units: API returns ft³/s (cfs) — no conversion needed.
+
+function prefetchForecast(comid) {
+    comid = String(comid).replace(/\.0+$/, '');
+    if (!comid || _forecastCache.has(comid)) return;
+    _forecastCache.set(comid,
+        fetch(`https://api.water.noaa.gov/nwps/v1/reaches/${comid}/streamflow?series=medium_range`)
+            .then(r => r.json())
+            .catch(() => null)
+    );
+}
+
 async function checkForecast(comid, qMin, qMax, damName) {
     // Reach_ID arrives as a pandas-style float string ("10376596.0") — NWPS wants an integer.
     comid = String(comid).replace(/\.0+$/, '');
@@ -622,9 +635,11 @@ async function checkForecast(comid, qMin, qMax, damName) {
     if (forecastChart) { forecastChart.destroy(); forecastChart = null; }
 
     try {
-        const mrData = await fetch(
-            `https://api.water.noaa.gov/nwps/v1/reaches/${comid}/streamflow?series=medium_range`
-        ).then(r => r.json());
+        const mrData = await (
+            _forecastCache.get(comid) ??
+            fetch(`https://api.water.noaa.gov/nwps/v1/reaches/${comid}/streamflow?series=medium_range`)
+                .then(r => r.json())
+        );
 
         const mrMean    = mrData.mediumRange?.mean?.data ?? [];
         const mrMembers = ['member1','member2','member3','member4','member5','member6']
