@@ -1274,7 +1274,6 @@ legend.onAdd = function (map) {
     const div = L.DomUtil.create('div', 'info legend');
     div.innerHTML = `
         <strong>Dam Status</strong><br>
-        <i style="background: #c0392b"></i> Fatality Recorded<br>
         <i style="background: #e67e22"></i> Dangerous Range Calculated<br>
         <i style="background: #2980b9"></i> Live Forecast Available<br>
         <i style="background: #95a5a6"></i> Location Info Only
