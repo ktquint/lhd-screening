@@ -1042,6 +1042,39 @@ window.showRatingCurves = showRatingCurves;
 // 5b. Synthetic Rating Curve (SRC): Manning's-equation stage-discharge curve for the
 // dam's NHDPlus V2 reach, derived offline from hydrofabric bankfull channel geometry
 // (see backend/build_synthetic_rating_curves.py). In-channel only.
+
+// Extract the 10-day forecast envelope (min/max across all members) from the cache.
+// Returns { currentFlow, forecastMin, forecastMax } in cfs, or null if unavailable.
+async function _getForecastRange(comid) {
+    const cached = _forecastCache.get(String(comid).replace(/\.0+$/, ''));
+    if (!cached) return null;
+    try {
+        const mrData = await cached;
+        if (!mrData) return null;
+        const mrMean = mrData.mediumRange?.mean?.data ?? [];
+        if (!mrMean.length) return null;
+        const mrMembers = ['member1','member2','member3','member4','member5','member6']
+            .map(k => mrData.mediumRange?.[k]?.data ?? []);
+        let forecastMin = Infinity, forecastMax = -Infinity;
+        mrMean.forEach((p, i) => {
+            const upper = Math.max(...mrMembers.map(m => m[i]?.flow ?? p.flow));
+            const lower = Math.min(...mrMembers.map(m => m[i]?.flow ?? p.flow));
+            forecastMax = Math.max(forecastMax, upper);
+            forecastMin = Math.min(forecastMin, lower);
+        });
+        if (!isFinite(forecastMin) || !isFinite(forecastMax)) return null;
+        const nowMs = Date.now();
+        const pts = mrMean.map(p => ({ ms: new Date(p.validTime).getTime(), flow: p.flow }));
+        const ai = pts.findIndex(p => p.ms > nowMs);
+        let currentFlow = pts[0]?.flow ?? null;
+        if (ai > 0) {
+            const t = (nowMs - pts[ai-1].ms) / (pts[ai].ms - pts[ai-1].ms);
+            currentFlow = pts[ai-1].flow + t * (pts[ai].flow - pts[ai-1].flow);
+        }
+        return { currentFlow, forecastMin, forecastMax };
+    } catch { return null; }
+}
+
 function _loadSrcData(comid) {
     if (!_srcCache.has(comid)) {
         _srcCache.set(comid, fetch(`data/src/${comid}.json`).then(r => r.ok ? r.json() : null).catch(() => null));
@@ -1118,6 +1151,40 @@ async function showSyntheticRatingCurve(comid, damName, heightFt = null, lengthF
         );
     }
 
+    const forecastRange = await _getForecastRange(comid);
+    const forecastAnnotations = forecastRange ? {
+        forecastBand: {
+            type: 'box',
+            xMin: forecastRange.forecastMin,
+            xMax: forecastRange.forecastMax,
+            backgroundColor: 'rgba(52,152,219,0.12)',
+            borderColor: 'rgba(52,152,219,0.5)',
+            borderWidth: 1,
+            label: {
+                display: true,
+                content: '10-day forecast',
+                font: { size: 10 },
+                color: '#2471a3',
+                position: { x: 'center', y: 'start' },
+            },
+        },
+        forecastCurrent: {
+            type: 'line',
+            scaleID: 'x',
+            value: forecastRange.currentFlow,
+            borderColor: 'rgba(52,152,219,0.8)',
+            borderWidth: 1.5,
+            borderDash: [4, 3],
+            label: {
+                display: true,
+                content: 'now',
+                font: { size: 9 },
+                color: '#2471a3',
+                position: 'end',
+            },
+        },
+    } : {};
+
     const ctx = document.getElementById('srcChart').getContext('2d');
     srcChart = new Chart(ctx, {
         type: 'line',
@@ -1132,6 +1199,7 @@ async function showSyntheticRatingCurve(comid, damName, heightFt = null, lengthF
                         label: (item) => `Q = ${item.parsed.x.toFixed(0)} cfs, stage = ${item.parsed.y.toFixed(2)} ft`,
                     },
                 },
+                annotation: { annotations: forecastAnnotations },
                 zoom: {
                     limits: { x: { min: 'original', max: 'original' }, y: { min: 'original', max: 'original' } },
                     pan: { enabled: true, mode: 'xy' },
@@ -1244,6 +1312,40 @@ async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
         pointStyle: 'circle',
     });
 
+    const fdcForecast = await _getForecastRange(comid);
+    const fdcAnnotations = fdcForecast ? {
+        forecastBand: {
+            type: 'box',
+            yMin: fdcForecast.forecastMin,
+            yMax: fdcForecast.forecastMax,
+            backgroundColor: 'rgba(52,152,219,0.12)',
+            borderColor: 'rgba(52,152,219,0.5)',
+            borderWidth: 1,
+            label: {
+                display: true,
+                content: '10-day forecast',
+                font: { size: 10 },
+                color: '#2471a3',
+                position: { x: 'end', y: 'center' },
+            },
+        },
+        forecastCurrent: {
+            type: 'line',
+            scaleID: 'y',
+            value: fdcForecast.currentFlow,
+            borderColor: 'rgba(52,152,219,0.8)',
+            borderWidth: 1.5,
+            borderDash: [4, 3],
+            label: {
+                display: true,
+                content: 'now',
+                font: { size: 9 },
+                color: '#2471a3',
+                position: 'end',
+            },
+        },
+    } : {};
+
     const ctx = document.getElementById('fdcChart').getContext('2d');
     fdcChart = new Chart(ctx, {
         type: 'line',
@@ -1259,6 +1361,7 @@ async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
                             `Q = ${item.parsed.y.toFixed(0)} cfs  (exceeded ${item.parsed.x.toFixed(0)}% of time)`,
                     },
                 },
+                annotation: { annotations: fdcAnnotations },
                 zoom: {
                     limits: { x: { min: 'original', max: 'original' }, y: { min: 'original', max: 'original' } },
                     pan: { enabled: true, mode: 'xy' },
