@@ -1,3 +1,8 @@
+# Web framework
+Flask
+Flask-CORS
+python-dotenv
+
 # Core geospatial
 geopandas
 shapely
