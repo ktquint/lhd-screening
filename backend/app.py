@@ -21,16 +21,17 @@ CORS(app)  # Prevents browser CORS errors during local testing
 
 @app.route('/api/external-data', methods=['GET'])
 def get_secure_data():
-    # Grab the key securely from memory
-    api_key = os.getenv("NWM_V2_API_KEY")
+    # Grab the API key from the environment variable
+    api_key = os.getenv("DEMO_NWM_V2_API_KEY")
     
     # Check if the key was loaded correctly (helps with debugging)
     if not api_key:
         return jsonify({"error": "API key missing. Check your .env pathing!"}), 500
-        
-    external_url = "https://api.example.com/v1/data"  # Replace with your real API URL
     
-    # Option 1: Header implementation
+    # Grab the external API URL from the environment variable  
+    external_url = os.getenv("DEMO_NWM_V2_URL")
+    
+    # Header implementation
     headers = {
         "X-API-Key": api_key,
         "Accept": "application/json"
