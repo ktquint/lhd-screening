@@ -18,6 +18,9 @@
 // 1. Initialize Map with multiple base layers
 let forecastChart;
 let ratingCurvesChart;
+let srcChart;
+const _srcCache = new Map();
+const _forecastCache = new Map();
 let allDams = [];
 let _forecastState = null; // { allPoints, hasSafetyRange, qMin, qMax, damName }
 let markers = L.layerGroup();
@@ -483,22 +486,27 @@ function renderMarkers() {
 
             // Backend writes the envelope in cms; NWPS forecasts are in cfs. Convert at parse.
             const CMS_TO_CFS = 35.3147;
-            let qMinVal = Math.round(parseFloat(dam.Qmin_env) * CMS_TO_CFS);
-            let qMaxVal = Math.round(parseFloat(dam.Qmax_env) * CMS_TO_CFS);
-            
-            if (qMinVal >= 100) qMinVal = Math.round(qMinVal / 100) * 100;
-            if (qMaxVal >= 100) qMaxVal = Math.round(qMaxVal / 100) * 100;
+            const qMinRaw = parseFloat(dam.Qmin_env) * CMS_TO_CFS;
+            const qMaxRaw = parseFloat(dam.Qmax_env) * CMS_TO_CFS;
+
+            // Rounded values for display only
+            const _round = (v) => v >= 100 ? Math.round(v / 100) * 100 : Math.round(v);
+            const qMinDisplay = _round(qMinRaw).toLocaleString();
+            const qMaxDisplay = _round(qMaxRaw).toLocaleString();
+
             const hasComid = dam.Reach_ID !== undefined && dam.Reach_ID !== null && String(dam.Reach_ID).trim() !== '';
-            const hasSafetyData = !isNaN(qMinVal) && hasComid;
-            
+            const hasSafetyData = isFinite(qMinRaw) && isFinite(qMaxRaw) && hasComid;
+
+            const _wspH = parseFloat(dam.Dam_Height_WSP_Ft);
+            const _wspL = parseFloat(dam.Dam_Length_WSP_Ft);
+            const hasNwmGeom = isFinite(_wspH) && _wspH > 0 && isFinite(_wspL) && _wspL > 0;
+
             // Determine marker color based on data priority tier
-            let markerColor = '#95a5a6'; // Default: Gray (Missing hydro link / screening safety data)
-            if (fatalities > 0) {
-                markerColor = '#e74c3c'; // Priority 1: Red (Fatality recorded)
-            } else if (hasSafetyData) {
-                markerColor = '#f1c40f'; // Priority 2: Yellow (Dangerous flow range calculated)
+            let markerColor = '#7f8c8d'; // Default: Gray
+            if (hasNwmGeom) {
+                markerColor = '#e67e22'; // Priority 1: Orange (NWM height + width available)
             } else if (hasComid) {
-                markerColor = '#3498db'; // Priority 3: Blue (Live forecast available)
+                markerColor = '#2980b9'; // Priority 2: Blue (Live forecast available)
             }
 
 
@@ -534,29 +542,27 @@ function renderMarkers() {
                 <div class="popup-content">
                     <strong>${_displayName}</strong><br>
                     <b>Location:</b> ${location}<br>
-                    <b>Fatalities:</b> ${fatalities}<br>
+                    ${fatalities > 0 ? `<b>Fatalities:</b> ${fatalities}<br>` : ''}
                     <hr>`;
             
-            const heightFt = parseFloat(dam.Dam_Height_GIS_Ft);
-            const lengthFt = parseFloat(dam.Dam_Length_GIS_Ft);
-            const twA      = parseFloat(dam.Tailwater_a);
-            const twB      = parseFloat(dam.Tailwater_b);
-            const rp100Cms = parseFloat(dam.Rp100_cms);
-            
+            const heightFt = parseFloat(dam.Dam_Height_WSP_Ft);
+            const lengthFt = parseFloat(dam.Dam_Length_WSP_Ft);
+
             const hasRatingCurves = isFinite(heightFt) && heightFt > 0
                 && isFinite(lengthFt) && lengthFt > 0
-                && isFinite(twA) && isFinite(twB)
-                && isFinite(rp100Cms) && rp100Cms > 0;
+                && hasComid;
 
             if (hasComid || hasRatingCurves) {
                 if (hasSafetyData) {
-                    popupContent += `<b>Dangerous Range:</b> ${qMinVal} - ${qMaxVal} cfs<br>`;
+                    popupContent += `<b>Dangerous Range:</b> ${qMinDisplay} - ${qMaxDisplay} cfs<br>`;
                 }
-                const safetyArgs = hasSafetyData ? `${qMinVal}, ${qMaxVal}` : `null, null`;
-                
+                const safetyArgs = hasSafetyData ? `${qMinRaw}, ${qMaxRaw}` : `null, null`;
+
                 let onClickActions = ['openCombinedPanel()'];
                 if (hasComid) onClickActions.push(`checkForecast('${dam.Reach_ID}', ${safetyArgs}, ${jsAttrLiteral(_displayName)})`);
-                if (hasRatingCurves) onClickActions.push(`showRatingCurves(${heightFt}, ${lengthFt}, ${twA}, ${twB}, ${rp100Cms}, ${jsAttrLiteral(_displayName)})`);
+                if (hasRatingCurves) onClickActions.push(`showRatingCurves(${heightFt}, ${lengthFt}, '${dam.Reach_ID}', ${jsAttrLiteral(_displayName)})`);
+                if (hasComid && !hasRatingCurves) onClickActions.push(`showSyntheticRatingCurve('${dam.Reach_ID}', ${jsAttrLiteral(_displayName)})`);
+                if (hasComid) onClickActions.push(`showFlowDurationCurve('${dam.Reach_ID}', ${jsAttrLiteral(_displayName)}, ${safetyArgs})`);
                 
                 popupContent += `
                     <button class="btn-check" onclick="${onClickActions.join('; ')}">
@@ -568,7 +574,8 @@ function renderMarkers() {
 
             popupContent += `</div>`;
             marker.bindPopup(popupContent);
-            markers.addLayer(marker); 
+            if (hasComid) marker.on('click', () => prefetchForecast(dam.Reach_ID));
+            markers.addLayer(marker);
         }
     });
     
@@ -594,11 +601,24 @@ window.openCombinedPanel = () => {
     }
     document.getElementById('forecastContainer').style.display = 'none';
     document.getElementById('ratingCurvesContainer').style.display = 'none';
+    document.getElementById('srcContainer').style.display = 'none';
+    document.getElementById('fdcContainer').style.display = 'none';
 };
 
 // 4. National Water Model Forecast (NOAA NWPS API, NHDPlus V2 COMID = Reach_ID)
 // Medium-range only: ~10d 3-hourly ensemble mean + member spread as uncertainty band.
 // Units: API returns ft³/s (cfs) — no conversion needed.
+
+function prefetchForecast(comid) {
+    comid = String(comid).replace(/\.0+$/, '');
+    if (!comid || _forecastCache.has(comid)) return;
+    _forecastCache.set(comid,
+        fetch(`https://api.water.noaa.gov/nwps/v1/reaches/${comid}/streamflow?series=medium_range`)
+            .then(r => r.json())
+            .catch(() => null)
+    );
+}
+
 async function checkForecast(comid, qMin, qMax, damName) {
     // Reach_ID arrives as a pandas-style float string ("10376596.0") — NWPS wants an integer.
     comid = String(comid).replace(/\.0+$/, '');
@@ -615,9 +635,11 @@ async function checkForecast(comid, qMin, qMax, damName) {
     if (forecastChart) { forecastChart.destroy(); forecastChart = null; }
 
     try {
-        const mrData = await fetch(
-            `https://api.water.noaa.gov/nwps/v1/reaches/${comid}/streamflow?series=medium_range`
-        ).then(r => r.json());
+        const mrData = await (
+            _forecastCache.get(comid) ??
+            fetch(`https://api.water.noaa.gov/nwps/v1/reaches/${comid}/streamflow?series=medium_range`)
+                .then(r => r.json())
+        );
 
         const mrMean    = mrData.mediumRange?.mean?.data ?? [];
         const mrMembers = ['member1','member2','member3','member4','member5','member6']
@@ -628,13 +650,17 @@ async function checkForecast(comid, qMin, qMax, damName) {
         nowFloor.setMinutes(0, 0, 0);
         const nowMs = nowFloor.getTime();
 
-        const rawPoints = mrMean.map((p, i) => ({
-            validTime: p.validTime,
-            validMs:   new Date(p.validTime).getTime(),
-            flow:  p.flow,
-            upper: Math.max(...mrMembers.map(m => m[i]?.flow ?? p.flow)),
-            lower: Math.min(...mrMembers.map(m => m[i]?.flow ?? p.flow))
-        }));
+        const rawPoints = mrMean.map((p, i) => {
+            const upper = Math.max(...mrMembers.map(m => m[i]?.flow ?? p.flow));
+            const lower = Math.min(...mrMembers.map(m => m[i]?.flow ?? p.flow));
+            return {
+                validTime: p.validTime,
+                validMs:   new Date(p.validTime).getTime(),
+                flow:  p.flow,
+                upper: Math.max(upper, p.flow),
+                lower: Math.min(lower, p.flow)
+            };
+        });
 
         // Interpolate a synthetic point at the current floored hour
         const afterIdx = rawPoints.findIndex(p => p.validMs > nowMs);
@@ -809,10 +835,28 @@ function _renderForecastChart(allPoints, hasSafetyRange, qMin, qMax, damName, da
 }
 
 // 4b. Rating curves (tailwater / conjugate / flip) computed client-side.
-// Inputs: height + length in ft, tailwater coeffs (D[m] = a * Q[cms]^b), Rp100 in cms.
+// Tailwater comes from the NWM synthetic rating curve (SRC) for the dam's reach.
 // Display: Q in cfs on x-axis, depth in ft on y-axis.
-function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
+async function showRatingCurves(heightFt, lengthFt, comid, damName) {
     document.getElementById('ratingCurvesContainer').style.display = 'flex';
+    document.getElementById('ratingCurvesHeader').innerHTML =
+        `<strong>${damName} Rating Curve</strong><br>` +
+        `<span style="color:#7f8c8d; font-size: 12px;">Loading SRC…</span>`;
+
+    const comidStr = String(comid).replace(/\.0+$/, '');
+    const curve = await _loadSrcData(comidStr);
+
+    if (!curve || !curve.discharge_cms || !curve.stage_m || curve.discharge_cms.length < 2) {
+        document.getElementById('ratingCurvesHeader').innerHTML =
+            `<strong>${damName} Rating Curve</strong><br>` +
+            `<span style="color:#7f8c8d; font-size: 12px;">No SRC available for reach ${comidStr}.</span>`;
+        return;
+    }
+
+    const srcQs  = curve.discharge_cms;
+    const srcDs  = curve.stage_m;
+    const qMaxCms = srcQs[srcQs.length - 1];
+    const twFn = (Q) => window.LHDHydraulics.interpLinear(Q, srcQs, srcDs);
 
     const P = heightFt / window.LHDHydraulics.constants.M_TO_FT;
     const L = lengthFt / window.LHDHydraulics.constants.M_TO_FT;
@@ -820,8 +864,9 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
     const M_TO_FT = window.LHDHydraulics.constants.M_TO_FT;
     const ERROR_TOLERANCE_CFS = 0.0005;
 
+    const qMinCms = srcQs[0];
     const { tailwater, conjugate, flip, dangerConj, dangerFlip } =
-        window.LHDHydraulics.buildRatingCurvesFt(heightFt, lengthFt, a, b, rp100Cms, 500);
+        window.LHDHydraulics.buildRatingCurvesFt(heightFt, lengthFt, twFn, qMaxCms, 500, qMinCms);
 
     const intersections = [];
     for (let i = 0; i < tailwater.length - 1; i++) {
@@ -831,7 +876,7 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
             if (diff1 * diff2 <= 0 && diff1 !== diff2) {
                 const f_conj = (Qcfs) => {
                     const Q = Qcfs / CMS_TO_CFS;
-                    const yt = window.LHDHydraulics.tailwaterDepth(Q, a, b);
+                    const yt = twFn(Q);
                     const H = window.LHDHydraulics.weirHSimp(Q, L);
                     const y2 = window.LHDHydraulics.calcY2Simp(H, P);
                     if (yt === null || y2 === null) return null;
@@ -840,12 +885,12 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
                 const exactX = window.LHDHydraulics.bisect(f_conj, tailwater[i].x * 0.99, tailwater[i+1].x * 1.01, ERROR_TOLERANCE_CFS);
                 if (exactX !== null) {
                     const exactQ = exactX / CMS_TO_CFS;
-                    const exactY = window.LHDHydraulics.tailwaterDepth(exactQ, a, b) * M_TO_FT;
+                    const exactY = twFn(exactQ) * M_TO_FT;
                     intersections.push({x: exactX, y: exactY, label: 'Intersection (Tailwater & Conjugate)'});
-                    
+
                     const yf = window.LHDHydraulics.computeYFlipAdv(exactQ, L, P);
                     const exactYFlip = yf !== null ? yf * M_TO_FT : null;
-                    
+
                     if (exactYFlip !== null && exactY <= exactYFlip) {
                         dangerConj.push({ x: exactX, y: exactY });
                         dangerFlip.push({ x: exactX, y: exactYFlip });
@@ -859,7 +904,7 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
             if (diff1 * diff2 <= 0 && diff1 !== diff2) {
                 const f_flip = (Qcfs) => {
                     const Q = Qcfs / CMS_TO_CFS;
-                    const yt = window.LHDHydraulics.tailwaterDepth(Q, a, b);
+                    const yt = twFn(Q);
                     const yf = window.LHDHydraulics.computeYFlipAdv(Q, L, P);
                     if (yt === null || yf === null) return null;
                     return (yt - yf) * M_TO_FT;
@@ -867,13 +912,13 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
                 const exactX = window.LHDHydraulics.bisect(f_flip, tailwater[i].x * 0.99, tailwater[i+1].x * 1.01, ERROR_TOLERANCE_CFS);
                 if (exactX !== null) {
                     const exactQ = exactX / CMS_TO_CFS;
-                    const exactY = window.LHDHydraulics.tailwaterDepth(exactQ, a, b) * M_TO_FT;
+                    const exactY = twFn(exactQ) * M_TO_FT;
                     intersections.push({x: exactX, y: exactY, label: 'Intersection (Tailwater & Flip)'});
-                    
+
                     const H = window.LHDHydraulics.weirHSimp(exactQ, L);
                     const y2 = window.LHDHydraulics.calcY2Simp(H, P);
                     const exactYConj = y2 !== null ? y2 * M_TO_FT : null;
-                    
+
                     if (exactYConj !== null && exactY >= exactYConj) {
                         dangerConj.push({ x: exactX, y: exactYConj });
                         dangerFlip.push({ x: exactX, y: exactY });
@@ -883,7 +928,6 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
         }
     }
 
-    // Ensure the injected intersection points are in the correct sequential order
     dangerConj.sort((a, b) => a.x - b.x);
     dangerFlip.sort((a, b) => a.x - b.x);
 
@@ -891,8 +935,7 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
         `<strong>${damName} Rating Curve</strong><br>` +
         `<span style="color:#7f8c8d; font-size: 12px;">` +
         `P = ${heightFt.toFixed(1)} ft &nbsp;·&nbsp; L = ${lengthFt.toFixed(0)} ft &nbsp;·&nbsp; ` +
-        `tailwater D = ${a.toPrecision(3)}·Q<sup>${b.toFixed(3)}</sup> ` +
-        `(SI) &nbsp;·&nbsp; Q<sub>max</sub> = ${(rp100Cms * 35.3147).toFixed(0)} cfs (Rp100)` +
+        `Tailwater: NWM SRC (reach ${comidStr}) &nbsp;·&nbsp; Q<sub>max</sub> = ${(qMaxCms * CMS_TO_CFS).toFixed(0)} cfs` +
         `</span>`;
 
     const ctx = document.getElementById('ratingCurvesChart').getContext('2d');
@@ -996,15 +1039,291 @@ function showRatingCurves(heightFt, lengthFt, a, b, rp100Cms, damName) {
 }
 window.showRatingCurves = showRatingCurves;
 
+// 5b. Synthetic Rating Curve (SRC): Manning's-equation stage-discharge curve for the
+// dam's NHDPlus V2 reach, derived offline from hydrofabric bankfull channel geometry
+// (see backend/build_synthetic_rating_curves.py). In-channel only.
+
+// Extract the 10-day forecast envelope (min/max across all members) from the cache.
+// Returns { currentFlow, forecastMin, forecastMax } in cfs, or null if unavailable.
+async function _getForecastRange(comid) {
+    const cached = _forecastCache.get(String(comid).replace(/\.0+$/, ''));
+    if (!cached) return null;
+    try {
+        const mrData = await cached;
+        if (!mrData) return null;
+        const mrMean = mrData.mediumRange?.mean?.data ?? [];
+        if (!mrMean.length) return null;
+        const mrMembers = ['member1','member2','member3','member4','member5','member6']
+            .map(k => mrData.mediumRange?.[k]?.data ?? []);
+        let forecastMin = Infinity, forecastMax = -Infinity;
+        mrMean.forEach((p, i) => {
+            const upper = Math.max(...mrMembers.map(m => m[i]?.flow ?? p.flow));
+            const lower = Math.min(...mrMembers.map(m => m[i]?.flow ?? p.flow));
+            forecastMax = Math.max(forecastMax, upper);
+            forecastMin = Math.min(forecastMin, lower);
+        });
+        if (!isFinite(forecastMin) || !isFinite(forecastMax)) return null;
+        const nowMs = Date.now();
+        const pts = mrMean.map(p => ({ ms: new Date(p.validTime).getTime(), flow: p.flow }));
+        const ai = pts.findIndex(p => p.ms > nowMs);
+        let currentFlow = pts[0]?.flow ?? null;
+        if (ai > 0) {
+            const t = (nowMs - pts[ai-1].ms) / (pts[ai].ms - pts[ai-1].ms);
+            currentFlow = pts[ai-1].flow + t * (pts[ai].flow - pts[ai-1].flow);
+        }
+        return { currentFlow, forecastMin, forecastMax };
+    } catch { return null; }
+}
+
+function _loadSrcData(comid) {
+    if (!_srcCache.has(comid)) {
+        _srcCache.set(comid, fetch(`data/src/${comid}.json`).then(r => r.ok ? r.json() : null).catch(() => null));
+    }
+    return _srcCache.get(comid);
+}
+
+async function showSyntheticRatingCurve(comid, damName, heightFt = null, lengthFt = null) {
+    comid = String(comid).replace(/\.0+$/, '');
+    const container = document.getElementById('srcContainer');
+    const header = document.getElementById('srcHeader');
+    container.style.display = 'flex';
+    header.innerHTML = `<strong>${damName} Synthetic Rating Curve</strong><br>` +
+        `<span style="color:#7f8c8d; font-size: 12px;">Loading...</span>`;
+
+    const CMS_TO_CFS = window.LHDHydraulics.constants.CMS_TO_CFS;
+    const M_TO_FT = window.LHDHydraulics.constants.M_TO_FT;
+
+    const curve = await _loadSrcData(comid);
+
+    if (srcChart) { srcChart.destroy(); srcChart = null; }
+
+    if (!curve) {
+        header.innerHTML = `<strong>${damName} Synthetic Rating Curve</strong><br>` +
+            `<span style="color:#7f8c8d; font-size: 12px;">No synthetic rating curve available for reach ${comid}.</span>`;
+        return;
+    }
+
+    const srcQs = curve.discharge_cms;
+    const points = curve.stage_m.map((s, i) => ({
+        x: srcQs[i] * CMS_TO_CFS,
+        y: s * M_TO_FT,
+    }));
+    const bankfullFt = curve.bankfull_stage_m * M_TO_FT;
+
+    const methodLabel = curve.method === 'ahg'
+        ? `AHG-calibrated (NWM Retro v3.0) &nbsp;·&nbsp; y = ${curve.y_coef}·Q<sup>${curve.y_exp}</sup>`
+        : `Manning's trapezoid &nbsp;·&nbsp; n = ${curve.manning_n} &nbsp;·&nbsp; S = ${curve.slope} &nbsp;·&nbsp; in-channel only`;
+    header.innerHTML =
+        `<strong>${damName} Synthetic Rating Curve</strong><br>` +
+        `<span style="color:#7f8c8d; font-size: 12px;">` +
+        `Reach ${comid} &nbsp;·&nbsp; ${methodLabel} &nbsp;·&nbsp; ` +
+        `bankfull stage = ${bankfullFt.toFixed(1)} ft` +
+        `</span>`;
+
+    const datasets = [
+        { label: 'Synthetic rating curve', data: points,
+          order: 1, borderColor: '#8e44ad', backgroundColor: '#8e44ad',
+          pointRadius: 0, borderWidth: 2, tension: 0.2, pointStyle: 'line' },
+    ];
+
+    const hasGeom = isFinite(heightFt) && heightFt > 0 && isFinite(lengthFt) && lengthFt > 0;
+    if (hasGeom) {
+        const P = heightFt / M_TO_FT;
+        const L = lengthFt / M_TO_FT;
+        const conjugatePoints = [];
+        const flipPoints = [];
+        for (const Q of srcQs) {
+            const Qcfs = Q * CMS_TO_CFS;
+            const H  = window.LHDHydraulics.weirHSimp(Q, L);
+            const y2 = window.LHDHydraulics.calcY2Simp(H, P);
+            const yf = window.LHDHydraulics.computeYFlipAdv(Q, L, P);
+            conjugatePoints.push({ x: Qcfs, y: y2 !== null ? y2 * M_TO_FT : null });
+            flipPoints.push(     { x: Qcfs, y: yf !== null ? yf * M_TO_FT : null });
+        }
+        datasets.push(
+            { label: 'Conjugate depth (y₂)', data: conjugatePoints,
+              order: 1, borderColor: '#27ae60', backgroundColor: '#27ae60',
+              pointRadius: 0, borderWidth: 2, tension: 0.2, spanGaps: true, pointStyle: 'line' },
+            { label: 'Flip depth (y_flip)', data: flipPoints,
+              order: 1, borderColor: '#e74c3c', backgroundColor: '#e74c3c',
+              pointRadius: 0, borderWidth: 2, tension: 0.2, spanGaps: true,
+              borderDash: [6, 4], pointStyle: 'line' },
+        );
+    }
+
+    const ctx = document.getElementById('srcChart').getContext('2d');
+    srcChart = new Chart(ctx, {
+        type: 'line',
+        data: { datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { usePointStyle: true } },
+                tooltip: {
+                    callbacks: {
+                        label: (item) => `Q = ${item.parsed.x.toFixed(0)} cfs, stage = ${item.parsed.y.toFixed(2)} ft`,
+                    },
+                },
+                zoom: {
+                    limits: { x: { min: 'original', max: 'original' }, y: { min: 'original', max: 'original' } },
+                    pan: { enabled: true, mode: 'xy' },
+                    zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' },
+                },
+            },
+            scales: {
+                x: { type: 'linear', position: 'bottom', title: { display: true, text: 'Discharge Q (cfs)' } },
+                y: { title: { display: true, text: 'Stage (ft)' }, beginAtZero: true },
+            },
+        },
+    });
+}
+window.showSyntheticRatingCurve = showSyntheticRatingCurve;
+
+// 5b-ii. Flow Duration Curve (FDC): NWM Retrospective v3.0 percentile flows
+// for the dam's NHDPlus V2 reach, pre-computed via CIROH NWM API v2.
+// Data file: frontend/data/nwm_fdc.json (built by backend/build_nwm_fdc.py).
+const _fdcCache = new Map();
+const _FDC_PERCENTILES = [0, 2, 5, 10, 20, 25, 30, 50, 75, 90, 95, 99, 100];
+let fdcChart = null;
+
+function _loadFdcData(comid) {
+    if (!_fdcCache.has(comid)) {
+        _fdcCache.set(comid, fetch(`data/fdc/${comid}.json`).then(r => r.ok ? r.json() : null).catch(() => null));
+    }
+    return _fdcCache.get(comid);
+}
+
+async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
+    comid = String(comid).replace(/\.0+$/, '');
+    const hasDangerRange = qMin !== null && !isNaN(qMin) && qMax !== null && !isNaN(qMax);
+    const container = document.getElementById('fdcContainer');
+    const header    = document.getElementById('fdcHeader');
+    container.style.display = 'flex';
+    header.innerHTML = `<strong>${damName} Flow Duration Curve</strong><br>` +
+        `<span style="color:#7f8c8d; font-size: 12px;">Loading…</span>`;
+
+    const CMS_TO_CFS = window.LHDHydraulics.constants.CMS_TO_CFS;
+
+    const flows = await _loadFdcData(comid);
+    const pcts  = _FDC_PERCENTILES;
+
+    if (fdcChart) { fdcChart.destroy(); fdcChart = null; }
+
+    if (!flows) {
+        header.innerHTML = `<strong>${damName} Flow Duration Curve</strong><br>` +
+            `<span style="color:#7f8c8d; font-size: 12px;">No FDC available for reach ${comid}.</span>`;
+        return;
+    }
+
+    // Convert to (exceedance %, flow cfs) — sort left=high flow, right=low flow
+    const exceedance = pcts.map(p => 100 - p).reverse();
+    const flows_cfs  = [...flows].reverse().map(q => q !== null ? q * CMS_TO_CFS : null);
+
+    const points = exceedance.map((e, i) => ({
+        x: e,
+        y: flows_cfs[i],
+    })).filter(pt => pt.y !== null && pt.y > 0);
+
+    const q50_cfs = (() => {
+        const i = pcts.indexOf(50);
+        return i >= 0 && flows[i] != null ? (flows[i] * CMS_TO_CFS).toFixed(0) : null;
+    })();
+
+    header.innerHTML =
+        `<strong>${damName} Flow Duration Curve</strong><br>` +
+        `<span style="color:#7f8c8d; font-size: 12px;">` +
+        `Reach ${comid} &nbsp;·&nbsp; NWM Retrospective v3.0` +
+        (q50_cfs ? ` &nbsp;·&nbsp; Q50 = ${q50_cfs} cfs` : '') +
+        `</span>`;
+
+    const fdcDatasets = [];
+    if (hasDangerRange) {
+        fdcDatasets.push({
+            label: 'Dangerous Flow Range',
+            data: [{ x: 0, y: qMax }, { x: 100, y: qMax }],
+            order: 0,
+            borderColor: '#e74c3c',
+            borderWidth: 3,
+            borderDash: [8, 4],
+            pointRadius: 0,
+            fill: { target: { value: qMin }, above: 'rgba(231,76,60,0.20)', below: 'rgba(231,76,60,0.20)' },
+            backgroundColor: 'rgba(231,76,60,0.20)',
+            pointStyle: 'rect',
+        });
+        fdcDatasets.push({
+            label: '_qMin',
+            data: [{ x: 0, y: qMin }, { x: 100, y: qMin }],
+            order: 0,
+            borderColor: '#e74c3c',
+            borderWidth: 3,
+            borderDash: [8, 4],
+            pointRadius: 0,
+            fill: false,
+            pointStyle: false,
+        });
+    }
+    fdcDatasets.push({
+        label: 'NWM FDC',
+        data: points,
+        order: 1,
+        borderColor: '#2471a3',
+        backgroundColor: 'rgba(36,113,163,0.12)',
+        fill: true,
+        pointRadius: 0,
+        pointHitRadius: 10,
+        borderWidth: 2,
+        tension: 0.3,
+        pointStyle: 'circle',
+    });
+
+    const ctx = document.getElementById('fdcChart').getContext('2d');
+    fdcChart = new Chart(ctx, {
+        type: 'line',
+        data: { datasets: fdcDatasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { usePointStyle: true, filter: (item) => !item.text.startsWith('_') } },
+                tooltip: {
+                    callbacks: {
+                        label: (item) =>
+                            `Q = ${item.parsed.y.toFixed(0)} cfs  (exceeded ${item.parsed.x.toFixed(0)}% of time)`,
+                    },
+                },
+                zoom: {
+                    limits: { x: { min: 'original', max: 'original' }, y: { min: 'original', max: 'original' } },
+                    pan: { enabled: true, mode: 'xy' },
+                    zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' },
+                },
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    min: 0,
+                    max: 100,
+                    title: { display: true, text: 'Exceedance probability (%)' },
+                    reverse: false,
+                },
+                y: {
+                    type: 'logarithmic',
+                    title: { display: true, text: 'Discharge Q (cfs)' },
+                },
+            },
+        },
+    });
+}
+window.showFlowDurationCurve = showFlowDurationCurve;
+
 // 5. Legend and Filter Integration
 const legend = L.control({ position: 'bottomright' });
 legend.onAdd = function (map) {
     const div = L.DomUtil.create('div', 'info legend');
     div.innerHTML = `
         <strong>Dam Status</strong><br>
-        <i style="background: #e74c3c"></i> Fatality Recorded<br>
-        <i style="background: #f1c40f"></i> Dangerous Range Calculated<br>
-        <i style="background: #3498db"></i> Live Forecast Available<br>
+        <i style="background: #e67e22"></i> Dangerous Range Calculated<br>
+        <i style="background: #2980b9"></i> Live Forecast Available<br>
         <i style="background: #95a5a6"></i> Location Info Only
     `;
 

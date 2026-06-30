@@ -67,7 +67,6 @@ if str(_BACKEND_ROOT) not in sys.path:
 
 from lhd_processor.land_raster import make_constant_land_raster
 
-# Matches lhd_processor.lhd_arc.ArcDam.X_SECTION_DIST_M — keep in sync.
 _X_SECTION_DIST_M = 500.0
 
 _print_lock = threading.Lock()
@@ -117,6 +116,7 @@ def _build_one(
     tile_filenames: List[str],
     buffer_m: float,
     force: bool,
+    skip_land: bool = False,
 ) -> Tuple[int, str]:
     site_dem_dir = dem_out_dir / str(dam_id)
     site_land_dir = land_out_dir / str(dam_id)
@@ -124,7 +124,9 @@ def _build_one(
     land_path = site_land_dir / "constant_land.tif"
     manning_path = site_land_dir / "Manning_n.txt"
 
-    if not force and dem_path.exists() and land_path.exists() and manning_path.exists():
+    dem_ready = dem_path.exists()
+    land_ready = skip_land or (land_path.exists() and manning_path.exists())
+    if not force and dem_ready and land_ready:
         _log(f"[{idx}/{total}] Dam {dam_id}: cached")
         return dam_id, "cached"
 
@@ -175,11 +177,12 @@ def _build_one(
         _log(f"[{idx}/{total}] Dam {dam_id}: FAIL (warp produced no file)")
         return dam_id, "warp-empty"
 
-    try:
-        make_constant_land_raster(str(dem_path), site_land_dir)
-    except Exception as e:
-        _log(f"[{idx}/{total}] Dam {dam_id}: FAIL land ({e})")
-        return dam_id, f"land-error:{e}"
+    if not skip_land:
+        try:
+            make_constant_land_raster(str(dem_path), site_land_dir)
+        except Exception as e:
+            _log(f"[{idx}/{total}] Dam {dam_id}: FAIL land ({e})")
+            return dam_id, f"land-error:{e}"
 
     _log(f"[{idx}/{total}] Dam {dam_id}: ok ({len(tile_paths)} tiles → {dem_path.name})")
     return dam_id, "ok"
@@ -198,6 +201,8 @@ def main() -> None:
                         help="Parallel workers [default: 8]")
     parser.add_argument("--force", action="store_true",
                         help="Rebuild trimmed DEM + land cover even if cached on disk")
+    parser.add_argument("--no-land", action="store_true",
+                        help="Skip writing constant_land.tif and Manning_n.txt (WSP pipeline)")
     parser.add_argument("--buffer-m", type=float, default=_X_SECTION_DIST_M,
                         help=f"Metric buffer around flowline bbox [default: {_X_SECTION_DIST_M:g} m]")
     args = parser.parse_args()
@@ -207,7 +212,8 @@ def main() -> None:
     raw_dem_dir = staging_dir / "DEM" / "raw_3dep"
     dem_out_dir = staging_dir / "DEM"
     land_out_dir = staging_dir / "LAND"
-    land_out_dir.mkdir(parents=True, exist_ok=True)
+    if not args.no_land:
+        land_out_dir.mkdir(parents=True, exist_ok=True)
 
     manifest_path = staging_dir / "tile_manifest.json"
     if not manifest_path.exists():
@@ -238,8 +244,9 @@ def main() -> None:
             )
 
     total = len(items)
+    land_note = " (no-land)" if args.no_land else " + constant land cover"
     print(
-        f"Building trimmed DEMs + constant land cover for {total} dams "
+        f"Building trimmed DEMs{land_note} for {total} dams "
         f"(workers={args.workers}, buffer={args.buffer_m:g} m)\n"
     )
 
@@ -251,7 +258,7 @@ def main() -> None:
                 _build_one,
                 i + 1, total, dam_id,
                 flowline_dir, raw_dem_dir, dem_out_dir, land_out_dir,
-                tile_filenames, args.buffer_m, args.force,
+                tile_filenames, args.buffer_m, args.force, args.no_land,
             ): dam_id
             for i, (dam_id, tile_filenames) in enumerate(items)
         }
