@@ -31,7 +31,7 @@ def _huc_dirname(key: str) -> str:
 
 
 def _load_dam_to_key(dams_csv: Path, huc_level: int) -> Dict[int, str]:
-    df = pd.read_csv(dams_csv, low_memory=False)
+    df = pd.read_csv(dams_csv, low_memory=False, encoding="latin-1")
     if "HUC8" not in df.columns:
         sys.exit(f"{dams_csv} has no HUC8 column. Run backend/assign_huc8.py first.")
     df = df.dropna(subset=["OBJECTID", "HUC8"])

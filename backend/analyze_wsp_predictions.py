@@ -98,7 +98,7 @@ def main():
                         help="Cap NID length at this value for zoomed panels (ft)")
     args = parser.parse_args()
 
-    df = pd.read_csv(args.csv, low_memory=False)
+    df = pd.read_csv(args.csv, low_memory=False, encoding="latin-1")
 
     # Height: use NID_Height_Ft (most paired rows)
     h = df[["NID_Height_Ft", "Dam_Height_WSP_Ft"]].dropna()

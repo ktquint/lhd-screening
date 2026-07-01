@@ -64,7 +64,7 @@ def load_nid(nid_csv: Path) -> tuple[pd.DataFrame, str]:
         preamble = f.readline()
     dataset_date = preamble.split(",", 1)[-1].strip()
 
-    nid = pd.read_csv(nid_csv, dtype=str, skiprows=1, low_memory=False)
+    nid = pd.read_csv(nid_csv, dtype=str, skiprows=1, low_memory=False, encoding="latin-1")
     print(f"  loaded {len(nid):,} NID dams (dataset updated {dataset_date})")
 
     nid["_lat"] = pd.to_numeric(nid["Latitude"], errors="coerce")
@@ -91,7 +91,7 @@ def main() -> None:
         sys.exit(f"ERROR: CSV not found at {args.csv}")
 
     print(f"Loading {args.csv} …")
-    df = pd.read_csv(args.csv, dtype=str)
+    df = pd.read_csv(args.csv, dtype=str, encoding="latin-1")
     print(f"  {len(df):,} rows")
 
     nid, nid_dataset_date = load_nid(args.nid_csv)

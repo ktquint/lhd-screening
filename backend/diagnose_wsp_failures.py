@@ -209,9 +209,9 @@ def main() -> None:
     # Join master CSV metadata
     if args.dams_csv.exists():
         meta_cols = ["OBJECTID", "Dam_Name", "State", "HUC8", "Reach_ID"]
-        meta = pd.read_csv(args.dams_csv, low_memory=False,
-                           usecols=[c for c in meta_cols
-                                    if c in pd.read_csv(args.dams_csv, nrows=0).columns])
+        _hdr = pd.read_csv(args.dams_csv, nrows=0, encoding="latin-1").columns
+        meta = pd.read_csv(args.dams_csv, low_memory=False, encoding="latin-1",
+                           usecols=[c for c in meta_cols if c in _hdr])
         meta = meta.rename(columns={"OBJECTID": "dam_id"})
         meta["dam_id"] = pd.to_numeric(meta["dam_id"], errors="coerce").astype("Int64")
         df["dam_id"] = df["dam_id"].astype("Int64")

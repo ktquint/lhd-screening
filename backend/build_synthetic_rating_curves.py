@@ -192,7 +192,7 @@ def main() -> int:
         _log(f"WARNING: {args.fdc} not found — Q_max will use 20×Q_bf fallback")
 
     _log(f"Loading {args.csv} ...")
-    df = pd.read_csv(args.csv, low_memory=False)
+    df = pd.read_csv(args.csv, low_memory=False, encoding="latin-1")
     reach_ids   = pd.to_numeric(df["Reach_ID"], errors="coerce").dropna().astype(int)
     feature_ids = set(reach_ids.unique().tolist())
     _log(f"{len(feature_ids)} unique Reach_ID/COMID values across {len(df)} dams")

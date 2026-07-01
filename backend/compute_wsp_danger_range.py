@@ -91,7 +91,7 @@ def run(
     src_data: pre-loaded synthetic_rating_curves.json dict. If None, loads
     from SRC_JSON (avoids re-reading 11 MB per HUC batch when called in a loop).
     """
-    df = pd.read_csv(csv_path, low_memory=False)
+    df = pd.read_csv(csv_path, low_memory=False, encoding="latin-1")
 
     if src_data is None:
         with open(SRC_JSON) as f:

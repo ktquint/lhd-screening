@@ -97,7 +97,7 @@ def main() -> None:
     print(f"  → {len(huc8)} HUC8 polygons (CRS = {huc8.crs})")
 
     print(f"Loading dams from {args.dams_csv} …")
-    dams = pd.read_csv(args.dams_csv, low_memory=False)
+    dams = pd.read_csv(args.dams_csv, low_memory=False, encoding="latin-1")
     n_raw = len(dams)
     dams_geo = dams[dams["Latitude"].notna() & dams["Longitude"].notna()].copy()
     if len(dams_geo) < n_raw:

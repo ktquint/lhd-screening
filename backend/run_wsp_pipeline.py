@@ -694,7 +694,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
 
     if not args.dams_csv.exists():
         sys.exit(f"Dam CSV not found: {args.dams_csv}\nRun: python backend/assign_huc8.py")
-    dams = pd.read_csv(args.dams_csv, low_memory=False)
+    dams = pd.read_csv(args.dams_csv, low_memory=False, encoding="latin-1")
     if "HUC8" not in dams.columns:
         sys.exit(f"{args.dams_csv} has no HUC8 column.\nRun: python backend/assign_huc8.py")
 
@@ -886,7 +886,7 @@ def _cmd_aggregate(args: argparse.Namespace) -> None:
         }
     print(f"  {len(rows)} dams with ok results")
 
-    dams = pd.read_csv(dams_csv, low_memory=False)
+    dams = pd.read_csv(dams_csv, low_memory=False, encoding="latin-1")
     for col in ("Dam_Height_WSP_Ft", "Dam_Length_WSP_Ft",
                 "WSP_Q_cms", "WSP_delta_wse_m", "WSP_upstream_comid"):
         if col in dams.columns:
@@ -905,7 +905,7 @@ def _cmd_locate(args: argparse.Namespace) -> None:
     dams_csv: Path = args.dams_csv
     if not dams_csv.exists():
         sys.exit(f"Dam CSV not found: {dams_csv}")
-    dams = pd.read_csv(dams_csv, low_memory=False)
+    dams = pd.read_csv(dams_csv, low_memory=False, encoding="latin-1")
     if "HUC8" not in dams.columns:
         sys.exit("No HUC8 column — run assign_huc8.py first")
     row = dams[dams["OBJECTID"] == target]

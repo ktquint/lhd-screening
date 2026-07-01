@@ -241,7 +241,7 @@ def main() -> int:
         return 1
 
     _log(f"Loading {args.csv} ...")
-    df = pd.read_csv(args.csv, low_memory=False)
+    df = pd.read_csv(args.csv, low_memory=False, encoding="latin-1")
     _log(f"  {len(df)} rows")
 
     work_df = df.head(args.limit) if args.limit else df

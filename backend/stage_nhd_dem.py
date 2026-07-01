@@ -462,7 +462,7 @@ def run_stage(
     flowline_dir.mkdir(parents=True, exist_ok=True)
     raw_dem_dir.mkdir(parents=True, exist_ok=True)
 
-    dams_df = pd.read_csv(dams_csv)
+    dams_df = pd.read_csv(dams_csv, encoding="latin-1")
     n_raw = len(dams_df)
     dams_df = dams_df[
         dams_df["OBJECTID"].notna()
