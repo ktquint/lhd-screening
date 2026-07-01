@@ -1,6 +1,6 @@
 """Fetch LHDI review fields from the NID API and merge them into the master CSV.
 
-For every row in ``frontend/data/full_lhd_website.csv`` that has an ``LHD_ID``,
+For every row in ``data/full_lhd_website.csv`` that has an ``LHD_ID``,
 hit ``GET https://nid.sec.usace.army.mil/api/lowhead-dams/{id}/inventory`` and
 pull four fields:
 
@@ -24,7 +24,7 @@ from pathlib import Path
 
 import requests
 
-MASTER_CSV = Path(__file__).resolve().parent.parent / "frontend" / "data" / "full_lhd_website.csv"
+MASTER_CSV = Path(__file__).resolve().parent.parent / "data" / "full_lhd_website.csv"
 ENDPOINT = "https://nid.sec.usace.army.mil/api/lowhead-dams/{lhd_id}/inventory"
 WORKERS = 16
 TIMEOUT = 30
