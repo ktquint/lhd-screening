@@ -74,12 +74,13 @@ const NHD_BLUE = [0, 102, 204, 255];   // R,G,B,A 0-255
 
 function getStrahlerFilter(zoom) {
     // Note: If fields mismatch on Esri's end, change "StreamOrde" to "StreamOrder"
-    if (zoom >= 14) return "StreamOrde >= 1"; // Show everything (headwaters)
-    if (zoom >= 12) return "StreamOrde >= 2";
-    if (zoom >= 10) return "StreamOrde >= 3";
-    if (zoom >= 8)  return "StreamOrde >= 4";
-    if (zoom >= 6)  return "StreamOrde >= 5";
-    return "StreamOrde >= 6";                 // Only major rivers at global view
+    if (zoom >= 16) return "StreamOrde >= 1"; // Show everything (headwaters)
+    if (zoom >= 14) return "StreamOrde >= 2";
+    if (zoom >= 12) return "StreamOrde >= 3";
+    if (zoom >= 10) return "StreamOrde >= 4";
+    if (zoom >= 8)  return "StreamOrde >= 5";
+    if (zoom >= 6)  return "StreamOrde >= 6";
+    return "StreamOrde >= 7";                 // Only major rivers at global view
 }
 
 // 1. Initialize using L.esri.featureLayer on the Flowlines sublayer (ID 2)
