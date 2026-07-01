@@ -287,27 +287,71 @@ def pick_upstream_node(
     return upstream.loc[upstream["grad_abs"].idxmin()]
 
 
-_DEFAULT_TARGET_M_DN = 75.0   # aim for this distance past the hydraulic jump
+_DEFAULT_TARGET_M_DN = 75.0   # fallback fixed distance when no reach slope available
+_MIN_DN_M = 10.0              # never pick a node closer than this to the dam
+
+
+def _centered_slopes(profile: pd.DataFrame) -> np.ndarray:
+    """Centered finite-difference slope (m/m) at each cell, using adjacent cells.
+
+    slope[i] = (elev[i-1] - elev[i+1]) / (x[i+1] - x[i-1])
+
+    Positive = elevation decreasing downstream (normal channel convention).
+    NaN elevations are linearly interpolated before differencing.
+    Edge cells use one-sided differences.
+    """
+    x = profile["x_m"].values.astype(float)
+    y = profile["elev_m"].values.astype(float)
+    y = pd.Series(y).interpolate(method="linear", limit_direction="both").values
+    slopes = np.empty(len(x))
+    for i in range(len(x)):
+        x_prev = x[i - 1] if i > 0 else x[i]
+        x_next = x[i + 1] if i < len(x) - 1 else x[i]
+        y_prev = y[i - 1] if i > 0 else y[i]
+        y_next = y[i + 1] if i < len(x) - 1 else y[i]
+        dx = x_next - x_prev
+        slopes[i] = (y_prev - y_next) / dx if dx != 0 else 0.0
+    return slopes
+
 
 def pick_downstream_node(
     profile: pd.DataFrame,
-    target_m: float = _DEFAULT_TARGET_M_DN,
+    reach_slope: Optional[float] = None,
     search_m: float = _DEFAULT_SEARCH_M_DN,
+    min_dn_m: float = _MIN_DN_M,
+    fallback_m: float = _DEFAULT_TARGET_M_DN,
 ) -> pd.Series:
-    """Downstream node picker: cell nearest to target_m downstream.
+    """Downstream node picker: find where local DEM slope recovers to reach slope.
 
-    Targets a fixed distance (default 75 m) where normal depth should be
-    restored for a typical LHD, avoiding both the turbulent plunge pool
-    (too close) and the cumulative channel slope (too far).  Falls back to
-    the closest available downstream cell if nothing is within search_m.
+    Computes a centered finite-difference slope at each downstream cell and
+    returns the cell whose local slope is closest to ``reach_slope`` (NHDPlus
+    VAA ``slope`` for the dam COMID).  This identifies where the water surface
+    has recovered from the hydraulic jump back to normal channel gradient.
+
+    A minimum distance of ``min_dn_m`` is enforced to avoid the turbulent
+    plunge pool immediately below the crest.
+
+    Falls back to the cell nearest ``fallback_m`` downstream when:
+      - ``reach_slope`` is None, ≤ 0, or a sentinel (< -9990)
+      - no valid downstream cells exist within ``search_m``
     """
     downstream = profile[
-        (profile["x_m"] > 0) & (profile["x_m"] <= search_m)
-    ].dropna(subset=["elev_m"])
+        (profile["x_m"] >= min_dn_m) & (profile["x_m"] <= search_m)
+    ].dropna(subset=["elev_m"]).copy()
+
     if downstream.empty:
-        downstream = profile[profile["x_m"] > 0].dropna(subset=["elev_m"])
+        downstream = profile[profile["x_m"] >= min_dn_m].dropna(subset=["elev_m"]).copy()
     if downstream.empty:
         return profile.iloc[(profile["x_m"].abs()).argsort()[:1]].iloc[0]
-    return downstream.iloc[
-        (downstream["x_m"] - target_m).abs().argsort()[:1]
-    ].iloc[0]
+
+    if reach_slope is None or reach_slope <= 0 or reach_slope < -9990:
+        return downstream.iloc[
+            (downstream["x_m"] - fallback_m).abs().argsort()[:1]
+        ].iloc[0]
+
+    all_slopes = _centered_slopes(profile)
+    downstream = downstream.assign(local_slope=all_slopes[downstream.index])
+    downstream = downstream.assign(
+        slope_err=(downstream["local_slope"] - reach_slope).abs()
+    )
+    return downstream.loc[downstream["slope_err"].idxmin()]

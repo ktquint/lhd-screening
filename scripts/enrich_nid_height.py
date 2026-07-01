@@ -50,7 +50,7 @@ NID_FIELDS = [
 ]
 
 
-def load_nid(nid_csv: Path) -> pd.DataFrame:
+def load_nid(nid_csv: Path) -> tuple[pd.DataFrame, str]:
     if not nid_csv.exists():
         print(f"Downloading NID national CSV → {nid_csv} …")
         import requests
@@ -60,12 +60,16 @@ def load_nid(nid_csv: Path) -> pd.DataFrame:
         nid_csv.write_bytes(resp.content)
 
     # First line is a "Data Last Updated:" preamble; real header is line 2.
+    with open(nid_csv, newline="") as f:
+        preamble = f.readline()
+    dataset_date = preamble.split(",", 1)[-1].strip()
+
     nid = pd.read_csv(nid_csv, dtype=str, skiprows=1, low_memory=False)
-    print(f"  loaded {len(nid):,} NID dams")
+    print(f"  loaded {len(nid):,} NID dams (dataset updated {dataset_date})")
 
     nid["_lat"] = pd.to_numeric(nid["Latitude"], errors="coerce")
     nid["_lng"] = pd.to_numeric(nid["Longitude"], errors="coerce")
-    return nid
+    return nid, dataset_date
 
 
 def main() -> None:
@@ -90,7 +94,7 @@ def main() -> None:
     df = pd.read_csv(args.csv, dtype=str)
     print(f"  {len(df):,} rows")
 
-    nid = load_nid(args.nid_csv)
+    nid, nid_dataset_date = load_nid(args.nid_csv)
 
     # Build a Federal ID → NID row lookup (first occurrence wins).
     nid_fed = nid["Federal ID"].fillna("").str.strip()
@@ -164,6 +168,7 @@ def main() -> None:
     df["NID_Match_Method"] = method
     df["NID_Match_Federal_ID"] = matched_fid
     df["NID_Match_Dist_M"] = matched_dist
+    df["NID_Dataset_Updated"] = nid_dataset_date
 
     # Fill blanks in the canonical columns from NID. Never overwrite existing values.
     fill_counts: dict[str, int] = {}

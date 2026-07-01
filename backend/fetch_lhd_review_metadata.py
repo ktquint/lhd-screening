@@ -28,12 +28,15 @@ MASTER_CSV = Path(__file__).resolve().parent.parent / "frontend" / "data" / "ful
 ENDPOINT = "https://nid.sec.usace.army.mil/api/lowhead-dams/{lhd_id}/inventory"
 WORKERS = 16
 TIMEOUT = 30
-REVIEW_FIELDS = ("reviewStatus", "lhdReviewer", "reviewNotes", "reviewNotesDetails")
+REVIEW_FIELDS = ("reviewStatus", "lhdReviewer", "reviewNotes", "reviewNotesDetails",
+                 "updated", "lastEditedDate")
 COLUMN_MAP = {
-    "reviewStatus": "Review_Status",
-    "lhdReviewer": "LHD_Reviewer",
-    "reviewNotes": "Review_Notes",
-    "reviewNotesDetails": "Review_Notes_Details",
+    "reviewStatus":      "Review_Status",
+    "lhdReviewer":       "LHD_Reviewer",
+    "reviewNotes":       "Review_Notes",
+    "reviewNotesDetails":"Review_Notes_Details",
+    "updated":           "LHDI_Updated",
+    "lastEditedDate":    "LHDI_Last_Edited",
 }
 
 
@@ -98,8 +101,9 @@ def merge_into_csv(csv_path: Path, results: dict[str, dict]) -> None:
         insert_at = len(fieldnames)
         fieldnames.append("Review_Status")
     for col in new_cols:
-        fieldnames.insert(insert_at, col)
-        insert_at += 1
+        if col not in fieldnames:
+            fieldnames.insert(insert_at, col)
+            insert_at += 1
 
     updated = 0
     diffs_review_status = 0
