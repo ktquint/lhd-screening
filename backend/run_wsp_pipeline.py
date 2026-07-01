@@ -591,35 +591,52 @@ def _process_huc(
         did for did in dam_ids
         if not (results_dir / str(did) / "wsp_result.json").exists()
     ]
+
+    # Of those, only re-run staging for dams whose trimmed DEM is missing.
+    # Raw 3DEP tiles are pruned after each batch, but trimmed DEMs persist —
+    # so dams with an existing dem_{id}.tif can skip straight to _run_wsp_batch.
+    needs_staging_ids = [
+        did for did in pending_ids
+        if not (huc_dir / "DEM" / str(did) / f"dem_{did}.tif").exists()
+    ]
+    n_dem_cached = len(pending_ids) - len(needs_staging_ids)
+
     if pending_ids and len(pending_ids) < len(dam_ids):
-        pending_csv = huc_dir / "dams_pending.csv"
-        dams_subset[dams_subset["OBJECTID"].astype(int).isin(pending_ids)] \
+        print(f"  {len(dam_ids) - len(pending_ids)} dams already have results — skipping.")
+    if n_dem_cached:
+        print(f"  {n_dem_cached} pending dams already have trimmed DEMs — skipping staging.")
+
+    if needs_staging_ids:
+        stage_csv = huc_dir / "dams_needs_staging.csv"
+        dams_subset[dams_subset["OBJECTID"].astype(int).isin(needs_staging_ids)] \
             .drop(columns=["_GROUP"], errors="ignore") \
-            .to_csv(pending_csv, index=False)
-        print(f"  Staging {len(pending_ids)} of {len(dam_ids)} dams "
-              f"({len(dam_ids) - len(pending_ids)} already have results)")
-        stage_csv = pending_csv
+            .to_csv(stage_csv, index=False, encoding="latin-1")
+    elif pending_ids:
+        stage_csv = None  # all pending dams have DEMs; skip staging entirely
     else:
         stage_csv = dams_csv
 
     stage_args = ["--staging-dir", str(huc_dir), "--dams-csv", str(stage_csv),
                   "--workers", str(workers), "--download-workers", str(workers)]
 
-    # stage_nhd_dem — in-process if vaa_df already loaded, else subprocess
-    if vaa_df is not None:
-        print(f"\n  → stage_nhd_dem (in-process, shared VAA table)")
-        run_stage_nhd_dem(
-            staging_dir=huc_dir, dams_csv=stage_csv,
-            workers=workers, download_workers=workers, vaa_df=vaa_df,
-        )
-    else:
-        _run_step("stage_nhd_dem",
-                  [py, f"{backend}/stage_nhd_dem.py"] + stage_args)
+    if stage_csv is not None:
+        # stage_nhd_dem — in-process if vaa_df already loaded, else subprocess
+        if vaa_df is not None:
+            print(f"\n  → stage_nhd_dem (in-process, {len(needs_staging_ids)} dams)")
+            run_stage_nhd_dem(
+                staging_dir=huc_dir, dams_csv=stage_csv,
+                workers=workers, download_workers=workers, vaa_df=vaa_df,
+            )
+        else:
+            _run_step("stage_nhd_dem",
+                      [py, f"{backend}/stage_nhd_dem.py"] + stage_args)
 
-    _run_step("build_trimmed_dems",
-              [py, f"{backend}/build_trimmed_dems.py",
-               "--staging-dir", str(huc_dir), "--workers", str(workers),
-               "--no-land"])
+        _run_step("build_trimmed_dems",
+                  [py, f"{backend}/build_trimmed_dems.py",
+                   "--staging-dir", str(huc_dir), "--workers", str(workers),
+                   "--no-land"])
+    else:
+        print(f"\n  → stage_nhd_dem / build_trimmed_dems skipped (all DEMs cached)")
 
     pruned, freed = _prune_raw_dem_tiles(huc_dir)
     if pruned:
