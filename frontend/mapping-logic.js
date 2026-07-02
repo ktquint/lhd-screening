@@ -83,6 +83,16 @@ function getStrahlerFilter(zoom) {
     return "StreamOrde >= 7";                 // Only major rivers at global view
 }
 
+// Define base maps for the control toggle
+const baseMaps = {
+    "Street Map": osm,
+    "Satellite": satellite,
+    "Terrain": terrain
+};
+
+// Add the background maps button (Layers Control), Placing the Layer Controls before the nhdFLowlines so they can be filtered as well
+const layerControl = L.control.layers(baseMaps).addTo(map);
+
 // 1. Initialize using L.esri.featureLayer on the Flowlines sublayer (ID 2)
 const nhdFlowlines = L.esri.featureLayer({
     url: 'https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/NHDPlusV21/FeatureServer/2',
@@ -95,7 +105,7 @@ const nhdFlowlines = L.esri.featureLayer({
         };
     },
     attribution: 'Hydrography &copy; USGS NHD'
-}).addTo(map);
+})
 
 // 2. Dynamically change the client-side/server-side query as you zoom
 function updateFlowlineFilters() {
@@ -109,12 +119,8 @@ function updateFlowlineFilters() {
 // 3. Listen for zoom events to update visibility
 map.on('zoomend', updateFlowlineFilters);
 
-// Define base maps for the control toggle
-const baseMaps = {
-    "Street Map": osm,
-    "Satellite": satellite,
-    "Terrain": terrain
-};
+ // 4. Add L.esri.featureLayer to the Layer Control Filter
+layerControl.addOverlay(nhdFlowlines, "Flowlines");
 
 // SVG icons for top-left toolbar buttons
 const ICON_LOCATION = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="3" fill="currentColor"></circle><line x1="12" y1="1" x2="12" y2="5"></line><line x1="12" y1="19" x2="12" y2="23"></line><line x1="1" y1="12" x2="5" y2="12"></line><line x1="19" y1="12" x2="23" y2="12"></line></svg>';
@@ -395,9 +401,6 @@ const SearchControl = L.Control.extend({
     }
 });
 map.addControl(new SearchControl());
-
-// Add the background maps button (Layers Control)
-const layerControl = L.control.layers(baseMaps).addTo(map);
 
 // --- Active Filters Badge ---
 const ActiveFiltersControl = L.Control.extend({
