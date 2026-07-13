@@ -1,0 +1,24 @@
+name: lhd-environment
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  # Core geospatial (conda-forge for binary builds)
+  - gdal
+  - rasterio
+  - geopandas
+  - pyproj
+  - shapely
+  - numpy
+  - pandas
+  - pip
+  - pip:
+      # NHD / hydrology
+      - pynhd
+      - requests
+      # used by non-staging paths only (needed for the full pipeline)
+      - s3fs
+      - geoglows
+      - laspy
+      - xarray
+      - zarr

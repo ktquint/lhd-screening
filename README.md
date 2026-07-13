@@ -15,15 +15,25 @@ estimates each dam's crest length, height, and dangerous-flow range.
 
 ## Setup
 
-The env is a **micromamba** env (not conda):
+The env is a **micromamba** env (not conda). Bootstrap from scratch with
+`environment.yml` (conda-forge for the GDAL/rasterio/geopandas binaries,
+pip for the rest):
 
 ```bash
+micromamba create -f environment.yml
 micromamba activate lhd-environment
-pip install -r backend/requirements.txt
 ```
 
 The `backend/lhd_processor/` package is the in-repo successor to the old
 external `lhd-processor` package — no separate install needed.
+
+The pipeline also imports `arc` (Automated Rating Curve), installed as an
+editable sibling checkout — not covered by `environment.yml`:
+
+```bash
+git clone https://github.com/MikeFHS/automated-rating-curve.git ../automated-rating-curve
+cd ../automated-rating-curve && pip install -e .
+```
 
 ## Backend pipeline
 
