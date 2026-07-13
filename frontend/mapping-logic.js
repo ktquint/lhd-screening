@@ -96,6 +96,7 @@ const layerControl = L.control.layers(baseMaps).addTo(map);
 // 1. Initialize using L.esri.featureLayer on the Flowlines sublayer (ID 2)
 const nhdFlowlines = L.esri.featureLayer({
     url: 'https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/NHDPlusV21/FeatureServer/2',
+    outFields: ['StreamOrde'], // Just pulling in the StreamOrde Attribute decreases lag time of the flowlines while zooming
     opacity: 1.0,
     where: getStrahlerFilter(4), // Initialize using the map's starting zoom layer constraint
     style: function () {
