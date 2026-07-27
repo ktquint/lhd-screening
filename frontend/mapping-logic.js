@@ -1944,28 +1944,3 @@ document.addEventListener('keydown', (e) => {
         map.closePopup();
     }
 });
-
-// Event Listener For Collabsable Hamburger Menu Toggle
-document.addEventListener('DOMContentLoaded', () => {
-    const hamburger = document.getElementById('hamburger-toggle');
-    const navMenu = document.getElementById('nav-menu');
-    const navButtons = document.querySelectorAll('.nav-button');
-
-    // Toggle Mobile Menu
-    hamburger.addEventListener('click', () => {
-        const isOpen = navMenu.classList.toggle('is-active');
-        hamburger.classList.toggle('is-active');
-        hamburger.setAttribute('aria-expanded', isOpen);
-    });
-
-    // Close menu when a navigation item is clicked
-    navButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            if (navMenu.classList.contains('is-active')) {
-                navMenu.classList.remove('is-active');
-                hamburger.classList.remove('is-active');
-                hamburger.setAttribute('aria-expanded', 'false');
-            }
-        });
-    });
-});
