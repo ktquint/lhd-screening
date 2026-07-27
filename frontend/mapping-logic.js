@@ -975,10 +975,25 @@ async function showRatingCurves(heightFt, lengthFt, comid, damName) {
             container.innerHTML = '';
             const datasets = chart.data.datasets;
             
+            // Track if we've already generated our consolidated danger icon to prevent duplicates
+            let addedDangerLegend = false;
+            
             datasets.forEach((dataset, index) => {
-                if (dataset.label.includes('Danger Zone') || dataset.label.includes('Intersections')) return;
-                
                 const meta = chart.getDatasetMeta(index);
+                
+                // Skip tracking datasets we don't want to show
+                if (dataset.label.includes('Intersections') || dataset.label === 'Danger Zone Conj') return;
+                
+                let labelTextStr = dataset.label;
+                let isDangerZoneItem = dataset.label === 'Danger Zone';
+                
+                // If it's a danger zone dataset, consolidate its style and name
+                if (isDangerZoneItem) {
+                    if (addedDangerLegend) return; // Prevent duplicate entries
+                    labelTextStr = 'Dangerous Flow Range';
+                    addedDangerLegend = true;
+                }
+                
                 const isHidden = meta.hidden === true || (meta.hidden === null && dataset.hidden === true);
                 
                 const legendItem = document.createElement('div');
@@ -987,22 +1002,45 @@ async function showRatingCurves(heightFt, lengthFt, comid, damName) {
                 legendItem.style.cursor = 'pointer';
                 legendItem.style.userSelect = 'none';
                 legendItem.style.opacity = isHidden ? '0.5' : '1';
+                legendItem.style.marginRight = '12px'; // Adds spacing between inline legends
                 
-                const colorLine = document.createElement('div');
-                colorLine.style.width = '24px';
-                colorLine.style.height = '0px';
-                colorLine.style.borderTop = `2px ${dataset.borderDash ? 'dashed' : 'solid'} ${dataset.borderColor}`;
-                colorLine.style.marginRight = '6px';
+                // Create the custom icon block
+                const colorIcon = document.createElement('div');
+                colorIcon.style.marginRight = '6px';
+                
+                if (isDangerZoneItem) {
+                    // Custom aesthetic block icon for the shaded rectangle region
+                    colorIcon.style.width = '18px';
+                    colorIcon.style.height = '12px';
+                    colorIcon.style.backgroundColor = 'rgba(231, 76, 60, 0.25)';
+                    colorIcon.style.border = '1px solid #e74c3c';
+                    colorIcon.style.borderRadius = '2px';
+                } else {
+                    // Regular line icon for rating trends
+                    colorIcon.style.width = '24px';
+                    colorIcon.style.height = '0px';
+                    colorIcon.style.borderTop = `2px ${dataset.borderDash ? 'dashed' : 'solid'} ${dataset.borderColor}`;
+                }
                 
                 const labelText = document.createElement('span');
-                labelText.innerHTML = dataset.label; // Parses HTML like <sub>
+                labelText.innerHTML = labelTextStr; // Handles HTML sub tags safely
                 labelText.style.textDecoration = isHidden ? 'line-through' : 'none';
                 
-                legendItem.appendChild(colorLine);
+                legendItem.appendChild(colorIcon);
                 legendItem.appendChild(labelText);
                 
                 legendItem.addEventListener('click', () => {
-                    meta.hidden = !isHidden;
+                    if (isDangerZoneItem) {
+                        // Toggle both helper components of the danger zone fill simultaneously
+                        const conjMeta = chart.getDatasetMeta(datasets.findIndex(d => d.label === 'Danger Zone Conj'));
+                        const flipMeta = chart.getDatasetMeta(datasets.findIndex(d => d.label === 'Danger Zone'));
+                        
+                        const targetVisibility = !isHidden;
+                        if (conjMeta) conjMeta.hidden = targetVisibility;
+                        if (flipMeta) flipMeta.hidden = targetVisibility;
+                    } else {
+                        meta.hidden = !isHidden;
+                    }
                     chart.update();
                 });
                 
@@ -1252,25 +1290,48 @@ async function showSyntheticRatingCurve(comid, damName, heightFt = null, lengthF
 }
 window.showSyntheticRatingCurve = showSyntheticRatingCurve;
 
-// 5b-ii. Flow Duration Curve (FDC): NWM Retrospective v3.0 percentile flows
-// for the dam's NHDPlus V2 reach, pre-computed via CIROH NWM API v2.
-// Data file: frontend/data/nwm_fdc.json (built by backend/build_nwm_fdc.py).
+// =========================================================================
+// 5b-ii. Flow Duration Curve (FDC) Cache & Loader
+// =========================================================================
 const _fdcCache = new Map();
 const _FDC_PERCENTILES = [0, 2, 5, 10, 20, 25, 30, 50, 75, 90, 95, 99, 100];
 let fdcChart = null;
 
 function _loadFdcData(comid) {
     if (!_fdcCache.has(comid)) {
-        _fdcCache.set(comid, fetch(`data/fdc/${comid}.json`).then(r => r.ok ? r.json() : null).catch(() => null));
+        _fdcCache.set(
+            comid, 
+            fetch(`data/fdc/${comid}.json`)
+                .then(r => r.ok ? r.json() : null)
+                .catch(() => null)
+        );
     }
     return _fdcCache.get(comid);
 }
 
+// Helper mathematical function for linear interpolation
+function findXAtFlow(points, targetY) {
+    for (let i = 0; i < points.length - 1; i++) {
+        const p1 = points[i];
+        const p2 = points[i + 1];
+        
+        if ((p1.y >= targetY && p2.y <= targetY) || (p1.y <= targetY && p2.y >= targetY)) {
+            const fraction = (targetY - p1.y) / (p2.y - p1.y);
+            return p1.x + fraction * (p2.x - p1.x);
+        }
+    }
+    return null; 
+}
+
+// =========================================================================
+// Main Display Function
+// =========================================================================
 async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
     comid = String(comid).replace(/\.0+$/, '');
     const hasDangerRange = qMin !== null && !isNaN(qMin) && qMax !== null && !isNaN(qMax);
     const container = document.getElementById('fdcContainer');
     const header    = document.getElementById('fdcHeader');
+    
     container.style.display = 'flex';
     header.innerHTML = `<strong>${damName} Flow Duration Curve</strong><br>` +
         `<span style="color:#7f8c8d; font-size: 12px;">Loading…</span>`;
@@ -1280,7 +1341,10 @@ async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
     const flows = await _loadFdcData(comid);
     const pcts  = _FDC_PERCENTILES;
 
-    if (fdcChart) { fdcChart.destroy(); fdcChart = null; }
+    if (fdcChart) { 
+        fdcChart.destroy(); 
+        fdcChart = null; 
+    }
 
     if (!flows) {
         header.innerHTML = `<strong>${damName} Flow Duration Curve</strong><br>` +
@@ -1310,20 +1374,35 @@ async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
         `</span>`;
 
     const fdcDatasets = [];
+
+    // Lowest valid non-zero flow rate on the chart to anchor logarithmic vertical lines
+    const minYValue = points.length > 0 ? Math.min(...points.map(pt => pt.y)) : 1;
+
     if (hasDangerRange) {
+        // Find exact intersection points on the FDC curve
+        const exactXMax = findXAtFlow(points, qMax);
+        const exactXMin = findXAtFlow(points, qMin);
+
+        // Fallbacks to chart edges if line doesn't cross FDC
+        const xIntersectMax = exactXMax !== null ? exactXMax : 0;
+        const xIntersectMin = exactXMin !== null ? exactXMin : 100;
+
+        // 1. Ceiling Horizontal Line (qMax)
         fdcDatasets.push({
-            label: 'Dangerous Flow Range',
+            type: 'line',
+            label: 'Dangerous Flow Range Thresholds',
             data: [{ x: 0, y: qMax }, { x: 100, y: qMax }],
             order: 0,
             borderColor: '#e74c3c',
             borderWidth: 3,
             borderDash: [8, 4],
             pointRadius: 0,
-            fill: { target: { value: qMin }, above: 'rgba(231,76,60,0.20)', below: 'rgba(231,76,60,0.20)' },
-            backgroundColor: 'rgba(231,76,60,0.20)',
-            pointStyle: 'rect',
+            fill: false, 
         });
+
+        // 2. Floor Horizontal Line (qMin)
         fdcDatasets.push({
+            type: 'line',
             label: '_qMin',
             data: [{ x: 0, y: qMin }, { x: 100, y: qMin }],
             order: 0,
@@ -1334,14 +1413,65 @@ async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
             fill: false,
             pointStyle: false,
         });
+
+        // 3. Vertical Line at Maximum Flow Intersection (qMax)
+        fdcDatasets.push({
+            type: 'line',
+            label: '_vLineMax',
+            data: [{ x: xIntersectMax, y: minYValue }, { x: xIntersectMax, y: qMax }],
+            order: 0,
+            borderColor: exactXMax !== null ? '#e74c3c' : 'rgba(0,0,0,0)', 
+            borderWidth: exactXMax !== null ? 2 : 0,
+            borderDash: [4, 4], 
+            pointRadius: 0,
+            fill: false,
+            showLine: true 
+        });
+
+        // 4. Vertical Line at Minimum Flow Intersection (qMin)
+        fdcDatasets.push({
+            type: 'line',
+            label: '_vLineMin',
+            data: [{ x: xIntersectMin, y: minYValue }, { x: xIntersectMin, y: qMin }],
+            order: 0,
+            borderColor: exactXMin !== null ? '#e74c3c' : 'rgba(0,0,0,0)', 
+            borderWidth: exactXMin !== null ? 2 : 0,
+            borderDash: [4, 4],
+            pointRadius: 0,
+            fill: false,
+            showLine: true
+        });
+
+        // 5. BOUNDED RECTANGLE: Explicit box between qMax, qMin, and both vertical intersection lines
+        const dangerAreaPoints = [
+            { x: xIntersectMax, y: qMin }, // Bottom-Left: Intersection of qMin & Max Vertical Line
+            { x: xIntersectMax, y: qMax }, // Top-Left: Intersection of qMax & Max Vertical Line
+            { x: xIntersectMin, y: qMax }, // Top-Right: Intersection of qMax & Min Vertical Line
+            { x: xIntersectMin, y: qMin }  // Bottom-Right: Intersection of qMin & Min Vertical Line
+        ];
+
+        fdcDatasets.push({
+            type: 'line',
+            label: 'Dangerous Flow Range',
+            data: dangerAreaPoints,
+            order: 2, 
+            borderColor: 'rgba(0,0,0,0)', 
+            backgroundColor: 'rgba(231,76,60,0.25)', 
+            fill: 'origin', 
+            pointRadius: 0,
+            tension: 0, // Sharp 90-degree corners
+        });
     }
+
+    // 6. NWM FDC Line
     fdcDatasets.push({
+        type: 'line',
         label: 'NWM FDC',
         data: points,
         order: 1,
         borderColor: '#2471a3',
         backgroundColor: 'rgba(36,113,163,0.12)',
-        fill: true,
+        fill: false,
         pointRadius: 0,
         pointHitRadius: 10,
         borderWidth: 2,
@@ -1357,11 +1487,18 @@ async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { labels: { usePointStyle: true, filter: (item) => !item.text.startsWith('_') } },
+                legend: { 
+                    labels: { 
+                        usePointStyle: true, 
+                        filter: (item) => !item.text.startsWith('_') && item.text !== 'Dangerous Flow Range Thresholds'
+                    } 
+                },
                 tooltip: {
                     callbacks: {
-                        label: (item) =>
-                            `Q = ${item.parsed.y.toFixed(0)} cfs  (exceeded ${item.parsed.x.toFixed(0)}% of time)`,
+                        label: (item) => {
+                            if (item.dataset.label === 'Dangerous Flow Range') return null;
+                            return `Q = ${item.parsed.y.toFixed(0)} cfs  (exceeded ${item.parsed.x.toFixed(0)}% of time)`;
+                        }
                     },
                 },
                 zoom: {
@@ -1376,16 +1513,18 @@ async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
                     min: 0,
                     max: 100,
                     title: { display: true, text: 'Exceedance probability (%)' },
-                    reverse: false,
+                    reverse: true,
                 },
                 y: {
                     type: 'logarithmic',
+                    min: minYValue,
                     title: { display: true, text: 'Discharge Q (cfs)' },
                 },
             },
         },
     });
 }
+
 window.showFlowDurationCurve = showFlowDurationCurve;
 
 // 5. Legend and Filter Integration
@@ -1804,4 +1943,29 @@ document.addEventListener('keydown', (e) => {
         }
         map.closePopup();
     }
+});
+
+// Event Listener For Collabsable Hamburger Menu Toggle
+document.addEventListener('DOMContentLoaded', () => {
+    const hamburger = document.getElementById('hamburger-toggle');
+    const navMenu = document.getElementById('nav-menu');
+    const navButtons = document.querySelectorAll('.nav-button');
+
+    // Toggle Mobile Menu
+    hamburger.addEventListener('click', () => {
+        const isOpen = navMenu.classList.toggle('is-active');
+        hamburger.classList.toggle('is-active');
+        hamburger.setAttribute('aria-expanded', isOpen);
+    });
+
+    // Close menu when a navigation item is clicked
+    navButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            if (navMenu.classList.contains('is-active')) {
+                navMenu.classList.remove('is-active');
+                hamburger.classList.remove('is-active');
+                hamburger.setAttribute('aria-expanded', 'false');
+            }
+        });
+    });
 });
