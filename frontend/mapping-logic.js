@@ -91,7 +91,8 @@ const baseMaps = {
 };
 
 // Add the background maps button (Layers Control), Placing the Layer Controls before the nhdFLowlines so they can be filtered as well
-const layerControl = L.control.layers(baseMaps).addTo(map);
+// Not added to the map yet - it's attached below the dam/river search button once that control exists (see layerControl.addTo(map) further down)
+const layerControl = L.control.layers(baseMaps, null, { position: 'topleft' });
 
 // 1. Initialize using L.esri.featureLayer on the Flowlines sublayer (ID 2)
 const nhdFlowlines = L.esri.featureLayer({
@@ -126,6 +127,7 @@ layerControl.addOverlay(nhdFlowlines, "Flowlines");
 // SVG icons for top-left toolbar buttons
 const ICON_LOCATION = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="3" fill="currentColor"></circle><line x1="12" y1="1" x2="12" y2="5"></line><line x1="12" y1="19" x2="12" y2="23"></line><line x1="1" y1="12" x2="5" y2="12"></line><line x1="19" y1="12" x2="23" y2="12"></line></svg>';
 const ICON_FILTER = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>';
+const ICON_LAYERS = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>';
 
 // Geolocation: zoom to user's current location
 const GeolocationControl = L.Control.extend({
@@ -191,9 +193,25 @@ const SearchControl = L.Control.extend({
 
         const resultsDiv = L.DomUtil.create('div', '', panel);
         resultsDiv.id = 'globalSearchResults';
-        resultsDiv.style.maxHeight = '240px';
-        resultsDiv.style.overflowY = 'auto';
         resultsDiv.style.marginTop = '6px';
+
+        function layoutSearchPanel() {
+            if (window.innerWidth <= 768) {
+                panel.style.left = '0';
+                panel.style.top = 'calc(100% + 6px)';
+                panel.style.width = 'min(90vw, 320px)';
+                panel.style.minWidth = '0';
+                resultsDiv.style.maxHeight = 'min(240px, 40vh)';
+            } else {
+                panel.style.left = 'calc(100% + 6px)';
+                panel.style.top = '0';
+                panel.style.width = '';
+                panel.style.minWidth = '240px';
+                resultsDiv.style.maxHeight = '240px';
+            }
+            resultsDiv.style.overflowY = 'auto';
+        }
+        layoutSearchPanel();
 
         L.DomEvent.disableClickPropagation(container);
         L.DomEvent.disableScrollPropagation(container);
@@ -201,6 +219,7 @@ const SearchControl = L.Control.extend({
         L.DomEvent.on(button, 'click', (e) => {
             L.DomEvent.preventDefault(e);
             const isOpen = panel.style.display === 'block';
+            if (!isOpen) layoutSearchPanel();
             panel.style.display = isOpen ? 'none' : 'block';
             if (!isOpen) setTimeout(() => input.focus(), 0);
         });
@@ -387,6 +406,7 @@ const SearchControl = L.Control.extend({
         // Expose function globally to open the panel
         window.openSearchPanel = () => {
             if (panel.style.display !== 'block') {
+                layoutSearchPanel();
                 panel.style.display = 'block';
                 setTimeout(() => input.focus(), 0);
             }
@@ -402,6 +422,18 @@ const SearchControl = L.Control.extend({
     }
 });
 map.addControl(new SearchControl());
+
+// Attach the layers control underneath the search button, restyled to match
+// the same leaflet-bar button size/icon treatment as the other toolbar buttons
+layerControl.addTo(map);
+const layersToggle = layerControl.getContainer().querySelector('.leaflet-control-layers-toggle');
+if (layersToggle) {
+    layerControl.getContainer().classList.add('leaflet-bar');
+    layersToggle.style.background = 'none';
+    layersToggle.innerHTML = ICON_LAYERS;
+    layersToggle.title = 'Change map layers';
+    layersToggle.setAttribute('aria-label', 'Change map layers');
+}
 
 // --- Active Filters Badge ---
 const ActiveFiltersControl = L.Control.extend({
@@ -621,8 +653,16 @@ function renderMarkers() {
 window.openCombinedPanel = () => {
     const cModal = document.getElementById('combinedModal');
     cModal.classList.add('is-open');
-    
-    if (cModal.style.transform !== 'none') {
+
+    if (window.innerWidth <= 768) {
+        // Let the mobile @media rule size/position the panel full-screen;
+        // clear any inline position from a prior desktop drag/resize.
+        cModal.style.top = '';
+        cModal.style.left = '';
+        cModal.style.width = '';
+        cModal.style.height = '';
+        cModal.style.transform = '';
+    } else if (cModal.style.transform !== 'none') {
         cModal.style.transform = 'none';
         cModal.style.top = '80px';
         cModal.style.left = 'calc(50% - 500px)';
@@ -1570,6 +1610,7 @@ function enablePanelDragResize(panelId, headerId, onResize) {
 
     handle.addEventListener('mousedown', (e) => {
         if (e.target.closest('.close')) return;
+        if (window.innerWidth <= 768) return;
         e.preventDefault();
         pinAbsolute();
         dragging = true;
@@ -1608,6 +1649,7 @@ function enablePanelDragResize(panelId, headerId, onResize) {
 
     panel.querySelectorAll('.resize-handle').forEach((h) => {
         h.addEventListener('mousedown', (e) => {
+            if (window.innerWidth <= 768) return;
             e.preventDefault();
             e.stopPropagation();
             pinAbsolute();
@@ -1677,6 +1719,8 @@ loadDams();
 (function setupTabs() {
     const buttons = document.querySelectorAll('.nav-button[data-tab]');
     const panels = document.querySelectorAll('.tab-panel');
+    const hamburger = document.getElementById('hamburger-toggle');
+    const navMenu = document.getElementById('nav-menu');
 
     function activate(tabName) {
         buttons.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tabName));
@@ -1687,8 +1731,21 @@ loadDams();
     }
 
     buttons.forEach(btn => {
-        btn.addEventListener('click', () => activate(btn.dataset.tab));
+        btn.addEventListener('click', () => {
+            activate(btn.dataset.tab);
+            if (navMenu && navMenu.classList.contains('open')) {
+                navMenu.classList.remove('open');
+                if (hamburger) hamburger.setAttribute('aria-expanded', 'false');
+            }
+        });
     });
+
+    if (hamburger && navMenu) {
+        hamburger.addEventListener('click', () => {
+            const open = navMenu.classList.toggle('open');
+            hamburger.setAttribute('aria-expanded', String(open));
+        });
+    }
 })();
 
 // --- CFD Toolbox Sidebar Scroll-Spy Logic ---
