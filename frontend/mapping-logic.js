@@ -1572,13 +1572,22 @@ const legend = L.control({ position: 'bottomright' });
 legend.onAdd = function (map) {
     const div = L.DomUtil.create('div', 'info legend');
     div.innerHTML = `
-        <strong>Dam Status</strong><br>
-        <i style="background: #e67e22"></i> Dangerous Range Calculated<br>
-        <i style="background: #2980b9"></i> Live Forecast Available<br>
-        <i style="background: #95a5a6"></i> Location Info Only
+        <div class="legend-header"><strong>Dam Status</strong><span class="legend-toggle">&#9662;</span></div>
+        <div class="legend-body">
+            <div class="legend-row"><i style="background: #e67e22"></i><span>Dangerous Range Calculated</span></div>
+            <div class="legend-row"><i style="background: #2980b9"></i><span>Live Forecast Available</span></div>
+            <div class="legend-row"><i style="background: #95a5a6"></i><span>Location Info Only</span></div>
+        </div>
     `;
+    div.title = 'Click to hide/show the dam status legend';
+
+    const isMobile = () => window.matchMedia('(max-width: 768px)').matches;
 
     L.DomEvent.disableClickPropagation(div);
+    L.DomEvent.on(div, 'click', () => {
+        if (isMobile()) div.classList.toggle('legend-collapsed');
+    });
+
     return div;
 };
 legend.addTo(map);

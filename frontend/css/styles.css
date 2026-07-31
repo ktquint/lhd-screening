@@ -135,7 +135,10 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
 
 /* General UI Elements */
 .info.legend { padding: 12px; font: 14px Arial, Helvetica, sans-serif; background: rgba(255,255,255,0.9); box-shadow: 0 0 15px rgba(0,0,0,0.2); border-radius: 5px; line-height: 24px; }
-.legend i { width: 12px; height: 12px; float: left; margin-right: 8px; margin-top: 6px; border-radius: 50%; border: 1px solid #777; }
+.legend-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.legend-toggle { display: none; transition: transform 0.15s ease; }
+.legend-row { display: flex; align-items: center; gap: 8px; }
+.legend i { width: 12px; height: 12px; flex-shrink: 0; border-radius: 50%; border: 1px solid #777; }
 .popup-content { line-height: 1.6; min-width: 200px; }
 .btn-check { background-color: #3498db; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; width: 100%; margin-top: 10px; font-weight: bold; transition: background-color 0.2s ease; }
 .btn-check:hover { background-color: #2980b9; }
@@ -288,19 +291,23 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
     .cfd-sidebar li { margin-bottom: 0; }
     .cfd-content, .cfd-container { padding: 20px 16px 40px; max-width: 100%; }
 
-    /* --- Dam Status legend --- */
-    .info.legend { padding: 3px 4px; font-size: 6px; line-height: 8px; max-width: 75px; }
-    .legend i { width: 5px; height: 5px; margin-right: 3px; margin-top: 2px; }
+    /* --- Dam Status legend (collapsible on mobile only) --- */
+    .info.legend { padding: 4.5px 6px; font-size: 9px; line-height: 12px; max-width: 113px; cursor: pointer; user-select: none; }
+    .legend-toggle { display: inline; }
+    .legend-collapsed .legend-toggle { transform: rotate(-90deg); }
+    .legend-collapsed .legend-body { display: none; }
+    .legend-row { gap: 4.5px; }
+    .legend i { width: 7.5px; height: 7.5px; }
 
     /* --- Hide +/- zoom buttons on mobile (pinch-to-zoom is used instead) --- */
     .leaflet-control-zoom { display: none; }
 
     /* --- Attribution ribbon: match legend width above it --- */
     .leaflet-control-attribution {
-        font-size: 6px;
-        line-height: 8px;
-        padding: 1px 3px;
-        max-width: 75px;
+        font-size: 9px;
+        line-height: 12px;
+        padding: 1.5px 4.5px;
+        max-width: 113px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
