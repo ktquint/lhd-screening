@@ -234,7 +234,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
 @media (max-width: 768px) {
     /* --- Hamburger navigation --- */
     .hamburger { display: flex; }
-    .nav-bar { justify-content: space-between; padding: 10px 16px; }
+    .nav-bar { justify-content: space-between; padding: 10px 16px 10px 6px; }
     .nav-menu {
         display: none;
         flex-direction: column;
