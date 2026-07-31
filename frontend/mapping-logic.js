@@ -163,6 +163,7 @@ const SearchControl = L.Control.extend({
     onAdd: function() {
         const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
         container.style.position = 'relative';
+        container.style.zIndex = '900'; // Sits above the layers control (added after it in DOM) so the search panel isn't covered when open
 
         const button = L.DomUtil.create('a', '', container);
         button.href = '#';
