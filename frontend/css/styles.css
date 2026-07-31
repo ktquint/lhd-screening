@@ -32,7 +32,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
     flex-wrap: wrap;
     flex-shrink: 0;
     position: relative;
-    z-index: 999;
+    z-index: 1100;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     justify-content: center;
 }
