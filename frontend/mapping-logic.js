@@ -127,6 +127,7 @@ layerControl.addOverlay(nhdFlowlines, "Flowlines");
 // SVG icons for top-left toolbar buttons
 const ICON_LOCATION = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="3" fill="currentColor"></circle><line x1="12" y1="1" x2="12" y2="5"></line><line x1="12" y1="19" x2="12" y2="23"></line><line x1="1" y1="12" x2="5" y2="12"></line><line x1="19" y1="12" x2="23" y2="12"></line></svg>';
 const ICON_FILTER = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>';
+const ICON_SEARCH = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>';
 const ICON_LAYERS = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>';
 
 // Geolocation: zoom to user's current location
@@ -169,7 +170,10 @@ const SearchControl = L.Control.extend({
         button.href = '#';
         button.title = 'Search dams';
         button.setAttribute('aria-label', 'Search dams');
-        button.innerHTML = ICON_FILTER;
+        // On desktop only the funnel icon shows (unchanged floating map button).
+        // Docked next to the hamburger on mobile, this reads as a search bar: magnifying
+        // glass, placeholder label, then the filter funnel - see .sc-* rules in styles.css.
+        button.innerHTML = `<span class="sc-icon-search">${ICON_SEARCH}</span><span class="sc-label">Search &amp; filter dams</span><span class="sc-icon-filter">${ICON_FILTER}</span>`;
 
         const panel = L.DomUtil.create('div', '', container);
         panel.style.display = 'none';
@@ -198,21 +202,38 @@ const SearchControl = L.Control.extend({
 
         function layoutSearchPanel() {
             if (window.innerWidth <= 768) {
-                panel.style.left = '0';
-                panel.style.top = 'calc(100% + 6px)';
-                panel.style.width = 'min(90vw, 320px)';
+                // Docked in the nav bar next to the hamburger. Anchor the panel to the
+                // control's actual on-screen position (fixed, not absolute) and cap its
+                // height so it reads as a dropdown card - the map stays visible below it,
+                // rather than the panel covering the whole screen.
+                const rect = container.getBoundingClientRect();
+                panel.style.position = 'fixed';
+                panel.style.top = (rect.bottom + 8) + 'px';
+                panel.style.left = '12px';
+                panel.style.right = '12px';
+                panel.style.width = 'auto';
                 panel.style.minWidth = '0';
-                resultsDiv.style.maxHeight = 'min(240px, 40vh)';
+                panel.style.maxHeight = '60vh';
+                panel.style.zIndex = '1150';
+                resultsDiv.style.maxHeight = 'min(180px, 28vh)';
             } else {
+                panel.style.position = 'absolute';
                 panel.style.left = 'calc(100% + 6px)';
                 panel.style.top = '0';
+                panel.style.right = 'auto';
                 panel.style.width = '';
                 panel.style.minWidth = '240px';
+                panel.style.maxHeight = '';
+                panel.style.zIndex = '';
                 resultsDiv.style.maxHeight = '240px';
             }
+            panel.style.overflowY = 'auto';
             resultsDiv.style.overflowY = 'auto';
         }
         layoutSearchPanel();
+        window.addEventListener('resize', () => {
+            if (panel.style.display === 'block') layoutSearchPanel();
+        });
 
         L.DomEvent.disableClickPropagation(container);
         L.DomEvent.disableScrollPropagation(container);
@@ -422,7 +443,8 @@ const SearchControl = L.Control.extend({
         return container;
     }
 });
-map.addControl(new SearchControl());
+const searchControlInstance = new SearchControl();
+map.addControl(searchControlInstance);
 
 // Attach the layers control underneath the search button, restyled to match
 // the same leaflet-bar button size/icon treatment as the other toolbar buttons
@@ -435,6 +457,39 @@ if (layersToggle) {
     layersToggle.title = 'Change map layers';
     layersToggle.setAttribute('aria-label', 'Change map layers');
 }
+
+// --- Dock the search/filter control next to the hamburger menu on mobile ---
+// On phones the search button used to float over the map like the other toolbar
+// buttons; opening its panel there ate most of the screen. Below 768px we move the
+// same control (button + panel, untouched) into the nav bar so it sits beside the
+// hamburger, Google-Maps-style, and its dropdown panel (see layoutSearchPanel above)
+// stays capped in height so the map is still visible while filtering.
+(function dockSearchControl() {
+    const mobileSlot = document.getElementById('mobile-search-slot');
+    const searchContainer = searchControlInstance.getContainer();
+    const desktopCorner = searchContainer.parentNode; // .leaflet-top.leaflet-left
+    if (!mobileSlot || !desktopCorner) return;
+
+    function place() {
+        const isMobile = window.innerWidth <= 768;
+        const alreadyDocked = isMobile
+            ? searchContainer.parentNode === mobileSlot
+            : searchContainer.parentNode === desktopCorner;
+        if (alreadyDocked) return;
+
+        if (isMobile) {
+            mobileSlot.appendChild(searchContainer);
+        } else {
+            desktopCorner.insertBefore(searchContainer, layerControl.getContainer());
+        }
+        // Moving the control across the breakpoint invalidates any open panel's
+        // fixed-position coordinates, so close it rather than leave it misplaced.
+        if (typeof window.closeSearchPanel === 'function') window.closeSearchPanel();
+    }
+
+    place();
+    window.addEventListener('resize', place);
+})();
 
 // --- Active Filters Badge ---
 const ActiveFiltersControl = L.Control.extend({
