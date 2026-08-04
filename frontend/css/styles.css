@@ -57,9 +57,134 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
 .hamburger { display: none; min-width: 44px; min-height: 44px; background: transparent; border: none; color: white; cursor: pointer; align-items: center; justify-content: center; }
 
 /* Slot the mobile search/filter control (a Leaflet control, moved here via JS) docks into.
-   Hidden on desktop, where the control stays as a floating map button. */
+   Hidden on desktop, where the control stays as a compact floating map search bar. */
 .mobile-search-slot { display: none; }
-.sc-icon-search, .sc-label { display: none; }
+
+/* --- Search & filter bar (chip-based: River/State/Fatality filters + free-text search) --- */
+.leaflet-control.sc-container { background: transparent; border: none; box-shadow: none; }
+.sc-bar {
+    width: 260px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #ffffff;
+    border-radius: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    padding: 0 10px;
+}
+.sc-icon-search { display: inline-flex; align-items: center; color: #7f8c8d; flex-shrink: 0; }
+.sc-chips-input {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-width: 0;
+    cursor: text;
+    /* Chips can outgrow the bar's width; scroll horizontally rather than wrap, since the
+       bar sits in a fixed-height nav bar / map-corner control that can't grow with them. */
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+}
+.sc-chips-input::-webkit-scrollbar { display: none; }
+.sc-input {
+    flex: 1 1 70px;
+    min-width: 50px;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 13px;
+    color: #2c3e50;
+    padding: 4px 0;
+    font-family: inherit;
+}
+.sc-input::placeholder { color: #95a5a6; }
+.sc-funnel-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    padding: 4px;
+    margin: 0;
+    color: #3498db;
+    cursor: pointer;
+}
+.sc-funnel-btn:hover { color: #2980b9; }
+
+.sc-chip {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 5px;
+    background: #eaf2fb;
+    color: #205a87;
+    border-radius: 12px;
+    padding: 3px 6px 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.sc-chip-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: #e74c3c;
+    color: #fff;
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.sc-chip-remove:hover { background: #c0392b; }
+
+.sc-category-menu, .sc-suggestions {
+    display: none;
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.28);
+    padding: 6px;
+}
+.sc-category-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #2c3e50;
+}
+.sc-category-item:hover { background: #f0f4f8; }
+.sc-category-item-checked { background: #eaf2fb; }
+.sc-category-check { width: 14px; flex-shrink: 0; color: #3498db; font-weight: bold; }
+
+.sc-suggestions-header {
+    font-size: 11px;
+    font-weight: bold;
+    color: #7f8c8d;
+    padding: 4px 8px 6px;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.sc-suggestion-row {
+    padding: 7px 8px;
+    cursor: pointer;
+    border-bottom: 1px solid #f9f9f9;
+    font-size: 12px;
+    border-radius: 3px;
+    transition: background-color 0.15s ease;
+}
+.sc-suggestion-row:hover { background-color: #f0f4f8; }
+.sc-suggestion-sub { color: #7f8c8d; font-size: 11px; }
 
 .tab-content-area { flex-grow: 1; position: relative; overflow: hidden; display: flex; flex-direction: column; }
 .tab-panel { display: none; flex-grow: 1; width: 100%; overflow: auto; scroll-behavior: smooth; }
@@ -261,47 +386,12 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
 
     /* --- Search/filter control docked next to the hamburger (Google-Maps-style search bar) --- */
     .mobile-search-slot { display: flex; flex: 1 1 0%; min-width: 0; overflow: hidden; margin-left: 8px; position: relative; }
-    #mobile-search-slot .leaflet-bar {
-        width: 100%;
-        min-width: 0;
-        max-width: 100%;
-        display: flex;
-        align-items: stretch;
-        border: none;
-        border-radius: 19px;
-        background: #ffffff;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-        overflow: hidden;
-    }
-    #mobile-search-slot .leaflet-bar a {
-        flex: 1 1 auto;
-        width: auto;
-        height: 38px;
-        line-height: 38px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 0 12px;
-        border: none;
-        background: none;
-        color: #2c3e50;
-        min-width: 0;
-    }
-    #mobile-search-slot .leaflet-bar a:hover { background: none; }
-    #mobile-search-slot .sc-icon-search,
-    #mobile-search-slot .sc-icon-filter { display: inline-flex; align-items: center; flex-shrink: 0; color: #7f8c8d; }
-    #mobile-search-slot .sc-icon-filter { color: #3498db; }
-    #mobile-search-slot .sc-label {
-        display: inline-block;
-        flex: 1 1 auto;
-        min-width: 0;
-        font-size: 13px;
-        color: #7f8c8d;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        text-align: left;
-    }
+    /* .sc-container is itself a flex item of .mobile-search-slot; without an explicit
+       min/max-width here it falls back to sizing off its descendants' content (the chips
+       row), which defeats .mobile-search-slot's own shrink-to-fit and pushes the funnel
+       button off the right edge of the screen once chips are added. */
+    #mobile-search-slot .sc-container { width: 100%; min-width: 0; max-width: 100%; }
+    #mobile-search-slot .sc-bar { width: 100%; height: 40px; }
 
     /* --- Header --- */
     .header-container { padding: 10px 12px; }
