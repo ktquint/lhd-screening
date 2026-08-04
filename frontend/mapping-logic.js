@@ -334,7 +334,7 @@ const SearchControl = L.Control.extend({
                 }));
             }
             if (activeRiverFilter.river) {
-                chips.push(makeChip(`River Name: ${activeRiverFilter.riverDisplay}`, () => {
+                chips.push(makeChip(`River: ${activeRiverFilter.riverDisplay}`, () => {
                     activeRiverFilter.river = ''; activeRiverFilter.riverDisplay = '';
                     renderChips(); renderMarkers();
                 }));
@@ -411,7 +411,7 @@ const SearchControl = L.Control.extend({
                     const trimmed = (name || '').trim();
                     if (!trimmed) return;
                     const lower = trimmed.toLowerCase();
-                    if (val && !lower.includes(val)) return;
+                    if (val && !lower.startsWith(val)) return;
                     if (!seen.has(lower)) seen.set(lower, trimmed);
                 });
             });
@@ -430,12 +430,12 @@ const SearchControl = L.Control.extend({
                 };
                 return row;
             });
-            showFloaterList(rows, val ? 'No matching rivers' : 'Type to search rivers');
+            showFloaterList(rows, 'No matching rivers');
         }
 
         function showStateSuggestions(val) {
             const options = US_STATES.filter(([abbr, name]) =>
-                !val || abbr.toLowerCase().includes(val) || name.toLowerCase().includes(val)
+                !val || abbr.toLowerCase().startsWith(val) || name.toLowerCase().startsWith(val)
             ).slice(0, 8);
             const rows = options.map(([abbr, name]) => {
                 const row = document.createElement('div');
@@ -452,20 +452,22 @@ const SearchControl = L.Control.extend({
                 };
                 return row;
             });
-            showFloaterList(rows, val ? 'No matching states' : 'Type to search states');
+            showFloaterList(rows, 'No matching states');
         }
 
         input.addEventListener('focus', () => {
             hideCategoryMenu();
-            if (mode === 'river') showRiverSuggestions('');
-            else if (mode === 'state') showStateSuggestions('');
-            else if (input.value.trim().length >= 2) showGeneralSuggestions(input.value.trim().toLowerCase());
+            const val = input.value.trim().toLowerCase();
+            // River/State are typeahead-only: no browse-everything list until you start typing.
+            if (mode === 'river') { if (val) showRiverSuggestions(val); else hideSuggestions(); }
+            else if (mode === 'state') { if (val) showStateSuggestions(val); else hideSuggestions(); }
+            else if (val.length >= 2) showGeneralSuggestions(val);
         });
 
         input.addEventListener('input', () => {
             const val = input.value.trim().toLowerCase();
-            if (mode === 'river') { showRiverSuggestions(val); return; }
-            if (mode === 'state') { showStateSuggestions(val); return; }
+            if (mode === 'river') { if (val) showRiverSuggestions(val); else hideSuggestions(); return; }
+            if (mode === 'state') { if (val) showStateSuggestions(val); else hideSuggestions(); return; }
             if (val.length < 2) { hideSuggestions(); return; }
             showGeneralSuggestions(val);
         });
