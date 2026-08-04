@@ -24,7 +24,25 @@ const _forecastCache = new Map();
 let allDams = [];
 let _forecastState = null; // { allPoints, hasSafetyRange, qMin, qMax, damName }
 let markers = L.layerGroup();
-let activeRiverFilter = { river: '', state: '' };
+// river/state hold the lowercased/uppercased values renderMarkers() matches against;
+// the *Display companions hold the original text the filter chips show to the user.
+let activeRiverFilter = { river: '', riverDisplay: '', state: '', stateDisplay: '' };
+let fatalityOnlyFilter = false;
+
+// damPassesChips() is the single predicate both the map (renderMarkers) and the search
+// bar's live suggestion lists filter through, so "what the map shows" and "what you can
+// search for" never drift apart as chips are added/removed.
+function damPassesChips(dam) {
+    if (activeRiverFilter.river) {
+        const gnis   = (dam.GNIS_Name       || '').toLowerCase();
+        const stream = (dam['River/Stream'] || '').toLowerCase();
+        const river  = (dam.River           || '').toLowerCase();
+        if (!gnis.includes(activeRiverFilter.river) && !stream.includes(activeRiverFilter.river) && !river.includes(activeRiverFilter.river)) return false;
+    }
+    if (activeRiverFilter.state && (dam['State Abbreviation'] || '').toUpperCase() !== activeRiverFilter.state) return false;
+    if (fatalityOnlyFilter && (parseInt(dam.NumberOfFatalities) || 0) === 0) return false;
+    return true;
+}
 
 // Display-name resolver: prefer OSM_Name; fall back to Dam_Name; finally a placeholder.
 // Also returns whether the underlying Dam_Name was "generic" (so callers can decide
@@ -130,6 +148,22 @@ const ICON_FILTER = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"
 const ICON_SEARCH = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>';
 const ICON_LAYERS = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>';
 
+// Abbreviation -> full name, used for the "State Abbreviation" search-bar filter category
+// (lets someone type either "WY" or "Wyoming" and find the same suggestion).
+const US_STATES = [
+    ['AL','Alabama'],['AK','Alaska'],['AZ','Arizona'],['AR','Arkansas'],['CA','California'],
+    ['CO','Colorado'],['CT','Connecticut'],['DE','Delaware'],['DC','District of Columbia'],
+    ['FL','Florida'],['GA','Georgia'],['ID','Idaho'],['IL','Illinois'],['IN','Indiana'],
+    ['IA','Iowa'],['KS','Kansas'],['KY','Kentucky'],['LA','Louisiana'],['ME','Maine'],
+    ['MD','Maryland'],['MA','Massachusetts'],['MI','Michigan'],['MN','Minnesota'],
+    ['MS','Mississippi'],['MO','Missouri'],['MT','Montana'],['NE','Nebraska'],['NV','Nevada'],
+    ['NH','New Hampshire'],['NJ','New Jersey'],['NM','New Mexico'],['NY','New York'],
+    ['NC','North Carolina'],['ND','North Dakota'],['OH','Ohio'],['OK','Oklahoma'],
+    ['OR','Oregon'],['PA','Pennsylvania'],['RI','Rhode Island'],['SC','South Carolina'],
+    ['SD','South Dakota'],['TN','Tennessee'],['TX','Texas'],['UT','Utah'],['VT','Vermont'],
+    ['VA','Virginia'],['WA','Washington'],['WV','West Virginia'],['WI','Wisconsin'],['WY','Wyoming']
+];
+
 // Geolocation: zoom to user's current location
 const GeolocationControl = L.Control.extend({
     options: { position: 'topleft' },
@@ -158,288 +192,339 @@ const GeolocationControl = L.Control.extend({
 });
 map.addControl(new GeolocationControl());
 
-// Search (filter-icon button with collapsible search panel)
+// Search & filter bar: a real text input with removable filter "chips" (River, State,
+// Fatality) plus a funnel button that opens a small menu to pick which category the next
+// typed value applies to. Chips + free text combine as an AND filter via damPassesChips(),
+// so the map and the live suggestion lists never disagree about what's currently active.
 const SearchControl = L.Control.extend({
     options: { position: 'topleft' },
     onAdd: function() {
-        const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+        const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control sc-container');
         container.style.position = 'relative';
-        container.style.zIndex = '900'; // Sits above the layers control (added after it in DOM) so the search panel isn't covered when open
+        container.style.zIndex = '900'; // Sits above the layers control (added after it in DOM)
 
-        const button = L.DomUtil.create('a', '', container);
-        button.href = '#';
-        button.title = 'Search dams';
-        button.setAttribute('aria-label', 'Search dams');
-        // On desktop only the funnel icon shows (unchanged floating map button).
-        // Docked next to the hamburger on mobile, this reads as a search bar: magnifying
-        // glass, placeholder label, then the filter funnel - see .sc-* rules in styles.css.
-        button.innerHTML = `<span class="sc-icon-search">${ICON_SEARCH}</span><span class="sc-label">Search &amp; filter dams</span><span class="sc-icon-filter">${ICON_FILTER}</span>`;
+        const bar = L.DomUtil.create('div', 'sc-bar', container);
 
-        const panel = L.DomUtil.create('div', '', container);
-        panel.style.display = 'none';
-        panel.style.position = 'absolute';
-        panel.style.top = '0';
-        panel.style.left = 'calc(100% + 6px)';
-        panel.style.background = 'white';
-        panel.style.padding = '8px';
-        panel.style.borderRadius = '4px';
-        panel.style.boxShadow = '0 1px 5px rgba(0,0,0,0.4)';
-        panel.style.minWidth = '240px';
+        const searchIcon = L.DomUtil.create('span', 'sc-icon-search', bar);
+        searchIcon.innerHTML = ICON_SEARCH;
 
-        const input = L.DomUtil.create('input', '', panel);
+        const chipsInput = L.DomUtil.create('div', 'sc-chips-input', bar);
+        chipsInput.addEventListener('click', (e) => { if (e.target === chipsInput) input.focus(); });
+
+        const input = L.DomUtil.create('input', 'sc-input', chipsInput);
         input.id = 'globalSearchInput';
         input.type = 'text';
-        input.placeholder = 'Search dams, city, state...';
-        input.style.width = '100%';
-        input.style.padding = '6px';
-        input.style.boxSizing = 'border-box';
-        input.style.border = '1px solid #ccc';
-        input.style.borderRadius = '3px';
+        input.autocomplete = 'off';
 
-        const resultsDiv = L.DomUtil.create('div', '', panel);
-        resultsDiv.id = 'globalSearchResults';
-        resultsDiv.style.marginTop = '6px';
+        const funnelBtn = L.DomUtil.create('button', 'sc-funnel-btn', bar);
+        funnelBtn.type = 'button';
+        funnelBtn.title = 'Choose what to filter by';
+        funnelBtn.setAttribute('aria-label', 'Choose what to filter by');
+        funnelBtn.innerHTML = ICON_FILTER;
 
-        function layoutSearchPanel() {
-            if (window.innerWidth <= 768) {
-                // Docked in the nav bar next to the hamburger. Anchor the panel to the
-                // control's actual on-screen position (fixed, not absolute) and cap its
-                // height so it reads as a dropdown card - the map stays visible below it,
-                // rather than the panel covering the whole screen.
-                const rect = container.getBoundingClientRect();
-                panel.style.position = 'fixed';
-                panel.style.top = (rect.bottom + 8) + 'px';
-                panel.style.left = '12px';
-                panel.style.right = '12px';
-                panel.style.width = 'auto';
-                panel.style.minWidth = '0';
-                panel.style.maxHeight = '60vh';
-                panel.style.zIndex = '1150';
-                resultsDiv.style.maxHeight = 'min(180px, 28vh)';
-            } else {
-                panel.style.position = 'absolute';
-                panel.style.left = 'calc(100% + 6px)';
-                panel.style.top = '0';
-                panel.style.right = 'auto';
-                panel.style.width = '';
-                panel.style.minWidth = '240px';
-                panel.style.maxHeight = '';
-                panel.style.zIndex = '';
-                resultsDiv.style.maxHeight = '240px';
-            }
-            panel.style.overflowY = 'auto';
-            resultsDiv.style.overflowY = 'auto';
-        }
-        layoutSearchPanel();
-        window.addEventListener('resize', () => {
-            if (panel.style.display === 'block') layoutSearchPanel();
-        });
+        const categoryMenu = L.DomUtil.create('div', 'sc-category-menu', container);
+        const suggestions = L.DomUtil.create('div', 'sc-suggestions', container);
+        suggestions.id = 'globalSearchResults';
 
         L.DomEvent.disableClickPropagation(container);
         L.DomEvent.disableScrollPropagation(container);
 
-        L.DomEvent.on(button, 'click', (e) => {
+        // --- Filter categories ----------------------------------------------------
+        const CATEGORIES = [
+            { key: 'general',  label: 'Dam / City / State', placeholder: 'Search dams, city, state...' },
+            { key: 'river',    label: 'River Name',          placeholder: 'Search river name...' },
+            { key: 'state',    label: 'State Abbreviation',  placeholder: 'Search state...' },
+            { key: 'fatality', label: 'Show only fatality sites' }
+        ];
+        let mode = 'general';
+
+        function setMode(key) {
+            mode = key;
+            const cat = CATEGORIES.find(c => c.key === key) || CATEGORIES[0];
+            input.placeholder = cat.placeholder || 'Search dams, city, state...';
+            hideCategoryMenu();
+            hideSuggestions();
+            setTimeout(() => input.focus(), 0);
+        }
+
+        // --- Floating-panel positioning (shared by the category menu & suggestions) --
+        // Anchors under the bar at its live on-screen position (fixed, not absolute) and
+        // caps its height, so on phones it reads as a dropdown card rather than covering
+        // the whole screen - the map stays visible below it.
+        function layoutFloater(el, maxHeight) {
+            const rect = bar.getBoundingClientRect();
+            const isMobile = window.innerWidth <= 768;
+            el.style.position = 'fixed';
+            el.style.top = (rect.bottom + 6) + 'px';
+            if (isMobile) {
+                el.style.left = '12px';
+                el.style.right = '12px';
+                el.style.width = 'auto';
+            } else {
+                el.style.left = rect.left + 'px';
+                el.style.right = 'auto';
+                el.style.width = Math.max(rect.width, 260) + 'px';
+            }
+            el.style.maxHeight = maxHeight;
+            el.style.zIndex = '1150';
+            el.style.overflowY = 'auto';
+        }
+
+        // --- Category dropdown menu -------------------------------------------------
+        function renderCategoryMenu() {
+            categoryMenu.innerHTML = '';
+            CATEGORIES.forEach(cat => {
+                const checked = cat.key === 'fatality' ? fatalityOnlyFilter : cat.key === mode;
+                const item = document.createElement('div');
+                item.className = 'sc-category-item' + (checked ? ' sc-category-item-checked' : '');
+                item.innerHTML = `<span class="sc-category-check">${checked ? '✓' : ''}</span><span>${cat.label}</span>`;
+                item.onclick = () => {
+                    if (cat.key === 'fatality') {
+                        fatalityOnlyFilter = !fatalityOnlyFilter;
+                        renderChips();
+                        renderMarkers();
+                        hideCategoryMenu();
+                    } else {
+                        setMode(cat.key);
+                    }
+                };
+                categoryMenu.appendChild(item);
+            });
+        }
+
+        function showCategoryMenu() {
+            hideSuggestions();
+            renderCategoryMenu();
+            layoutFloater(categoryMenu, '50vh');
+            categoryMenu.style.display = 'block';
+        }
+        function hideCategoryMenu() { categoryMenu.style.display = 'none'; }
+
+        L.DomEvent.on(funnelBtn, 'click', (e) => {
             L.DomEvent.preventDefault(e);
-            const isOpen = panel.style.display === 'block';
-            if (!isOpen) layoutSearchPanel();
-            panel.style.display = isOpen ? 'none' : 'block';
-            if (!isOpen) setTimeout(() => input.focus(), 0);
+            if (categoryMenu.style.display === 'block') hideCategoryMenu(); else showCategoryMenu();
         });
 
-        input.addEventListener('input', (e) => {
-            const val = e.target.value.toLowerCase();
-            resultsDiv.innerHTML = '';
-            
-            // Wait for at least 2 characters before querying
-            if (val.length < 2) return;
+        // --- Chips -------------------------------------------------------------------
+        function makeChip(label, onRemove) {
+            const chip = document.createElement('span');
+            chip.className = 'sc-chip';
+            const text = document.createElement('span');
+            text.className = 'sc-chip-label';
+            text.textContent = label;
+            const close = document.createElement('span');
+            close.className = 'sc-chip-remove';
+            close.textContent = '×';
+            close.setAttribute('role', 'button');
+            close.setAttribute('aria-label', `Remove ${label} filter`);
+            close.onclick = (e) => { e.stopPropagation(); onRemove(); };
+            chip.appendChild(text);
+            chip.appendChild(close);
+            return chip;
+        }
 
-            // Find all matches across the dataset
-            const matches = allDams.filter(d => {
-                const name = (d.Dam_Name || '').toLowerCase();
-                const osm  = (d.OSM_Name || '').toLowerCase();
-                const city = (d.City || '').toLowerCase();
-                const state = (d['State Abbreviation'] || '').toLowerCase();
-                return name.includes(val) || osm.includes(val) || city.includes(val) || state.includes(val);
-            });
-
-            // --- UX UPGRADE: Search Results Counter & Empty State ---
-            const countHeader = document.createElement('div');
-            countHeader.style.cssText = 'font-size: 11px; font-weight: bold; color: #7f8c8d; padding: 4px 5px 6px; border-bottom: 1px solid #eee; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em;';
-            
-            if (matches.length === 0) {
-                countHeader.textContent = 'No matching dams found';
-                resultsDiv.appendChild(countHeader);
-                return;
-            } else {
-                const shown = Math.min(10, matches.length);
-                countHeader.textContent = `Showing top ${shown} of ${matches.length} results`;
-                resultsDiv.appendChild(countHeader);
+        function renderChips() {
+            chipsInput.querySelectorAll('.sc-chip').forEach(c => c.remove());
+            const chips = [];
+            if (activeRiverFilter.state) {
+                chips.push(makeChip(`State: ${activeRiverFilter.stateDisplay}`, () => {
+                    activeRiverFilter.state = ''; activeRiverFilter.stateDisplay = '';
+                    if (typeof window.clearStateHighlight === 'function') window.clearStateHighlight();
+                    renderChips(); renderMarkers();
+                }));
             }
+            if (activeRiverFilter.river) {
+                chips.push(makeChip(`River Name: ${activeRiverFilter.riverDisplay}`, () => {
+                    activeRiverFilter.river = ''; activeRiverFilter.riverDisplay = '';
+                    renderChips(); renderMarkers();
+                }));
+            }
+            if (fatalityOnlyFilter) {
+                chips.push(makeChip('Fatality Sites Only', () => {
+                    fatalityOnlyFilter = false;
+                    renderChips(); renderMarkers();
+                }));
+            }
+            chips.forEach(c => chipsInput.insertBefore(c, input));
+        }
 
-            // --- UX UPGRADE: Polished List Layout ---
+        // --- Suggestions / autocomplete ----------------------------------------------
+        function hideSuggestions() { suggestions.style.display = 'none'; suggestions.innerHTML = ''; }
+
+        function suggestionHeader(text) {
+            const h = document.createElement('div');
+            h.className = 'sc-suggestions-header';
+            h.textContent = text;
+            return h;
+        }
+
+        function showFloaterList(rows, emptyMsg) {
+            suggestions.innerHTML = '';
+            if (rows.length === 0) {
+                suggestions.appendChild(suggestionHeader(emptyMsg));
+            } else {
+                rows.forEach(row => suggestions.appendChild(row));
+            }
+            layoutFloater(suggestions, 'min(60vh, 320px)');
+            suggestions.style.display = 'block';
+        }
+
+        function showGeneralSuggestions(val) {
+            const matches = allDams.filter(d => damPassesChips(d) && (
+                (d.Dam_Name || '').toLowerCase().includes(val) ||
+                (d.OSM_Name || '').toLowerCase().includes(val) ||
+                (d.City || '').toLowerCase().includes(val) ||
+                (d['State Abbreviation'] || '').toLowerCase().includes(val)
+            ));
+
+            const rows = [];
+            if (matches.length > 0) {
+                rows.push(suggestionHeader(`Showing top ${Math.min(10, matches.length)} of ${matches.length} results`));
+            }
             matches.slice(0, 10).forEach(dam => {
-                const div = document.createElement('div');
-                div.style.padding = '6px 8px';
-                div.style.cursor = 'pointer';
-                div.style.borderBottom = '1px solid #f9f9f9';
-                div.style.fontSize = '12px';
-                div.style.borderRadius = '3px';
-                div.style.transition = 'background-color 0.15s ease';
-
+                const row = document.createElement('div');
+                row.className = 'sc-suggestion-row';
                 const place = (dam.City && dam.City.trim()) || (dam['County Name'] && dam['County Name'].trim()) || '';
                 const loc = [place, dam['State Abbreviation']].filter(Boolean).join(', ');
-                
-                div.innerHTML = `<strong>${displayName(dam)}</strong><br><span style="color:#7f8c8d; font-size: 11px;">${loc}</span>`;
-
-                // Subtle blue hover effect instead of harsh gray
-                div.onmouseover = () => div.style.backgroundColor = '#f0f4f8';
-                div.onmouseout = () => div.style.backgroundColor = 'transparent';
-
-                div.onclick = () => {
+                row.innerHTML = `<strong>${displayName(dam)}</strong><br><span class="sc-suggestion-sub">${loc}</span>`;
+                row.onclick = () => {
                     const lat = parseFloat(dam.Latitude);
                     const lng = parseFloat(dam.Longitude);
                     if (!isNaN(lat) && !isNaN(lng)) {
-                    map.flyTo([lat, lng], 14, { duration: 1.5 }); // Pushed zoom slightly tighter for context
-                        markers.eachLayer(l => {
-                            if (l.getLatLng().lat === lat && l.getLatLng().lng === lng) l.openPopup();
-                        });
+                        map.flyTo([lat, lng], 14, { duration: 1.5 });
+                        markers.eachLayer(l => { if (l.getLatLng().lat === lat && l.getLatLng().lng === lng) l.openPopup(); });
                     }
-                    input.value = displayName(dam);
-                    panel.style.display = 'none';
+                    input.value = '';
+                    hideSuggestions();
                 };
-                resultsDiv.appendChild(div);
+                rows.push(row);
             });
+            showFloaterList(rows, 'No matching dams found');
+        }
+
+        function showRiverSuggestions(val) {
+            const seen = new Map(); // lowercase river name -> original-cased display text
+            allDams.forEach(d => {
+                if (activeRiverFilter.state && (d['State Abbreviation'] || '').toUpperCase() !== activeRiverFilter.state) return;
+                if (fatalityOnlyFilter && (parseInt(d.NumberOfFatalities) || 0) === 0) return;
+                [d.GNIS_Name, d['River/Stream'], d.River].forEach(name => {
+                    const trimmed = (name || '').trim();
+                    if (!trimmed) return;
+                    const lower = trimmed.toLowerCase();
+                    if (val && !lower.includes(val)) return;
+                    if (!seen.has(lower)) seen.set(lower, trimmed);
+                });
+            });
+            const options = Array.from(seen.values()).sort((a, b) => a.localeCompare(b)).slice(0, 8);
+            const rows = options.map(opt => {
+                const row = document.createElement('div');
+                row.className = 'sc-suggestion-row';
+                row.textContent = opt;
+                row.onclick = () => {
+                    activeRiverFilter.river = opt.toLowerCase();
+                    activeRiverFilter.riverDisplay = opt;
+                    input.value = '';
+                    setMode('general');
+                    renderChips();
+                    renderMarkers();
+                };
+                return row;
+            });
+            showFloaterList(rows, val ? 'No matching rivers' : 'Type to search rivers');
+        }
+
+        function showStateSuggestions(val) {
+            const options = US_STATES.filter(([abbr, name]) =>
+                !val || abbr.toLowerCase().includes(val) || name.toLowerCase().includes(val)
+            ).slice(0, 8);
+            const rows = options.map(([abbr, name]) => {
+                const row = document.createElement('div');
+                row.className = 'sc-suggestion-row';
+                row.innerHTML = `<strong>${abbr}</strong> <span class="sc-suggestion-sub">${name}</span>`;
+                row.onclick = () => {
+                    activeRiverFilter.state = abbr;
+                    activeRiverFilter.stateDisplay = abbr;
+                    input.value = '';
+                    setMode('general');
+                    renderChips();
+                    renderMarkers();
+                    if (typeof window.highlightStateBoundary === 'function') window.highlightStateBoundary(abbr);
+                };
+                return row;
+            });
+            showFloaterList(rows, val ? 'No matching states' : 'Type to search states');
+        }
+
+        input.addEventListener('focus', () => {
+            hideCategoryMenu();
+            if (mode === 'river') showRiverSuggestions('');
+            else if (mode === 'state') showStateSuggestions('');
+            else if (input.value.trim().length >= 2) showGeneralSuggestions(input.value.trim().toLowerCase());
         });
 
-        // --- River Filter section ---
-        const divider = L.DomUtil.create('hr', '', panel);
-        divider.style.cssText = 'margin:8px 0;border:none;border-top:1px solid #ddd;';
+        input.addEventListener('input', () => {
+            const val = input.value.trim().toLowerCase();
+            if (mode === 'river') { showRiverSuggestions(val); return; }
+            if (mode === 'state') { showStateSuggestions(val); return; }
+            if (val.length < 2) { hideSuggestions(); return; }
+            showGeneralSuggestions(val);
+        });
 
-        const riverLabel = L.DomUtil.create('div', '', panel);
-        riverLabel.style.cssText = 'font-size:11px;font-weight:bold;color:#555;margin-bottom:5px;letter-spacing:0.03em;';
-        riverLabel.textContent = 'FILTER BY RIVER';
-
-        const riverInput = L.DomUtil.create('input', '', panel);
-        riverInput.id = 'globalRiverInput';
-        riverInput.type = 'text';
-        riverInput.placeholder = 'River name (e.g. South Platte)';
-        riverInput.style.cssText = 'width:100%;padding:6px;box-sizing:border-box;border:1px solid #ccc;border-radius:3px;margin-bottom:4px;font-size:12px;';
-
-        const stateInput = L.DomUtil.create('input', '', panel);
-        stateInput.id = 'globalStateInput';
-        stateInput.type = 'text';
-        stateInput.maxLength = 2;
-        stateInput.placeholder = 'State abbr. (e.g. CO)';
-        stateInput.style.cssText = 'width:100%;padding:6px;box-sizing:border-box;border:1px solid #ccc;border-radius:3px;margin-bottom:6px;font-size:12px;text-transform:uppercase;';
-
-        const btnRow = L.DomUtil.create('div', '', panel);
-        btnRow.style.cssText = 'display:flex;gap:4px;margin-bottom:4px;';
-
-        const applyBtn = L.DomUtil.create('button', '', btnRow);
-        applyBtn.id = 'globalApplyFilterBtn';
-        applyBtn.textContent = 'Apply Filter';
-        applyBtn.style.cssText = 'flex:1;padding:6px;background:#3498db;color:white;border:none;border-radius:3px;cursor:pointer;font-size:12px;font-weight:600;';
-
-        const clearBtn = L.DomUtil.create('button', '', btnRow);
-        clearBtn.textContent = 'Clear';
-        clearBtn.style.cssText = 'padding:6px 10px;background:#95a5a6;color:white;border:none;border-radius:3px;cursor:pointer;font-size:12px;';
-
-        const filterStatus = L.DomUtil.create('div', '', panel);
-        filterStatus.style.cssText = 'font-size:11px;color:#666;min-height:15px;';
-
-        const filterDivider = L.DomUtil.create('hr', '', panel);
-        filterDivider.style.cssText = 'margin:8px 0;border:none;border-top:1px solid #ddd;';
-
-        const optionsLabel = L.DomUtil.create('div', '', panel);
-        optionsLabel.style.cssText = 'font-size:11px;font-weight:bold;color:#555;margin-bottom:5px;letter-spacing:0.03em;';
-        optionsLabel.textContent = 'FILTER OPTIONS';
-
-        const checkboxLabel = L.DomUtil.create('label', '', panel);
-        checkboxLabel.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;user-select:none;';
-
-        const fatalityCheckbox = L.DomUtil.create('input', '', checkboxLabel);
-        fatalityCheckbox.type = 'checkbox';
-        fatalityCheckbox.id = 'fatalityFilter';
-        fatalityCheckbox.style.cursor = 'pointer';
-
-        const checkboxText = document.createTextNode('Show only fatality sites');
-        checkboxLabel.appendChild(checkboxText);
-
-        // Listen directly to changes right here in the toolbar control loop
-        fatalityCheckbox.addEventListener('change', renderMarkers);
-
-        function _damMatchesRiverFilter(d, rq, sq) {
-            if (!d['State Abbreviation']) return false;
-            if (rq) {
-                const gnis   = (d.GNIS_Name        || '').toLowerCase();
-                const stream = (d['River/Stream']  || '').toLowerCase();
-                const river  = (d.River            || '').toLowerCase();
-                if (!gnis.includes(rq) && !stream.includes(rq) && !river.includes(rq)) return false;
-            }
-            if (sq && (d['State Abbreviation'] || '').toUpperCase() !== sq) return false;
-            return true;
-        }
-
-        function applyRiverFilter() {
-            const rq = riverInput.value.trim().toLowerCase();
-            const sq = stateInput.value.trim().toUpperCase();
-            activeRiverFilter = { river: rq, state: sq };
-            renderMarkers();
-
-            if (typeof window.highlightStateBoundary === 'function') {
-                window.highlightStateBoundary(sq);
-            }
-
-            if (!rq && !sq) {
-                filterStatus.textContent = '';
-                return;
-            }
-
-            const matched = allDams.filter(d => _damMatchesRiverFilter(d, rq, sq));
-            const withCoords = matched.filter(d => !isNaN(parseFloat(d.Latitude)) && !isNaN(parseFloat(d.Longitude)));
-
-            filterStatus.textContent = `${withCoords.length} dam${withCoords.length !== 1 ? 's' : ''} matched`;
-
-            if (withCoords.length > 0) {
-                const bounds = L.latLngBounds(
-                    withCoords.map(d => [parseFloat(d.Latitude), parseFloat(d.Longitude)])
-                );
-            map.flyToBounds(bounds, { padding: [60, 60], maxZoom: 13, duration: 1.5 });
-            }
-        }
-
-        L.DomEvent.on(applyBtn, 'click', (e) => { L.DomEvent.preventDefault(e); applyRiverFilter(); });
-
-        L.DomEvent.on(clearBtn, 'click', (e) => {
-            L.DomEvent.preventDefault(e);
-            riverInput.value = '';
-            stateInput.value = '';
-            activeRiverFilter = { river: '', state: '' };
-            filterStatus.textContent = '';
-            renderMarkers();
-            if (typeof window.clearStateHighlight === 'function') {
-                window.clearStateHighlight();
+        input.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            const raw = input.value.trim();
+            if (!raw) return;
+            if (mode === 'river') {
+                activeRiverFilter.river = raw.toLowerCase();
+                activeRiverFilter.riverDisplay = raw;
+                input.value = '';
+                setMode('general');
+                renderChips();
+                renderMarkers();
+            } else if (mode === 'state') {
+                const match = US_STATES.find(([abbr, name]) => abbr.toLowerCase() === raw.toLowerCase() || name.toLowerCase() === raw.toLowerCase());
+                if (!match) return;
+                activeRiverFilter.state = match[0];
+                activeRiverFilter.stateDisplay = match[0];
+                input.value = '';
+                setMode('general');
+                renderChips();
+                renderMarkers();
+                if (typeof window.highlightStateBoundary === 'function') window.highlightStateBoundary(match[0]);
             }
         });
 
-        L.DomEvent.on(riverInput, 'keydown', (e) => { if (e.key === 'Enter') applyRiverFilter(); });
-        L.DomEvent.on(stateInput, 'keydown', (e) => { if (e.key === 'Enter') applyRiverFilter(); });
+        window.addEventListener('resize', () => {
+            if (categoryMenu.style.display === 'block') layoutFloater(categoryMenu, '50vh');
+            if (suggestions.style.display === 'block') layoutFloater(suggestions, 'min(60vh, 320px)');
+        });
 
-        // Expose function globally to open the panel
-        window.openSearchPanel = () => {
-            if (panel.style.display !== 'block') {
-                layoutSearchPanel();
-                panel.style.display = 'block';
-                setTimeout(() => input.focus(), 0);
-            }
+        // --- External API used elsewhere (state-boundary clicks, Escape key) --------
+        window.setStateFilter = (abbr) => {
+            activeRiverFilter.state = abbr.toUpperCase();
+            activeRiverFilter.stateDisplay = abbr.toUpperCase();
+            renderChips();
+            renderMarkers();
         };
-
-        window.closeSearchPanel = () => {
-            if (panel.style.display === 'block') {
-                panel.style.display = 'none';
-            }
+        window.clearStateFilterChip = () => {
+            activeRiverFilter.state = '';
+            activeRiverFilter.stateDisplay = '';
+            renderChips();
+            renderMarkers();
         };
+        window.getStateFilter = () => activeRiverFilter.state;
+        window.clearAllFilters = () => {
+            activeRiverFilter = { river: '', riverDisplay: '', state: '', stateDisplay: '' };
+            fatalityOnlyFilter = false;
+            input.value = '';
+            setMode('general');
+            renderChips();
+            renderMarkers();
+        };
+        window.openSearchPanel = () => setTimeout(() => input.focus(), 0);
+        window.closeSearchPanel = () => { hideCategoryMenu(); hideSuggestions(); };
 
+        renderChips();
         return container;
     }
 });
@@ -520,14 +605,10 @@ window.updateActiveFiltersBadge = () => {
     const badge = document.getElementById('activeFiltersBadge');
     if (!badge) return;
     
-    const stateInput = document.getElementById('globalStateInput');
-    const riverInput = document.getElementById('globalRiverInput');
-    const fatalityCheckbox = document.getElementById('fatalityFilter');
-    
     let active = [];
-    if (stateInput && stateInput.value.trim()) active.push(`State: ${stateInput.value.trim().toUpperCase()}`);
-    if (riverInput && riverInput.value.trim()) active.push(`River: ${riverInput.value.trim()}`);
-    if (fatalityCheckbox && fatalityCheckbox.checked) active.push(`Fatalities Only`);
+    if (activeRiverFilter.state) active.push(`State: ${activeRiverFilter.stateDisplay}`);
+    if (activeRiverFilter.river) active.push(`River: ${activeRiverFilter.riverDisplay}`);
+    if (fatalityOnlyFilter) active.push(`Fatalities Only`);
     
     if (active.length > 0) {
         badge.style.display = 'block';
@@ -574,10 +655,8 @@ map.on('zoomend', () => {
 
 // 3. Render Markers with Filter Logic
 function renderMarkers() {
-    markers.clearLayers(); 
-    const filterEl = document.getElementById('fatalityFilter');
-    const showOnlyFatality = filterEl ? filterEl.checked : false;
-    
+    markers.clearLayers();
+
     const { radius, weight } = getMarkerRadiusAndWeight();
 
     allDams.forEach(dam => {
@@ -596,9 +675,10 @@ function renderMarkers() {
             ]);
             if (EXCLUDED_REVIEW_STATUSES.has((dam.Review_Status || '').trim())) return;
 
-            const fatalities = parseInt(dam.NumberOfFatalities) || 0;
+            // River/State/Fatality chip filters - see damPassesChips() near the top of the file.
+            if (!damPassesChips(dam)) return;
 
-            if (showOnlyFatality && fatalities === 0) return;
+            const fatalities = parseInt(dam.NumberOfFatalities) || 0;
 
             // Backend writes the envelope in cms; NWPS forecasts are in cfs. Convert at parse.
             const CMS_TO_CFS = 35.3147;
@@ -624,18 +704,6 @@ function renderMarkers() {
             } else if (hasComid) {
                 markerColor = '#2980b9'; // Priority 2: Blue (Live forecast available)
             }
-
-
-            // River / stream name filter (searches GNIS_Name then River/Stream as fallback)
-            const riverQ = activeRiverFilter.river.toLowerCase();
-            const stateQ  = activeRiverFilter.state.toUpperCase();
-            if (riverQ) {
-                const gnis   = (dam.GNIS_Name        || '').toLowerCase();
-                const stream = (dam['River/Stream']  || '').toLowerCase();
-                const river  = (dam.River            || '').toLowerCase();
-                if (!gnis.includes(riverQ) && !stream.includes(riverQ) && !river.includes(riverQ)) return;
-            }
-            if (stateQ && (dam['State Abbreviation'] || '').toUpperCase() !== stateQ) return;
 
             const place = (dam.City && dam.City.trim()) || (dam["County Name"] && dam["County Name"].trim()) || "Unknown location";
             const state = dam["State Abbreviation"] || "";
@@ -1955,14 +2023,10 @@ async function loadStateBoundaries(url) {
                         return; // Only act if it's the currently selected state
                     }
 
-                    const stateInput = document.getElementById('globalStateInput');
-                    const applyBtn = document.getElementById('globalApplyFilterBtn');
-                    
-                    if (stateInput && applyBtn) {
-                        stateInput.value = ''; // Clear state filter
-                        applyBtn.click();      // Trigger the UI's existing filter logic
+                    if (typeof window.clearStateFilterChip === 'function') {
+                        window.clearStateFilterChip();
                     }
-                    
+
                     map.flyTo([39.82, -98.57], 4, { duration: 1.5 });
                     if (typeof window.closeSearchPanel === 'function') {
                         window.closeSearchPanel();
@@ -1973,29 +2037,21 @@ async function loadStateBoundaries(url) {
                 layer.on('click', function(e) {
                     // Extract state abbreviation (Census shapefiles usually use STUSPS)
                     const stateAbbr = feature.properties.stusps || feature.properties.STUSPS || feature.properties.STUSAB || feature.properties.STATE;
-                    if (stateAbbr) {
+                    if (stateAbbr && typeof window.setStateFilter === 'function') {
                         const upperAbbr = stateAbbr.toUpperCase();
-                        const stateInput = document.getElementById('globalStateInput');
-                        const applyBtn = document.getElementById('globalApplyFilterBtn');
-                        
-                        if (stateInput && applyBtn) {
-                            // Only apply if it is not already the selected state
-                            if (stateInput.value.toUpperCase() !== upperAbbr) {
-                                stateInput.value = upperAbbr; // Toggle on
-                                if (selectedStateLayer) {
-                                    selectedStateLayer.setStyle(getDynamicStyles().defaultStyle);
-                                }
-                                layer.setStyle(getDynamicStyles().selectedStyle);
-                                selectedStateLayer = layer;
-                            
-                                // Trigger the UI's existing filter logic
-                                applyBtn.click();
-                                
-                                // Adjust zoom to state boundary
-                                setTimeout(() => { map.flyToBounds(layer.getBounds(), { duration: 1.5, padding: [50, 50] }); }, 50);
-                                if (typeof window.openSearchPanel === 'function') {
-                                    window.openSearchPanel();
-                                }
+                        // Only apply if it is not already the selected state
+                        if (window.getStateFilter() !== upperAbbr) {
+                            window.setStateFilter(upperAbbr);
+                            if (selectedStateLayer) {
+                                selectedStateLayer.setStyle(getDynamicStyles().defaultStyle);
+                            }
+                            layer.setStyle(getDynamicStyles().selectedStyle);
+                            selectedStateLayer = layer;
+
+                            // Adjust zoom to state boundary
+                            setTimeout(() => { map.flyToBounds(layer.getBounds(), { duration: 1.5, padding: [50, 50] }); }, 50);
+                            if (typeof window.openSearchPanel === 'function') {
+                                window.openSearchPanel();
                             }
                         }
                     }
@@ -2022,37 +2078,13 @@ loadStateBoundaries('boundaries/cb_2025_us_state_20m_conus.json');
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         // Clear all filters if they are applied
-        const stateInput = document.getElementById('globalStateInput');
-        const riverInput = document.getElementById('globalRiverInput');
-        const fatalityCheckbox = document.getElementById('fatalityFilter');
-        const applyBtn = document.getElementById('globalApplyFilterBtn');
-        const searchInput = document.getElementById('globalSearchInput');
-        const searchResults = document.getElementById('globalSearchResults');
-        
-        let filtersChanged = false;
-        if (stateInput && stateInput.value !== '') {
-            stateInput.value = '';
-            filtersChanged = true;
+        if (typeof window.clearAllFilters === 'function') {
+            window.clearAllFilters();
         }
-        if (riverInput && riverInput.value !== '') {
-            riverInput.value = '';
-            filtersChanged = true;
+        if (typeof window.clearStateHighlight === 'function') {
+            window.clearStateHighlight();
         }
-        if (fatalityCheckbox && fatalityCheckbox.checked) {
-            fatalityCheckbox.checked = false;
-            filtersChanged = true;
-        }
-        if (searchInput && searchInput.value !== '') {
-            searchInput.value = '';
-            if (searchResults) {
-                searchResults.innerHTML = '';
-            }
-        }
-        
-        if (filtersChanged && applyBtn) {
-            applyBtn.click();
-        }
-        
+
         // Zoom out to national view
         map.flyTo([39.82, -98.57], 4, { duration: 1.5   });
         
