@@ -545,6 +545,52 @@ if (layersToggle) {
     layersToggle.setAttribute('aria-label', 'Change map layers');
 }
 
+// --- Layers control: click-to-expand/collapse on mobile instead of hover ---
+// Leaflet expands this control on mouseenter/collapses on mouseleave by default. On
+// touch screens there's no real hover, and iOS Safari's synthetic-hover-on-first-tap
+// quirk can make it feel like you have to tap twice. Below 768px we strip that hover
+// binding so opening the list is a deliberate tap on the icon; tapping elsewhere on the
+// map still collapses it (that's wired to a map click listener, not hover, so it's
+// unaffected). Desktop keeps the original hover behavior.
+(function mobileLayersClickOnly() {
+    const layersContainer = layerControl.getContainer();
+    if (!layersContainer || !layersToggle) return;
+    let hoverStripped = false;
+
+    function applyMode() {
+        const isMobile = window.innerWidth <= 768;
+        if (isMobile && !hoverStripped) {
+            L.DomEvent.off(layersContainer, { mouseenter: layerControl._expandSafely, mouseleave: layerControl.collapse }, layerControl);
+            hoverStripped = true;
+        } else if (!isMobile && hoverStripped) {
+            L.DomEvent.on(layersContainer, { mouseenter: layerControl._expandSafely, mouseleave: layerControl.collapse }, layerControl);
+            hoverStripped = false;
+        }
+    }
+
+    applyMode();
+    window.addEventListener('resize', applyMode);
+
+    // Leaflet hides the toggle icon itself (display:none) while expanded, so there's no
+    // "tap the icon again" option - and tapping elsewhere on the map to close isn't
+    // discoverable. Add an explicit close button inside the expanded panel (mobile only;
+    // see .leaflet-layers-close-btn in styles.css - desktop still closes via mouseleave).
+    const layersSection = layersContainer.querySelector('.leaflet-control-layers-list');
+    if (layersSection) {
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'leaflet-layers-close-btn';
+        closeBtn.setAttribute('aria-label', 'Close layers menu');
+        closeBtn.innerHTML = '&times;';
+        closeBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            layerControl.collapse();
+        });
+        layersSection.insertBefore(closeBtn, layersSection.firstChild);
+    }
+})();
+
 // --- Dock the search/filter control next to the hamburger menu on mobile ---
 // On phones the search button used to float over the map like the other toolbar
 // buttons; opening its panel there ate most of the screen. Below 768px we move the

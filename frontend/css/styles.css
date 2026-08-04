@@ -59,6 +59,9 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
 /* Slot the mobile search/filter control (a Leaflet control, moved here via JS) docks into.
    Hidden on desktop, where the control stays as a compact floating map search bar. */
 .mobile-search-slot { display: none; }
+/* Close button injected into the layers control's expanded panel; mobile-only (see the
+   @media block below) - desktop still closes the panel via mouseleave. */
+.leaflet-layers-close-btn { display: none; }
 
 /* --- Search & filter bar (chip-based: River/State/Fatality filters + free-text search) --- */
 .leaflet-control.sc-container { background: transparent; border: none; box-shadow: none; }
@@ -441,6 +444,30 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
 
     /* --- Hide +/- zoom buttons on mobile (pinch-to-zoom is used instead) --- */
     .leaflet-control-zoom { display: none; }
+
+    /* --- Explicit close button inside the expanded layers menu (see mapping-logic.js) ---
+       Leaflet hides its own toggle icon while expanded, so there's nothing to tap to
+       close it again; this gives mobile users a visible way out. */
+    .leaflet-control-layers-expanded .leaflet-control-layers-list { position: relative; padding-top: 22px; }
+    .leaflet-layers-close-btn {
+        position: absolute;
+        top: -2px;
+        right: -2px;
+        width: 22px;
+        height: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        border-radius: 50%;
+        background: #eee;
+        color: #555;
+        font-size: 16px;
+        line-height: 1;
+        padding: 0;
+        cursor: pointer;
+    }
+    .leaflet-layers-close-btn:hover { background: #ddd; }
 
     /* --- Attribution ribbon: match legend width above it --- */
     .leaflet-control-attribution {
