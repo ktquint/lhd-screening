@@ -273,6 +273,10 @@ const SearchControl = L.Control.extend({
         // --- Category dropdown menu -------------------------------------------------
         function renderCategoryMenu() {
             categoryMenu.innerHTML = '';
+            const header = document.createElement('div');
+            header.className = 'sc-suggestions-header';
+            header.textContent = 'Filter Options';
+            categoryMenu.appendChild(header);
             CATEGORIES.forEach(cat => {
                 const checked = cat.key === 'fatality' ? fatalityOnlyFilter : cat.key === mode;
                 const item = document.createElement('div');
