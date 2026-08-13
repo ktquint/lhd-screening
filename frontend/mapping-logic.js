@@ -192,17 +192,48 @@ const GeolocationControl = L.Control.extend({
 });
 map.addControl(new GeolocationControl());
 
-// Search & filter bar: a real text input with removable filter "chips" (River, State,
-// Fatality) plus a funnel button that opens a small menu to pick which category the next
-// typed value applies to. Chips + free text combine as an AND filter via damPassesChips(),
-// so the map and the live suggestion lists never disagree about what's currently active.
+// Search & filter bar. Both variants below share the same underlying filter state
+// (activeRiverFilter / fatalityOnlyFilter / damPassesChips()) so the map's markers, the
+// active-filters badge, and cross-links (state-boundary clicks, Escape key, legend) behave
+// identically no matter which one is on screen:
+//  - Mobile (<=768px): chip-based bar with a funnel menu and live typeahead (River/State/
+//    Fatality chips + free text), docked next to the hamburger menu.
+//  - Desktop (>768px): the original filter-icon button + dropdown panel (search results,
+//    River/State text filters with an Apply/Clear button, fatality checkbox), floating over
+//    the map like the other toolbar buttons - mirrors the pre-makeover main-branch UI.
 const SearchControl = L.Control.extend({
     options: { position: 'topleft' },
     onAdd: function() {
-        const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control sc-container');
+        const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
         container.style.position = 'relative';
-        container.style.zIndex = '900'; // Sits above the layers control (added after it in DOM)
 
+        L.DomEvent.disableClickPropagation(container);
+        L.DomEvent.disableScrollPropagation(container);
+
+        let mode = null; // 'mobile' | 'desktop'
+        let cleanupCurrent = null;
+
+        function sync() {
+            const isMobile = window.innerWidth <= 768;
+            const nextMode = isMobile ? 'mobile' : 'desktop';
+            if (nextMode === mode) return;
+            if (cleanupCurrent) cleanupCurrent();
+            container.innerHTML = '';
+            container.classList.toggle('sc-container', isMobile);
+            container.style.zIndex = isMobile ? '900' : ''; // Mobile bar sits above the layers control
+            cleanupCurrent = isMobile ? buildMobileSearchUI(container) : buildDesktopSearchUI(container);
+            mode = nextMode;
+        }
+
+        sync();
+        window.addEventListener('resize', sync);
+
+        return container;
+    }
+});
+
+// --- Mobile filter UI: chip-based bar with funnel menu + typeahead ------------------------
+function buildMobileSearchUI(container) {
         const bar = L.DomUtil.create('div', 'sc-bar', container);
 
         const searchIcon = L.DomUtil.create('span', 'sc-icon-search', bar);
@@ -225,9 +256,6 @@ const SearchControl = L.Control.extend({
         const categoryMenu = L.DomUtil.create('div', 'sc-category-menu', container);
         const suggestions = L.DomUtil.create('div', 'sc-suggestions', container);
         suggestions.id = 'globalSearchResults';
-
-        L.DomEvent.disableClickPropagation(container);
-        L.DomEvent.disableScrollPropagation(container);
 
         // --- Filter categories ----------------------------------------------------
         const CATEGORIES = [
@@ -500,10 +528,11 @@ const SearchControl = L.Control.extend({
             }
         });
 
-        window.addEventListener('resize', () => {
+        function onResize() {
             if (categoryMenu.style.display === 'block') layoutFloater(categoryMenu, '50vh');
             if (suggestions.style.display === 'block') layoutFloater(suggestions, 'min(60vh, 320px)');
-        });
+        }
+        window.addEventListener('resize', onResize);
 
         // --- External API used elsewhere (state-boundary clicks, Escape key) --------
         window.setStateFilter = (abbr) => {
@@ -531,9 +560,270 @@ const SearchControl = L.Control.extend({
         window.closeSearchPanel = () => { hideCategoryMenu(); hideSuggestions(); };
 
         renderChips();
-        return container;
-    }
-});
+
+        return () => window.removeEventListener('resize', onResize);
+}
+
+// --- Desktop filter UI: filter-icon button + dropdown panel (search results, River/State
+// text filters with Apply/Clear, fatality checkbox) - mirrors the pre-makeover main branch.
+function buildDesktopSearchUI(container) {
+        const button = L.DomUtil.create('a', '', container);
+        button.href = '#';
+        button.title = 'Search dams';
+        button.setAttribute('aria-label', 'Search dams');
+        button.innerHTML = ICON_FILTER;
+
+        const panel = L.DomUtil.create('div', '', container);
+        panel.style.display = 'none';
+        panel.style.position = 'absolute';
+        panel.style.top = '0';
+        panel.style.left = 'calc(100% + 6px)';
+        panel.style.background = 'white';
+        panel.style.padding = '8px';
+        panel.style.borderRadius = '4px';
+        panel.style.boxShadow = '0 1px 5px rgba(0,0,0,0.4)';
+        panel.style.minWidth = '240px';
+
+        const input = L.DomUtil.create('input', '', panel);
+        input.id = 'globalSearchInput';
+        input.type = 'text';
+        input.placeholder = 'Search dams, city, state...';
+        input.style.width = '100%';
+        input.style.padding = '6px';
+        input.style.boxSizing = 'border-box';
+        input.style.border = '1px solid #ccc';
+        input.style.borderRadius = '3px';
+
+        const resultsDiv = L.DomUtil.create('div', '', panel);
+        resultsDiv.id = 'globalSearchResults';
+        resultsDiv.style.maxHeight = '240px';
+        resultsDiv.style.overflowY = 'auto';
+        resultsDiv.style.marginTop = '6px';
+
+        L.DomEvent.on(button, 'click', (e) => {
+            L.DomEvent.preventDefault(e);
+            const isOpen = panel.style.display === 'block';
+            panel.style.display = isOpen ? 'none' : 'block';
+            if (!isOpen) setTimeout(() => input.focus(), 0);
+        });
+
+        input.addEventListener('input', (e) => {
+            const val = e.target.value.toLowerCase();
+            resultsDiv.innerHTML = '';
+
+            // Wait for at least 2 characters before querying
+            if (val.length < 2) return;
+
+            // Find all matches across the dataset
+            const matches = allDams.filter(d => {
+                const name = (d.Dam_Name || '').toLowerCase();
+                const osm  = (d.OSM_Name || '').toLowerCase();
+                const city = (d.City || '').toLowerCase();
+                const state = (d['State Abbreviation'] || '').toLowerCase();
+                return name.includes(val) || osm.includes(val) || city.includes(val) || state.includes(val);
+            });
+
+            const countHeader = document.createElement('div');
+            countHeader.style.cssText = 'font-size: 11px; font-weight: bold; color: #7f8c8d; padding: 4px 5px 6px; border-bottom: 1px solid #eee; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em;';
+
+            if (matches.length === 0) {
+                countHeader.textContent = 'No matching dams found';
+                resultsDiv.appendChild(countHeader);
+                return;
+            } else {
+                const shown = Math.min(10, matches.length);
+                countHeader.textContent = `Showing top ${shown} of ${matches.length} results`;
+                resultsDiv.appendChild(countHeader);
+            }
+
+            matches.slice(0, 10).forEach(dam => {
+                const div = document.createElement('div');
+                div.style.padding = '6px 8px';
+                div.style.cursor = 'pointer';
+                div.style.borderBottom = '1px solid #f9f9f9';
+                div.style.fontSize = '12px';
+                div.style.borderRadius = '3px';
+                div.style.transition = 'background-color 0.15s ease';
+
+                const place = (dam.City && dam.City.trim()) || (dam['County Name'] && dam['County Name'].trim()) || '';
+                const loc = [place, dam['State Abbreviation']].filter(Boolean).join(', ');
+
+                div.innerHTML = `<strong>${displayName(dam)}</strong><br><span style="color:#7f8c8d; font-size: 11px;">${loc}</span>`;
+
+                div.onmouseover = () => div.style.backgroundColor = '#f0f4f8';
+                div.onmouseout = () => div.style.backgroundColor = 'transparent';
+
+                div.onclick = () => {
+                    const lat = parseFloat(dam.Latitude);
+                    const lng = parseFloat(dam.Longitude);
+                    if (!isNaN(lat) && !isNaN(lng)) {
+                        map.flyTo([lat, lng], 14, { duration: 1.5 });
+                        markers.eachLayer(l => {
+                            if (l.getLatLng().lat === lat && l.getLatLng().lng === lng) l.openPopup();
+                        });
+                    }
+                    input.value = displayName(dam);
+                    panel.style.display = 'none';
+                };
+                resultsDiv.appendChild(div);
+            });
+        });
+
+        // --- River Filter section ---
+        const divider = L.DomUtil.create('hr', '', panel);
+        divider.style.cssText = 'margin:8px 0;border:none;border-top:1px solid #ddd;';
+
+        const riverLabel = L.DomUtil.create('div', '', panel);
+        riverLabel.style.cssText = 'font-size:11px;font-weight:bold;color:#555;margin-bottom:5px;letter-spacing:0.03em;';
+        riverLabel.textContent = 'FILTER BY RIVER';
+
+        const riverInput = L.DomUtil.create('input', '', panel);
+        riverInput.id = 'globalRiverInput';
+        riverInput.type = 'text';
+        riverInput.placeholder = 'River name (e.g. South Platte)';
+        riverInput.style.cssText = 'width:100%;padding:6px;box-sizing:border-box;border:1px solid #ccc;border-radius:3px;margin-bottom:4px;font-size:12px;';
+        riverInput.value = activeRiverFilter.riverDisplay || '';
+
+        const stateInput = L.DomUtil.create('input', '', panel);
+        stateInput.id = 'globalStateInput';
+        stateInput.type = 'text';
+        stateInput.maxLength = 2;
+        stateInput.placeholder = 'State abbr. (e.g. CO)';
+        stateInput.style.cssText = 'width:100%;padding:6px;box-sizing:border-box;border:1px solid #ccc;border-radius:3px;margin-bottom:6px;font-size:12px;text-transform:uppercase;';
+        stateInput.value = activeRiverFilter.stateDisplay || '';
+
+        const btnRow = L.DomUtil.create('div', '', panel);
+        btnRow.style.cssText = 'display:flex;gap:4px;margin-bottom:4px;';
+
+        const applyBtn = L.DomUtil.create('button', '', btnRow);
+        applyBtn.id = 'globalApplyFilterBtn';
+        applyBtn.textContent = 'Apply Filter';
+        applyBtn.style.cssText = 'flex:1;padding:6px;background:#3498db;color:white;border:none;border-radius:3px;cursor:pointer;font-size:12px;font-weight:600;';
+
+        const clearBtn = L.DomUtil.create('button', '', btnRow);
+        clearBtn.textContent = 'Clear';
+        clearBtn.style.cssText = 'padding:6px 10px;background:#95a5a6;color:white;border:none;border-radius:3px;cursor:pointer;font-size:12px;';
+
+        const filterStatus = L.DomUtil.create('div', '', panel);
+        filterStatus.style.cssText = 'font-size:11px;color:#666;min-height:15px;';
+
+        const filterDivider = L.DomUtil.create('hr', '', panel);
+        filterDivider.style.cssText = 'margin:8px 0;border:none;border-top:1px solid #ddd;';
+
+        const optionsLabel = L.DomUtil.create('div', '', panel);
+        optionsLabel.style.cssText = 'font-size:11px;font-weight:bold;color:#555;margin-bottom:5px;letter-spacing:0.03em;';
+        optionsLabel.textContent = 'FILTER OPTIONS';
+
+        const checkboxLabel = L.DomUtil.create('label', '', panel);
+        checkboxLabel.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;user-select:none;';
+
+        const fatalityCheckbox = L.DomUtil.create('input', '', checkboxLabel);
+        fatalityCheckbox.type = 'checkbox';
+        fatalityCheckbox.id = 'fatalityFilter';
+        fatalityCheckbox.style.cursor = 'pointer';
+        fatalityCheckbox.checked = fatalityOnlyFilter;
+
+        const checkboxText = document.createTextNode('Show only fatality sites');
+        checkboxLabel.appendChild(checkboxText);
+
+        // fatalityOnlyFilter is the same global damPassesChips()/renderMarkers()/badge read,
+        // so toggling this checkbox behaves identically to the mobile chip menu's option.
+        fatalityCheckbox.addEventListener('change', () => {
+            fatalityOnlyFilter = fatalityCheckbox.checked;
+            renderMarkers();
+        });
+
+        function _damMatchesRiverFilter(d, rq, sq) {
+            if (!d['State Abbreviation']) return false;
+            if (rq) {
+                const gnis   = (d.GNIS_Name        || '').toLowerCase();
+                const stream = (d['River/Stream']  || '').toLowerCase();
+                const river  = (d.River            || '').toLowerCase();
+                if (!gnis.includes(rq) && !stream.includes(rq) && !river.includes(rq)) return false;
+            }
+            if (sq && (d['State Abbreviation'] || '').toUpperCase() !== sq) return false;
+            return true;
+        }
+
+        function applyRiverFilter() {
+            const rq = riverInput.value.trim().toLowerCase();
+            const sq = stateInput.value.trim().toUpperCase();
+            activeRiverFilter = { river: rq, riverDisplay: riverInput.value.trim(), state: sq, stateDisplay: sq };
+            renderMarkers();
+
+            if (typeof window.highlightStateBoundary === 'function') {
+                window.highlightStateBoundary(sq);
+            }
+
+            if (!rq && !sq) {
+                filterStatus.textContent = '';
+                return;
+            }
+
+            const matched = allDams.filter(d => _damMatchesRiverFilter(d, rq, sq));
+            const withCoords = matched.filter(d => !isNaN(parseFloat(d.Latitude)) && !isNaN(parseFloat(d.Longitude)));
+
+            filterStatus.textContent = `${withCoords.length} dam${withCoords.length !== 1 ? 's' : ''} matched`;
+
+            if (withCoords.length > 0) {
+                const bounds = L.latLngBounds(
+                    withCoords.map(d => [parseFloat(d.Latitude), parseFloat(d.Longitude)])
+                );
+                map.flyToBounds(bounds, { padding: [60, 60], maxZoom: 13, duration: 1.5 });
+            }
+        }
+
+        L.DomEvent.on(applyBtn, 'click', (e) => { L.DomEvent.preventDefault(e); applyRiverFilter(); });
+
+        L.DomEvent.on(clearBtn, 'click', (e) => {
+            L.DomEvent.preventDefault(e);
+            riverInput.value = '';
+            stateInput.value = '';
+            activeRiverFilter = { river: '', riverDisplay: '', state: '', stateDisplay: '' };
+            filterStatus.textContent = '';
+            renderMarkers();
+            if (typeof window.clearStateHighlight === 'function') {
+                window.clearStateHighlight();
+            }
+        });
+
+        L.DomEvent.on(riverInput, 'keydown', (e) => { if (e.key === 'Enter') applyRiverFilter(); });
+        L.DomEvent.on(stateInput, 'keydown', (e) => { if (e.key === 'Enter') applyRiverFilter(); });
+
+        // --- External API used elsewhere (state-boundary clicks, Escape key) --------
+        window.setStateFilter = (abbr) => {
+            activeRiverFilter.state = abbr.toUpperCase();
+            activeRiverFilter.stateDisplay = abbr.toUpperCase();
+            stateInput.value = activeRiverFilter.stateDisplay;
+            renderMarkers();
+        };
+        window.clearStateFilterChip = () => {
+            activeRiverFilter.state = '';
+            activeRiverFilter.stateDisplay = '';
+            stateInput.value = '';
+            renderMarkers();
+        };
+        window.getStateFilter = () => activeRiverFilter.state;
+        window.clearAllFilters = () => {
+            activeRiverFilter = { river: '', riverDisplay: '', state: '', stateDisplay: '' };
+            fatalityOnlyFilter = false;
+            input.value = '';
+            resultsDiv.innerHTML = '';
+            riverInput.value = '';
+            stateInput.value = '';
+            fatalityCheckbox.checked = false;
+            filterStatus.textContent = '';
+            renderMarkers();
+        };
+        window.openSearchPanel = () => {
+            panel.style.display = 'block';
+            setTimeout(() => input.focus(), 0);
+        };
+        window.closeSearchPanel = () => { panel.style.display = 'none'; };
+
+        return null;
+}
+
 const searchControlInstance = new SearchControl();
 map.addControl(searchControlInstance);
 
