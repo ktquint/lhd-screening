@@ -306,10 +306,18 @@ function buildMobileSearchUI(container) {
             header.textContent = 'Filter Options';
             categoryMenu.appendChild(header);
             CATEGORIES.forEach(cat => {
-                const checked = cat.key === 'fatality' ? fatalityOnlyFilter : cat.key === mode;
+                // Blue highlight = this is the currently selected filter option (input mode,
+                // or - for fatality, which has no input mode - already toggled on).
+                // Checkmark = that filter has actually started filtering (i.e. has a chip
+                // showing in the search bar), not just that it's the option being viewed.
+                const isFiltering = cat.key === 'fatality' ? fatalityOnlyFilter
+                    : cat.key === 'river' ? !!activeRiverFilter.river
+                    : cat.key === 'state' ? !!activeRiverFilter.state
+                    : false;
+                const isSelected = cat.key === mode || (cat.key === 'fatality' && isFiltering);
                 const item = document.createElement('div');
-                item.className = 'sc-category-item' + (checked ? ' sc-category-item-checked' : '');
-                item.innerHTML = `<span class="sc-category-check">${checked ? '✓' : ''}</span><span>${cat.label}</span>`;
+                item.className = 'sc-category-item' + (isSelected ? ' sc-category-item-checked' : '');
+                item.innerHTML = `<span class="sc-category-check">${isFiltering ? '✓' : ''}</span><span>${cat.label}</span>`;
                 item.onclick = () => {
                     if (cat.key === 'fatality') {
                         fatalityOnlyFilter = !fatalityOnlyFilter;
