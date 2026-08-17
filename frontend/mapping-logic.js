@@ -574,7 +574,7 @@ function buildDesktopSearchUI(container) {
         button.innerHTML = ICON_FILTER;
 
         const panel = L.DomUtil.create('div', '', container);
-        panel.style.display = 'none';
+        panel.style.display = 'block'; // Start opened on non-mobile screens (this function only runs when !isMobile)
         panel.style.position = 'absolute';
         panel.style.top = '0';
         panel.style.left = 'calc(100% + 6px)';
