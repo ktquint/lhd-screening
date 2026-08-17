@@ -118,6 +118,12 @@ const nhdFlowlines = L.esri.featureLayer({
     outFields: ['StreamOrde'], // Just pulling in the StreamOrde Attribute decreases lag time of the flowlines while zooming
     opacity: 1.0,
     where: getStrahlerFilter(4), // Initialize using the map's starting zoom layer constraint
+    // simplifyFactor/precision ask the server to decimate and round the returned stream
+    // vertices instead of sending full-resolution geometry - the flowlines dataset is very
+    // vertex-dense, and this cuts payload size and canvas render cost substantially with no
+    // visible difference at map scale.
+    simplifyFactor: 0.5,
+    precision: 5,
     style: function () {
         return {
             color: `rgba(${NHD_BLUE.join(',')})`,
