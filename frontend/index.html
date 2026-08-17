@@ -16,7 +16,7 @@
     <!--External CSS-->
     <link rel="stylesheet" href="css/styles.css">
 </head>
-
+ 
 <body>
     <div id="disclaimer-overlay" class="disclaimer-overlay">
         <div class="disclaimer-modal" role="dialog" aria-modal="true" aria-labelledby="disclaimer-title">
@@ -47,10 +47,16 @@
     </div>
 
     <nav class="nav-bar">
-        <button class="nav-button active" data-tab="forecasts">Forecasts</button>
-        <button class="nav-button" data-tab="cfd-toolbox">CFD Toolbox</button>
-        <button class="nav-button" data-tab="about">About</button>
-        <button class="nav-button" data-tab="contact">Contact</button>
+        <button id="hamburger-toggle" class="hamburger" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="nav-menu">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+        <div id="mobile-search-slot" class="mobile-search-slot"></div>
+        <div id="nav-menu" class="nav-menu">
+            <button class="nav-button active" data-tab="forecasts">Forecasts</button>
+            <button class="nav-button" data-tab="cfd-toolbox">CFD Toolbox</button>
+            <button class="nav-button" data-tab="about">About</button>
+            <button class="nav-button" data-tab="contact">Contact</button>
+        </div>
     </nav>
 
     <div class="tab-content-area">
@@ -606,7 +612,7 @@
         </div>
     </div>
 
-    <div id="combinedModal" class="modal" style="height: min(800px, 90vh);">
+    <div id="combinedModal" class="modal">
         <div class="resize-handle n"  data-dir="n"></div>
         <div class="resize-handle s"  data-dir="s"></div>
         <div class="resize-handle e"  data-dir="e"></div>

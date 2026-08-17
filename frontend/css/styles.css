@@ -31,7 +31,8 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
     gap: 12px;
     flex-wrap: wrap;
     flex-shrink: 0;
-    z-index: 999;
+    position: relative;
+    z-index: 1100;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     justify-content: center;
 }
@@ -51,6 +52,143 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
 }
 .nav-button:hover { background: rgba(255,255,255,0.25); }
 .nav-button.active { background: rgba(255,255,255,0.3); border-bottom-color: #3498db; }
+
+.nav-menu { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; width: 100%; }
+.hamburger { display: none; min-width: 44px; min-height: 44px; background: transparent; border: none; color: white; cursor: pointer; align-items: center; justify-content: center; }
+
+/* Slot the mobile search/filter control (a Leaflet control, moved here via JS) docks into.
+   Hidden on desktop, where the control stays as a compact floating map search bar. */
+.mobile-search-slot { display: none; }
+/* Close button injected into the layers control's expanded panel; mobile-only (see the
+   @media block below) - desktop still closes the panel via mouseleave. */
+.leaflet-layers-close-btn { display: none; }
+
+/* --- Search & filter bar (chip-based: River/State/Fatality filters + free-text search) --- */
+.leaflet-control.sc-container { background: transparent; border: none; box-shadow: none; }
+.sc-bar {
+    box-sizing: border-box; /* padding must be included in width:100%, or it overflows its slot and gets clipped */
+    width: 260px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #ffffff;
+    border-radius: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    padding: 0 10px;
+}
+.sc-icon-search { display: inline-flex; align-items: center; color: #7f8c8d; flex-shrink: 0; }
+.sc-chips-input {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-width: 0;
+    cursor: text;
+    /* Chips can outgrow the bar's width; scroll horizontally rather than wrap, since the
+       bar sits in a fixed-height nav bar / map-corner control that can't grow with them. */
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+}
+.sc-chips-input::-webkit-scrollbar { display: none; }
+.sc-input {
+    flex: 1 1 70px;
+    min-width: 50px;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 13px;
+    color: #2c3e50;
+    padding: 4px 0;
+    font-family: inherit;
+}
+.sc-input::placeholder { color: #95a5a6; }
+.sc-funnel-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    padding: 4px;
+    margin: 0;
+    color: #3498db;
+    cursor: pointer;
+}
+.sc-funnel-btn:hover { color: #2980b9; }
+
+.sc-chip {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 5px;
+    background: #eaf2fb;
+    color: #205a87;
+    border-radius: 12px;
+    padding: 3px 6px 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.sc-chip-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: #e74c3c;
+    color: #fff;
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.sc-chip-remove:hover { background: #c0392b; }
+
+.sc-category-menu, .sc-suggestions {
+    display: none;
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.28);
+    padding: 6px;
+}
+.sc-category-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #2c3e50;
+}
+.sc-category-item:hover { background: #f0f4f8; }
+.sc-category-item-checked { background: #eaf2fb; }
+.sc-category-check { width: 14px; flex-shrink: 0; color: #3498db; font-weight: bold; }
+
+.sc-suggestions-header {
+    font-size: 11px;
+    font-weight: bold;
+    color: #7f8c8d;
+    padding: 4px 8px 6px;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.sc-suggestion-row {
+    padding: 7px 8px;
+    cursor: pointer;
+    border-bottom: 1px solid #f9f9f9;
+    font-size: 12px;
+    border-radius: 3px;
+    transition: background-color 0.15s ease;
+}
+.sc-suggestion-row:hover { background-color: #f0f4f8; }
+.sc-suggestion-sub { color: #7f8c8d; font-size: 11px; }
 
 .tab-content-area { flex-grow: 1; position: relative; overflow: hidden; display: flex; flex-direction: column; }
 .tab-panel { display: none; flex-grow: 1; width: 100%; overflow: auto; scroll-behavior: smooth; }
@@ -119,7 +257,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
 .cfd-container code, .cfd-content code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
 .cfd-container pre, .cfd-content pre { background: #f6f8fa; padding: 14px; border-radius: 5px; overflow-x: auto; border: 1px solid #e0e0e0; }
 .cfd-container pre code, .cfd-content pre code { background: transparent; padding: 0; }
-.cfd-container table, .cfd-content table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+.cfd-container table, .cfd-content table { border-collapse: collapse; width: 100%; margin: 16px 0; display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .cfd-container th, .cfd-container td, .cfd-content th, .cfd-content td { border: 1px solid #ddd; padding: 10px 12px; text-align: left; }
 .cfd-container th, .cfd-content th { background: #f0f3f5; }
 .cfd-container img, .cfd-content img { max-width: 100%; height: auto; border-radius: 4px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); margin: 10px 0; }
@@ -131,7 +269,10 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
 
 /* General UI Elements */
 .info.legend { padding: 12px; font: 14px Arial, Helvetica, sans-serif; background: rgba(255,255,255,0.9); box-shadow: 0 0 15px rgba(0,0,0,0.2); border-radius: 5px; line-height: 24px; }
-.legend i { width: 12px; height: 12px; float: left; margin-right: 8px; margin-top: 6px; border-radius: 50%; border: 1px solid #777; }
+.legend-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.legend-toggle { display: none; transition: transform 0.15s ease; }
+.legend-row { display: flex; align-items: center; gap: 8px; }
+.legend i { width: 12px; height: 12px; flex-shrink: 0; border-radius: 50%; border: 1px solid #777; }
 .popup-content { line-height: 1.6; min-width: 200px; }
 .btn-check { background-color: #3498db; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; width: 100%; margin-top: 10px; font-weight: bold; transition: background-color 0.2s ease; }
 .btn-check:hover { background-color: #2980b9; }
@@ -144,7 +285,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
     left: 50%;
     transform: translateX(-50%);
     width: min(1000px, 95vw);
-    height: min(520px, 80vh);
+    height: min(800px, 90vh);
     min-width: 340px;
     min-height: 260px;
     max-width: 95vw;
@@ -222,3 +363,139 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
 .disclaimer-modal-footer { padding: 14px 24px; border-top: 1px solid #e0e0e0; display: flex; justify-content: flex-end; }
 .disclaimer-agree-btn { background: #3498db; color: white; border: none; padding: 10px 24px; font-size: 1rem; font-weight: 600; border-radius: 4px; cursor: pointer; }
 .disclaimer-agree-btn:hover { background: #2980b9; }
+
+/* =========================================================================
+   Responsive / Mobile
+   ========================================================================= */
+
+@media (max-width: 768px) {
+    /* --- Hamburger navigation --- */
+    .hamburger { display: flex; }
+    .nav-bar { justify-content: flex-start; align-items: center; padding: 10px 16px 10px 6px; }
+    .nav-menu {
+        display: none;
+        flex-direction: column;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        width: 100%;
+        background-color: #2c3e50;
+        gap: 0;
+        padding: 6px 0;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        z-index: 1001;
+    }
+    .nav-menu.open { display: flex; }
+    .nav-button { width: 100%; text-align: left; padding: 12px 16px; border-radius: 0; }
+
+    /* --- Search/filter control docked next to the hamburger (Google-Maps-style search bar) --- */
+    .mobile-search-slot { display: flex; flex: 1 1 0%; min-width: 0; overflow: hidden; margin-left: 8px; position: relative; }
+    /* .sc-container is itself a flex item of .mobile-search-slot; without an explicit
+       min/max-width here it falls back to sizing off its descendants' content (the chips
+       row), which defeats .mobile-search-slot's own shrink-to-fit and pushes the funnel
+       button off the right edge of the screen once chips are added. */
+    #mobile-search-slot .sc-container { width: 100%; min-width: 0; max-width: 100%; }
+    #mobile-search-slot .sc-bar { width: 100%; height: 40px; }
+
+    /* --- Header --- */
+    .header-container { padding: 10px 12px; }
+    .header-logo { height: 40px; }
+    .header-container h1 { font-size: 1.3rem; padding: 0 8px; }
+
+    /* iOS Safari's 100vh includes the space behind the collapsible address bar, so the
+       page can be taller than what's actually visible. 100dvh tracks the real visible
+       viewport; browsers that don't support it ignore the declaration and keep the 100vh
+       set above as a fallback. */
+    body { height: 100dvh; }
+
+    /* --- Floating forecast/rating-curve panel: fill the screen, no drag/resize --- */
+    .modal {
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100vw;
+        height: 100vh;
+        width: 100dvw;
+        height: 100dvh;
+        min-width: 0;
+        min-height: 0;
+        max-width: 100vw;
+        max-height: 100vh;
+        max-width: 100dvw;
+        max-height: 100dvh;
+        border-radius: 0;
+        transform: none;
+    }
+    .resize-handle { display: none; }
+    .modal-header { cursor: default; }
+    .modal-header .drag-hint { display: none; }
+    .close { min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
+
+    /* --- CFD Toolbox: stack sidebar above content --- */
+    .cfd-layout { flex-direction: column; }
+    .cfd-sidebar {
+        position: static;
+        width: 100%;
+        padding: 12px 16px;
+        border-bottom: 1px solid #ecf0f1;
+    }
+    .cfd-sidebar ul { display: flex; flex-wrap: wrap; gap: 4px; border-left: none; }
+    .cfd-sidebar li { margin-bottom: 0; }
+    .cfd-content, .cfd-container { padding: 20px 16px 40px; max-width: 100%; }
+
+    /* --- Dam Status legend (collapsible on mobile only) --- */
+    .info.legend { padding: 4.5px 6px; font-size: 9px; line-height: 12px; max-width: 113px; cursor: pointer; user-select: none; }
+    .legend-toggle { display: inline; }
+    .legend-collapsed .legend-toggle { transform: rotate(-90deg); }
+    .legend-collapsed .legend-body { display: none; }
+    .legend-row { gap: 4.5px; }
+    .legend i { width: 7.5px; height: 7.5px; }
+
+    /* --- Hide +/- zoom buttons on mobile (pinch-to-zoom is used instead) --- */
+    .leaflet-control-zoom { display: none; }
+
+    /* --- Explicit close button inside the expanded layers menu (see mapping-logic.js) ---
+       Leaflet hides its own toggle icon while expanded, so there's nothing to tap to
+       close it again; this gives mobile users a visible way out. */
+    .leaflet-control-layers-expanded .leaflet-control-layers-list { position: relative; padding-top: 22px; }
+    .leaflet-layers-close-btn {
+        position: absolute;
+        top: -2px;
+        right: -2px;
+        width: 22px;
+        height: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        border-radius: 50%;
+        background: #eee;
+        color: #555;
+        font-size: 16px;
+        line-height: 1;
+        padding: 0;
+        cursor: pointer;
+    }
+    .leaflet-layers-close-btn:hover { background: #ddd; }
+
+    /* --- Attribution ribbon: match legend width above it --- */
+    .leaflet-control-attribution {
+        font-size: 9px;
+        line-height: 12px;
+        padding: 1.5px 4.5px;
+        max-width: 113px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+@media (max-width: 480px) {
+    .header-container { flex-direction: column; gap: 6px; padding: 8px; }
+    .logo-group { gap: 8px; }
+    .header-logo { height: 32px; }
+    .header-container h1 { font-size: 1.05rem; padding: 0; }
+
+    .leaflet-bar a { width: 34px; height: 34px; line-height: 34px; }
+}
