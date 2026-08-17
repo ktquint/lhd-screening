@@ -992,14 +992,22 @@ function getMarkerRadiusAndWeight() {
     return { radius: 8, weight: 1.5 };
 }
 
+// Mobile-only invisible hit-target radius (px) - visible markers top out at radius 8
+// (16px diameter), well under the ~44px touch-target guideline. Ignored on desktop,
+// where a mouse pointer makes the small visible dot easy enough to click.
+const MOBILE_HIT_RADIUS = 22;
+
 // Dynamically resize markers whenever the map zoom level changes
 map.on('zoomend', () => {
     const { radius, weight } = getMarkerRadiusAndWeight();
     markers.eachLayer(layer => {
-        if (layer.setRadius) {
-            layer.setRadius(radius);
-            layer.setStyle({ weight: weight });
+        if (!layer.setRadius) return;
+        if (layer.options.isHitTarget) {
+            layer.setRadius(Math.max(radius, MOBILE_HIT_RADIUS));
+            return;
         }
+        layer.setRadius(radius);
+        layer.setStyle({ weight: weight });
     });
 });
 
@@ -1107,6 +1115,24 @@ function renderMarkers() {
             }
 
             popupContent += `</div>`;
+
+            // Mobile: an invisible, larger circleMarker underneath the visible dot so the
+            // tappable area meets touch-target guidelines without changing how the dot looks.
+            // Added to the layer group first so it draws (and hit-tests) below the visible marker.
+            if (window.innerWidth <= 768) {
+                const hitMarker = L.circleMarker([lat, lng], {
+                    radius: Math.max(radius, MOBILE_HIT_RADIUS),
+                    stroke: false,
+                    fill: true,
+                    fillOpacity: 0,
+                    isHitTarget: true
+                });
+                hitMarker.bindTooltip(_displayName, { direction: 'top', offset: [0, -6] });
+                hitMarker.bindPopup(popupContent);
+                if (hasComid) hitMarker.on('click', () => prefetchForecast(dam.Reach_ID));
+                markers.addLayer(hitMarker);
+            }
+
             marker.bindPopup(popupContent);
             if (hasComid) marker.on('click', () => prefetchForecast(dam.Reach_ID));
             markers.addLayer(marker);
