@@ -1090,9 +1090,9 @@ function renderMarkers() {
                 <div class="popup-content">
                     <strong>${_displayName}</strong><br>
                     <b>Location:</b> ${location}<br>
-                    ${fatalities > 0 ? `<b>Fatalities:</b> ${fatalities}<br>` : ''}
+                    ${(fatalities > 0 && !hasSafetyData) ? `<b>Fatalities:</b> ${fatalities}<br>` : ''}
                     <hr>`;
-            
+
             const heightFt = parseFloat(dam.Dam_Height_WSP_Ft);
             const lengthFt = parseFloat(dam.Dam_Length_WSP_Ft);
 
@@ -1103,6 +1103,9 @@ function renderMarkers() {
             if (hasComid || hasRatingCurves) {
                 if (hasSafetyData) {
                     popupContent += `<b>Dangerous Range:</b> ${qMinDisplay} - ${qMaxDisplay} cfs<br>`;
+                    if (fatalities > 0) {
+                        popupContent += `<b>Fatalities:</b> ${fatalities}<br>`;
+                    }
                 }
                 const safetyArgs = hasSafetyData ? `${qMinRaw}, ${qMaxRaw}` : `null, null`;
 
