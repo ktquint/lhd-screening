@@ -29,10 +29,20 @@ let markers = L.layerGroup();
 let activeRiverFilter = { river: '', riverDisplay: '', state: '', stateDisplay: '' };
 let fatalityOnlyFilter = false;
 
+// Dams the LHDI review has flagged as non-LHD or removed - shared by every place in this
+// file that decides whether a dam is eligible to be shown or searched (damPassesChips(),
+// _damMatchesRiverFilter(), and the desktop free-text search), so they can't drift apart.
+const EXCLUDED_REVIEW_STATUSES = new Set([
+    'Removed',
+    'Confirmed not a LHD',
+    'Appears to not be LHD'
+]);
+
 // damPassesChips() is the single predicate both the map (renderMarkers) and the search
 // bar's live suggestion lists filter through, so "what the map shows" and "what you can
 // search for" never drift apart as chips are added/removed.
 function damPassesChips(dam) {
+    if (EXCLUDED_REVIEW_STATUSES.has((dam.Review_Status || '').trim())) return false;
     if (activeRiverFilter.river) {
         const gnis   = (dam.GNIS_Name       || '').toLowerCase();
         const stream = (dam['River/Stream'] || '').toLowerCase();
@@ -629,13 +639,12 @@ function buildDesktopSearchUI(container) {
             if (val.length < 2) return;
 
             // Find all matches across the dataset
-            const matches = allDams.filter(d => {
-                const name = (d.Dam_Name || '').toLowerCase();
-                const osm  = (d.OSM_Name || '').toLowerCase();
-                const city = (d.City || '').toLowerCase();
-                const state = (d['State Abbreviation'] || '').toLowerCase();
-                return name.includes(val) || osm.includes(val) || city.includes(val) || state.includes(val);
-            });
+            const matches = allDams.filter(d => damPassesChips(d) && (
+                (d.Dam_Name || '').toLowerCase().includes(val) ||
+                (d.OSM_Name || '').toLowerCase().includes(val) ||
+                (d.City || '').toLowerCase().includes(val) ||
+                (d['State Abbreviation'] || '').toLowerCase().includes(val)
+            ));
 
             const countHeader = document.createElement('div');
             countHeader.style.cssText = 'font-size: 11px; font-weight: bold; color: #7f8c8d; padding: 4px 5px 6px; border-bottom: 1px solid #eee; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em;';
@@ -748,6 +757,7 @@ function buildDesktopSearchUI(container) {
         });
 
         function _damMatchesRiverFilter(d, rq, sq) {
+            if (EXCLUDED_REVIEW_STATUSES.has((d.Review_Status || '').trim())) return false;
             if (!d['State Abbreviation']) return false;
             if (rq) {
                 const gnis   = (d.GNIS_Name        || '').toLowerCase();
@@ -1031,15 +1041,8 @@ function renderMarkers() {
             // Filter out sites that don't have a US State abbreviation
             if (!dam["State Abbreviation"]) return;
 
-            // Hide dams the LHDI review has flagged as non-LHD or removed
-            const EXCLUDED_REVIEW_STATUSES = new Set([
-                'Removed',
-                'Confirmed not a LHD',
-                'Appears to not be LHD'
-            ]);
-            if (EXCLUDED_REVIEW_STATUSES.has((dam.Review_Status || '').trim())) return;
-
-            // River/State/Fatality chip filters - see damPassesChips() near the top of the file.
+            // Review-status exclusion + River/State/Fatality chip filters - see
+            // damPassesChips() near the top of the file.
             if (!damPassesChips(dam)) return;
 
             const fatalities = parseInt(dam.NumberOfFatalities) || 0;
