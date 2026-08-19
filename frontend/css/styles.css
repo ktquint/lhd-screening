@@ -198,7 +198,14 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
 .sc-suggestion-sub { color: #7f8c8d; font-size: 11px; }
 
 .tab-content-area { flex-grow: 1; position: relative; overflow: hidden; display: flex; flex-direction: column; }
-.tab-panel { display: none; flex-grow: 1; width: 100%; overflow: auto; scroll-behavior: smooth; }
+/* overflow-x: hidden (not just overflow: auto) because the CFD Toolbox mobile
+   drawer's closed resting state sits off-screen via transform: translateX(-100%)
+   (see #cfd-nav-links below) - a transformed element's post-transform box still
+   counts toward its scrolling ancestor's scrollable area even though it's not
+   visible, which was producing a phantom horizontal scrollbar here. No tab needs
+   page-level horizontal scroll (tables/code blocks handle their own via their own
+   overflow-x: auto), so this is safe across all tabs and breakpoints. */
+.tab-panel { display: none; flex-grow: 1; width: 100%; overflow-y: auto; overflow-x: hidden; scroll-behavior: smooth; }
 .tab-panel.active { display: flex; flex-direction: column; }
 #map { flex-grow: 1; width: 100%; }
 
