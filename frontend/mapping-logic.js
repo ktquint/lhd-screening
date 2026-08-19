@@ -2274,6 +2274,33 @@ loadDams();
     const tabContainer = document.getElementById('tab-cfd-toolbox');
     if (!tabContainer) return;
 
+    const isMobile = () => window.matchMedia('(max-width: 768px)').matches;
+
+    // --- Mobile-only side-tab TOC: a slim sticky tab that slides out a drawer
+    // over the content, closed by default (no class = closed, per the CSS). ---
+    const sidebar = document.querySelector('.cfd-sidebar');
+    const tocToggle = document.getElementById('cfd-toc-toggle');
+    function setTocOpen(open) {
+        if (!sidebar || !tocToggle) return;
+        sidebar.classList.toggle('cfd-toc-open', open);
+        tocToggle.setAttribute('aria-expanded', String(open));
+    }
+    if (tocToggle) {
+        tocToggle.addEventListener('click', (e) => {
+            if (!isMobile() || !sidebar) return;
+            e.stopPropagation(); // don't let the click-outside listener below immediately re-close it
+            setTocOpen(!sidebar.classList.contains('cfd-toc-open'));
+        });
+    }
+    // Tapping anywhere outside the drawer closes it (stands in for a dimmed
+    // backdrop without the extra DOM element/z-index layering that would need).
+    document.addEventListener('click', (e) => {
+        if (!isMobile() || !sidebar) return;
+        if (sidebar.classList.contains('cfd-toc-open') && !sidebar.contains(e.target)) {
+            setTocOpen(false);
+        }
+    });
+
     // Listen for clicks on the sidebar to smooth scroll to the section
     const navLinks = document.querySelectorAll('.cfd-sidebar a');
     navLinks.forEach(link => {
@@ -2281,14 +2308,17 @@ loadDams();
             e.preventDefault();
             const targetId = this.getAttribute('href').substring(1);
             const targetElement = document.getElementById(targetId);
-            
+
             if (targetElement) {
                 // Scroll the tab container to the element's offset
                 tabContainer.scrollTo({
-                    top: targetElement.offsetTop - 20, 
+                    top: targetElement.offsetTop - 20,
                     behavior: 'smooth'
                 });
             }
+            // Close the drawer back down after picking a section, so it doesn't
+            // stay covering the content the user just scrolled to.
+            if (isMobile()) setTocOpen(false);
         });
     });
 

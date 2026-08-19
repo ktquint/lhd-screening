@@ -221,6 +221,9 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
     padding: 40px 20px 40px 10px;
     align-self: flex-start;
 }
+/* Mobile-only collapse toggle for the TOC - hidden on desktop, shown in the
+   @media (max-width: 768px) block below (mirrors .hamburger's pattern). */
+.cfd-toc-toggle-btn { display: none; }
 .cfd-sidebar ul { list-style: none; padding: 0; margin: 0; border-left: 2px solid #ecf0f1; }
 .cfd-sidebar li { margin-bottom: 4px; }
 .cfd-sidebar a {
@@ -440,15 +443,72 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
     .modal-header .drag-hint { display: none; }
     .close { min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
 
-    /* --- CFD Toolbox: stack sidebar above content --- */
-    .cfd-layout { flex-direction: column; }
+    /* --- CFD Toolbox: slim sticky side tab that slides out a drawer over content ---
+       Sticky (not fixed) so the tab keeps sitting right below the nav bar at every
+       breakpoint without hardcoding a pixel offset - same mechanism the desktop
+       sidebar already uses (styles.css:215-223), just narrowed to a 40px tab. The
+       drawer (#cfd-nav-links) is absolutely positioned inside it and overlays
+       .cfd-content instead of pushing it, so it doesn't eat screen space while
+       closed. Left edge (not right) so mobile browsers' scrollbar doesn't overlap
+       it - .cfd-sidebar already comes first in the DOM/HTML, so plain row layout
+       puts it on the left with no reordering needed. */
     .cfd-sidebar {
-        position: static;
-        width: 100%;
-        padding: 12px 16px;
-        border-bottom: 1px solid #ecf0f1;
+        position: sticky;
+        top: 0;
+        flex-shrink: 0;
+        width: 40px;
+        padding: 0;
+        background: transparent;
+        box-shadow: none;
+        border-bottom: none;
+        z-index: 500;
+        overflow: visible; /* lets the drawer child paint outside this 40px box */
     }
-    .cfd-sidebar ul { display: flex; flex-wrap: wrap; gap: 4px; border-left: none; }
+    .cfd-toc-toggle-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        padding: 14px 6px;
+        background: #ffffff;
+        color: #2c3e50;
+        border: 1px solid #ecf0f1;
+        border-left: none;
+        border-radius: 0 6px 6px 0;
+        box-shadow: 2px 2px 6px rgba(0,0,0,0.15);
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+    }
+    .cfd-sidebar ul#cfd-nav-links {
+        position: absolute;
+        top: 0;
+        left: 40px;
+        width: min(260px, 70vw);
+        max-height: min(70vh, 400px);
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        flex-wrap: nowrap;
+        gap: 2px;
+        background: #ffffff;
+        border-left: none;
+        padding: 12px 16px;
+        border-radius: 0 6px 6px 0;
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.18);
+        transform: translateX(-100%);
+        opacity: 0;
+        pointer-events: none;
+        transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+    .cfd-sidebar.cfd-toc-open ul#cfd-nav-links {
+        transform: translateX(0);
+        opacity: 1;
+        pointer-events: auto;
+    }
     .cfd-sidebar li { margin-bottom: 0; }
     .cfd-content, .cfd-container { padding: 20px 16px 40px; max-width: 100%; }
 
