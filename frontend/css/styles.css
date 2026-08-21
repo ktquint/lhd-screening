@@ -520,12 +520,12 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
     .cfd-content, .cfd-container { padding: 20px 16px 40px; max-width: 100%; }
 
     /* --- Dam Status legend (collapsible on mobile only) --- */
-    .info.legend { padding: 4.5px 6px; font-size: 9px; line-height: 12px; max-width: 113px; cursor: pointer; user-select: none; }
+    .info.legend { padding: 6px 8px; font-size: 12px; line-height: 16px; max-width: 151px; cursor: pointer; user-select: none; }
     .legend-toggle { display: inline; }
     .legend-collapsed .legend-toggle { transform: rotate(-90deg); }
     .legend-collapsed .legend-body { display: none; }
-    .legend-row { gap: 4.5px; }
-    .legend i { width: 7.5px; height: 7.5px; }
+    .legend-row { gap: 6px; }
+    .legend i { width: 10px; height: 10px; }
 
     /* --- Hide +/- zoom buttons on mobile (pinch-to-zoom is used instead) --- */
     .leaflet-control-zoom { display: none; }
