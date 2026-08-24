@@ -215,10 +215,17 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
 /* --- CFD Toolbox Layout --- */
 .cfd-layout {
     display: flex;
+    width: 100%;
     max-width: 1200px;
     margin: 0 auto;
     align-items: flex-start;
     position: relative;
+    /* .tab-panel.active is a column flex container, and .cfd-layout is its flex item -
+       per the flexbox spec, an item's auto cross-axis margins (the "margin: 0 auto"
+       centering above) suppress align-items: stretch, so without an explicit width this
+       shrank to a shrink-to-fit content width instead of filling the viewport. That's what
+       let it render wider than the screen on mobile (silently clipped by .tab-panel's
+       overflow-x: hidden) and narrower than its own 1200px cap on desktop. */
 }
 
 /* Sticky Left Navigation */
@@ -259,6 +266,11 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
     color: #2c3e50;
     line-height: 1.6;
     font-size: 0.98rem;
+    /* padding must be included in max-width, or it overflows its slot and gets clipped
+       by .tab-panel's overflow-x: hidden (see .sc-bar/.cfd-sidebar above for the same fix) -
+       this matters most at the mobile max-width: 100% override below, where content-box
+       sizing would otherwise push 32px of padding past the viewport edge. */
+    box-sizing: border-box;
 }
 .cfd-container {
     max-width: 960px;
@@ -269,15 +281,22 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
     flex-grow: 1;
     padding: 40px 40px 60px 40px;
     max-width: 850px;
+    /* Flex items default to min-width: auto, which refuses to shrink narrower than the
+       widest unbreakable token inside (e.g. a long underscore_separated <code> term) -
+       that held this column open past the viewport on narrow phones, and .tab-panel's
+       overflow-x: hidden silently clipped the excess instead of scrolling it. */
+    min-width: 0;
 }
 .cfd-container h1, .cfd-content h1 { font-size: 2.2rem; margin-top: 0; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; }
 .cfd-container h2, .cfd-content h2 { font-size: 1.5rem; margin-top: 3rem; border-bottom: 1px solid #e0e0e0; padding-bottom: 6px; scroll-margin-top: 20px; }
 .cfd-container h3, .cfd-content h3 { font-size: 1.2rem; margin-top: 1.8rem; color: #34495e; }
 .cfd-container h4, .cfd-content h4 { font-size: 1.05rem; margin-top: 1.2rem; }
-.cfd-container p, .cfd-content p, .cfd-container li, .cfd-content li { color: #444; }
-.cfd-container code, .cfd-content code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
+.cfd-container p, .cfd-content p, .cfd-container li, .cfd-content li { color: #444; overflow-wrap: break-word; }
+.cfd-container code, .cfd-content code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; overflow-wrap: break-word; }
 .cfd-container pre, .cfd-content pre { background: #f6f8fa; padding: 14px; border-radius: 5px; overflow-x: auto; border: 1px solid #e0e0e0; }
-.cfd-container pre code, .cfd-content pre code { background: transparent; padding: 0; }
+/* Code blocks keep their long lines intact (e.g. the folder-tree diagram) and scroll
+   horizontally instead - break-word above would otherwise mangle that ASCII layout. */
+.cfd-container pre code, .cfd-content pre code { background: transparent; padding: 0; overflow-wrap: normal; }
 .cfd-container table, .cfd-content table { border-collapse: collapse; width: 100%; margin: 16px 0; display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .cfd-container th, .cfd-container td, .cfd-content th, .cfd-content td { border: 1px solid #ddd; padding: 10px 12px; text-align: left; }
 .cfd-container th, .cfd-content th { background: #f0f3f5; }
