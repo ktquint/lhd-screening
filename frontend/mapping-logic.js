@@ -1113,14 +1113,15 @@ function renderMarkers() {
                 const safetyArgs = hasSafetyData ? `${qMinRaw}, ${qMaxRaw}` : `null, null`;
 
                 let onClickActions = ['openCombinedPanel()'];
-                if (hasComid) onClickActions.push(`checkForecast('${dam.Reach_ID}', ${safetyArgs}, ${jsAttrLiteral(_displayName)})`);
+                // Forecast graph disabled in Site Analysis (kept for easy re-enable):
+                // if (hasComid) onClickActions.push(`checkForecast('${dam.Reach_ID}', ${safetyArgs}, ${jsAttrLiteral(_displayName)})`);
                 if (hasRatingCurves) onClickActions.push(`showRatingCurves(${heightFt}, ${lengthFt}, '${dam.Reach_ID}', ${jsAttrLiteral(_displayName)})`);
                 if (hasComid && !hasRatingCurves) onClickActions.push(`showSyntheticRatingCurve('${dam.Reach_ID}', ${jsAttrLiteral(_displayName)})`);
                 if (hasComid) onClickActions.push(`showFlowDurationCurve('${dam.Reach_ID}', ${jsAttrLiteral(_displayName)}, ${safetyArgs})`);
-                
+
                 popupContent += `
                     <button class="btn-check" onclick="${onClickActions.join('; ')}">
-                        Check Live Forecast
+                        Check Site Analysis
                     </button>`;
             } else {
                 popupContent += `<i>No forecast or rating curve available for this site.</i>`;
@@ -1141,12 +1142,14 @@ function renderMarkers() {
                 });
                 hitMarker.bindTooltip(_displayName, { direction: 'top', offset: [0, -6] });
                 hitMarker.bindPopup(popupContent);
-                if (hasComid) hitMarker.on('click', () => prefetchForecast(dam.Reach_ID));
+                // Forecast prefetch disabled along with the Site Analysis forecast graph:
+                // if (hasComid) hitMarker.on('click', () => prefetchForecast(dam.Reach_ID));
                 markers.addLayer(hitMarker);
             }
 
             marker.bindPopup(popupContent);
-            if (hasComid) marker.on('click', () => prefetchForecast(dam.Reach_ID));
+            // Forecast prefetch disabled along with the Site Analysis forecast graph:
+            // if (hasComid) marker.on('click', () => prefetchForecast(dam.Reach_ID));
             markers.addLayer(marker);
         }
     });
