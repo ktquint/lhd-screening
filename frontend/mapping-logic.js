@@ -29,10 +29,20 @@ let markers = L.layerGroup();
 let activeRiverFilter = { river: '', riverDisplay: '', state: '', stateDisplay: '' };
 let fatalityOnlyFilter = false;
 
+// Dams the LHDI review has flagged as non-LHD or removed - shared by every place in this
+// file that decides whether a dam is eligible to be shown or searched (damPassesChips(),
+// _damMatchesRiverFilter(), and the desktop free-text search), so they can't drift apart.
+const EXCLUDED_REVIEW_STATUSES = new Set([
+    'Removed',
+    'Confirmed not a LHD',
+    'Appears to not be LHD'
+]);
+
 // damPassesChips() is the single predicate both the map (renderMarkers) and the search
 // bar's live suggestion lists filter through, so "what the map shows" and "what you can
 // search for" never drift apart as chips are added/removed.
 function damPassesChips(dam) {
+    if (EXCLUDED_REVIEW_STATUSES.has((dam.Review_Status || '').trim())) return false;
     if (activeRiverFilter.river) {
         const gnis   = (dam.GNIS_Name       || '').toLowerCase();
         const stream = (dam['River/Stream'] || '').toLowerCase();
@@ -118,6 +128,12 @@ const nhdFlowlines = L.esri.featureLayer({
     outFields: ['StreamOrde'], // Just pulling in the StreamOrde Attribute decreases lag time of the flowlines while zooming
     opacity: 1.0,
     where: getStrahlerFilter(4), // Initialize using the map's starting zoom layer constraint
+    // simplifyFactor/precision ask the server to decimate and round the returned stream
+    // vertices instead of sending full-resolution geometry - the flowlines dataset is very
+    // vertex-dense, and this cuts payload size and canvas render cost substantially with no
+    // visible difference at map scale.
+    simplifyFactor: 0.5,
+    precision: 5,
     style: function () {
         return {
             color: `rgba(${NHD_BLUE.join(',')})`,
@@ -623,13 +639,12 @@ function buildDesktopSearchUI(container) {
             if (val.length < 2) return;
 
             // Find all matches across the dataset
-            const matches = allDams.filter(d => {
-                const name = (d.Dam_Name || '').toLowerCase();
-                const osm  = (d.OSM_Name || '').toLowerCase();
-                const city = (d.City || '').toLowerCase();
-                const state = (d['State Abbreviation'] || '').toLowerCase();
-                return name.includes(val) || osm.includes(val) || city.includes(val) || state.includes(val);
-            });
+            const matches = allDams.filter(d => damPassesChips(d) && (
+                (d.Dam_Name || '').toLowerCase().includes(val) ||
+                (d.OSM_Name || '').toLowerCase().includes(val) ||
+                (d.City || '').toLowerCase().includes(val) ||
+                (d['State Abbreviation'] || '').toLowerCase().includes(val)
+            ));
 
             const countHeader = document.createElement('div');
             countHeader.style.cssText = 'font-size: 11px; font-weight: bold; color: #7f8c8d; padding: 4px 5px 6px; border-bottom: 1px solid #eee; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em;';
@@ -742,6 +757,7 @@ function buildDesktopSearchUI(container) {
         });
 
         function _damMatchesRiverFilter(d, rq, sq) {
+            if (EXCLUDED_REVIEW_STATUSES.has((d.Review_Status || '').trim())) return false;
             if (!d['State Abbreviation']) return false;
             if (rq) {
                 const gnis   = (d.GNIS_Name        || '').toLowerCase();
@@ -1025,15 +1041,8 @@ function renderMarkers() {
             // Filter out sites that don't have a US State abbreviation
             if (!dam["State Abbreviation"]) return;
 
-            // Hide dams the LHDI review has flagged as non-LHD or removed
-            const EXCLUDED_REVIEW_STATUSES = new Set([
-                'Removed',
-                'Confirmed not a LHD',
-                'Appears to not be LHD'
-            ]);
-            if (EXCLUDED_REVIEW_STATUSES.has((dam.Review_Status || '').trim())) return;
-
-            // River/State/Fatality chip filters - see damPassesChips() near the top of the file.
+            // Review-status exclusion + River/State/Fatality chip filters - see
+            // damPassesChips() near the top of the file.
             if (!damPassesChips(dam)) return;
 
             const fatalities = parseInt(dam.NumberOfFatalities) || 0;
@@ -1084,9 +1093,9 @@ function renderMarkers() {
                 <div class="popup-content">
                     <strong>${_displayName}</strong><br>
                     <b>Location:</b> ${location}<br>
-                    ${fatalities > 0 ? `<b>Fatalities:</b> ${fatalities}<br>` : ''}
+                    ${(fatalities > 0 && !hasSafetyData) ? `<b>Fatalities:</b> ${fatalities}<br>` : ''}
                     <hr>`;
-            
+
             const heightFt = parseFloat(dam.Dam_Height_WSP_Ft);
             const lengthFt = parseFloat(dam.Dam_Length_WSP_Ft);
 
@@ -1097,6 +1106,9 @@ function renderMarkers() {
             if (hasComid || hasRatingCurves) {
                 if (hasSafetyData) {
                     popupContent += `<b>Dangerous Range:</b> ${qMinDisplay} - ${qMaxDisplay} cfs<br>`;
+                    if (fatalities > 0) {
+                        popupContent += `<b>Fatalities:</b> ${fatalities}<br>`;
+                    }
                 }
                 const safetyArgs = hasSafetyData ? `${qMinRaw}, ${qMaxRaw}` : `null, null`;
 
@@ -2262,6 +2274,33 @@ loadDams();
     const tabContainer = document.getElementById('tab-cfd-toolbox');
     if (!tabContainer) return;
 
+    const isMobile = () => window.matchMedia('(max-width: 768px)').matches;
+
+    // --- Mobile-only side-tab TOC: a slim sticky tab that slides out a drawer
+    // over the content, closed by default (no class = closed, per the CSS). ---
+    const sidebar = document.querySelector('.cfd-sidebar');
+    const tocToggle = document.getElementById('cfd-toc-toggle');
+    function setTocOpen(open) {
+        if (!sidebar || !tocToggle) return;
+        sidebar.classList.toggle('cfd-toc-open', open);
+        tocToggle.setAttribute('aria-expanded', String(open));
+    }
+    if (tocToggle) {
+        tocToggle.addEventListener('click', (e) => {
+            if (!isMobile() || !sidebar) return;
+            e.stopPropagation(); // don't let the click-outside listener below immediately re-close it
+            setTocOpen(!sidebar.classList.contains('cfd-toc-open'));
+        });
+    }
+    // Tapping anywhere outside the drawer closes it (stands in for a dimmed
+    // backdrop without the extra DOM element/z-index layering that would need).
+    document.addEventListener('click', (e) => {
+        if (!isMobile() || !sidebar) return;
+        if (sidebar.classList.contains('cfd-toc-open') && !sidebar.contains(e.target)) {
+            setTocOpen(false);
+        }
+    });
+
     // Listen for clicks on the sidebar to smooth scroll to the section
     const navLinks = document.querySelectorAll('.cfd-sidebar a');
     navLinks.forEach(link => {
@@ -2269,14 +2308,17 @@ loadDams();
             e.preventDefault();
             const targetId = this.getAttribute('href').substring(1);
             const targetElement = document.getElementById(targetId);
-            
+
             if (targetElement) {
                 // Scroll the tab container to the element's offset
                 tabContainer.scrollTo({
-                    top: targetElement.offsetTop - 20, 
+                    top: targetElement.offsetTop - 20,
                     behavior: 'smooth'
                 });
             }
+            // Close the drawer back down after picking a section, so it doesn't
+            // stay covering the content the user just scrolled to.
+            if (isMobile()) setTocOpen(false);
         });
     });
 
