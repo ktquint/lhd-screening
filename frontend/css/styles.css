@@ -58,6 +58,9 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; 
     border-bottom: 3px solid transparent;
 }
 .nav-button:hover { background: rgba(255,255,255,0.25); }
+/* :hover doesn't fire on touch, so tapping a menu item on mobile jumped straight to the
+   new tab with no visible feedback that the tap registered - :active gives that flash. */
+.nav-button:active { background: rgba(255,255,255,0.35); }
 .nav-button.active { background: rgba(255,255,255,0.3); border-bottom-color: #3498db; }
 
 .nav-menu { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; width: 100%; }
