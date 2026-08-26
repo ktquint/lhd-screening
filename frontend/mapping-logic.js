@@ -1262,6 +1262,7 @@ function showDangerRangeSummary(dataStr) {
 
     document.getElementById('dangerRangeContainer').style.display = 'flex';
     document.getElementById('dangerRangeHeader').innerHTML =
+        `<span style="color:red; font-weight:bold;">⚠️ WARNING: DANGER ZONE CALCULATED FOR THIS DAM ⚠️</span><br>` +
         `<strong>${d.name} &mdash; Danger Zone Summary</strong><br>` +
         `${hazardStatement}<br><br>` +
         `<span style="color:#7f8c8d; font-size: 12px;">` +
