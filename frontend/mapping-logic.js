@@ -1825,7 +1825,7 @@ async function _getForecastRange(comid) {
 
 function _loadSrcData(comid) {
     if (!_srcCache.has(comid)) {
-        _srcCache.set(comid, fetch(`data/src/${comid}.json`).then(r => r.ok ? r.json() : null).catch(() => null));
+        _srcCache.set(comid, fetch(`data/src/${comid}.json?v=${window.DATA_VERSION || 'dev'}`).then(r => r.ok ? r.json() : null).catch(() => null));
     }
     return _srcCache.get(comid);
 }
@@ -1938,8 +1938,8 @@ let fdcChart = null;
 function _loadFdcData(comid) {
     if (!_fdcCache.has(comid)) {
         _fdcCache.set(
-            comid, 
-            fetch(`data/fdc/${comid}.json`)
+            comid,
+            fetch(`data/fdc/${comid}.json?v=${window.DATA_VERSION || 'dev'}`)
                 .then(r => r.ok ? r.json() : null)
                 .catch(() => null)
         );
