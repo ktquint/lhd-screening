@@ -1113,14 +1113,32 @@ function renderMarkers() {
                 const safetyArgs = hasSafetyData ? `${qMinRaw}, ${qMaxRaw}` : `null, null`;
 
                 let onClickActions = ['openCombinedPanel()'];
-                if (hasComid) onClickActions.push(`checkForecast('${dam.Reach_ID}', ${safetyArgs}, ${jsAttrLiteral(_displayName)})`);
+                const summaryData = {
+                    name: _displayName,
+                    location,
+                    heightFt: isFinite(heightFt) ? heightFt : null,
+                    lengthFt: isFinite(lengthFt) ? lengthFt : null,
+                    hasSafetyData,
+                    qMinDisplay: hasSafetyData ? qMinDisplay : null,
+                    qMaxDisplay: hasSafetyData ? qMaxDisplay : null,
+                    fatalities,
+                    hasComid,
+                    hasRatingCurves,
+                    reachId: hasComid ? String(dam.Reach_ID) : null,
+                    qMinCms: hasSafetyData ? parseFloat(dam.Qmin_env) : null,
+                    qMaxCms: hasSafetyData ? parseFloat(dam.Qmax_env) : null
+                };
+                onClickActions.push(`showSiteSummary(${jsAttrLiteral(JSON.stringify(summaryData))})`);
+                if (hasSafetyData) onClickActions.push(`showDangerRangeSummary(${jsAttrLiteral(JSON.stringify(summaryData))})`);
+                // Forecast graph disabled in Site Analysis (kept for easy re-enable):
+                // if (hasComid) onClickActions.push(`checkForecast('${dam.Reach_ID}', ${safetyArgs}, ${jsAttrLiteral(_displayName)})`);
                 if (hasRatingCurves) onClickActions.push(`showRatingCurves(${heightFt}, ${lengthFt}, '${dam.Reach_ID}', ${jsAttrLiteral(_displayName)})`);
                 if (hasComid && !hasRatingCurves) onClickActions.push(`showSyntheticRatingCurve('${dam.Reach_ID}', ${jsAttrLiteral(_displayName)})`);
                 if (hasComid) onClickActions.push(`showFlowDurationCurve('${dam.Reach_ID}', ${jsAttrLiteral(_displayName)}, ${safetyArgs})`);
-                
+
                 popupContent += `
                     <button class="btn-check" onclick="${onClickActions.join('; ')}">
-                        Check Live Forecast
+                        Check Site Analysis
                     </button>`;
             } else {
                 popupContent += `<i>No forecast or rating curve available for this site.</i>`;
@@ -1141,12 +1159,14 @@ function renderMarkers() {
                 });
                 hitMarker.bindTooltip(_displayName, { direction: 'top', offset: [0, -6] });
                 hitMarker.bindPopup(popupContent);
-                if (hasComid) hitMarker.on('click', () => prefetchForecast(dam.Reach_ID));
+                // Forecast prefetch disabled along with the Site Analysis forecast graph:
+                // if (hasComid) hitMarker.on('click', () => prefetchForecast(dam.Reach_ID));
                 markers.addLayer(hitMarker);
             }
 
             marker.bindPopup(popupContent);
-            if (hasComid) marker.on('click', () => prefetchForecast(dam.Reach_ID));
+            // Forecast prefetch disabled along with the Site Analysis forecast graph:
+            // if (hasComid) marker.on('click', () => prefetchForecast(dam.Reach_ID));
             markers.addLayer(marker);
         }
     });
@@ -1179,11 +1199,77 @@ window.openCombinedPanel = () => {
         cModal.style.top = '80px';
         cModal.style.left = 'calc(50% - 500px)';
     }
+    document.getElementById('siteSummaryContainer').style.display = 'none';
+    document.getElementById('dangerRangeContainer').style.display = 'none';
     document.getElementById('forecastContainer').style.display = 'none';
     document.getElementById('ratingCurvesContainer').style.display = 'none';
     document.getElementById('srcContainer').style.display = 'none';
     document.getElementById('fdcContainer').style.display = 'none';
 };
+
+// Static site facts shown in place of the (currently disabled) live forecast chart.
+function showSiteSummary(dataStr) {
+    const d = JSON.parse(dataStr);
+
+    const rows = [`<b>Location:</b> ${d.location}`];
+    if (d.heightFt != null) rows.push(`<b>Dam height:</b> ${d.heightFt.toFixed(1)} ft`);
+    if (d.lengthFt != null) rows.push(`<b>Dam length:</b> ${d.lengthFt.toFixed(0)} ft`);
+    if (d.hasSafetyData) rows.push(`<b>Dangerous flow range:</b> ${d.qMinDisplay} - ${d.qMaxDisplay} cfs`);
+    if (d.fatalities > 0) rows.push(`<b>Known fatalities:</b> ${d.fatalities}`);
+    if (d.reachId) rows.push(`<b>NHDPlus reach ID:</b> ${d.reachId}`);
+
+    const analyses = [];
+    if (d.hasRatingCurves) analyses.push('rating curves');
+    else if (d.hasComid) analyses.push('synthetic rating curve');
+    if (d.hasComid) analyses.push('flow duration curve');
+    if (analyses.length) rows.push(`<b>Available analyses:</b> ${analyses.join(', ')}`);
+
+    document.getElementById('siteSummaryContainer').style.display = 'flex';
+    document.getElementById('siteSummaryHeader').innerHTML =
+        `<strong>${d.name} &mdash; Site Summary</strong><br>${rows.join('<br>')}`;
+}
+window.showSiteSummary = showSiteSummary;
+
+// Shown only for dams with a calculated dangerous flow range (Qmin_env/Qmax_env).
+// Combines a plain-language hazard statement with the technical basis for the range,
+// for readers who want to see how Qmin/Qmax were derived.
+function showDangerRangeSummary(dataStr) {
+    const d = JSON.parse(dataStr);
+    if (!d.hasSafetyData) return;
+
+    const fatalityNote = d.fatalities > 0
+        ? ` This dam has ${d.fatalities} documented fatalit${d.fatalities === 1 ? 'y' : 'ies'}.`
+        : '';
+
+    const hazardStatement =
+        `At discharges of <b>${d.qMinDisplay}–${d.qMaxDisplay} cfs</b>, the tailwater at this dam sits ` +
+        `between the hydraulic jump's conjugate depth and its flip (boil) depth &mdash; the flow range in which ` +
+        `a submerged recirculating roller can form at the base of the dam and trap a person underwater. ` +
+        `Recreators should avoid this reach when streamflow falls in this range.${fatalityNote}`;
+
+    const technicalRows = [];
+    if (d.heightFt != null && d.lengthFt != null) {
+        technicalRows.push(`Dam height (P): ${d.heightFt.toFixed(1)} ft &nbsp;·&nbsp; Dam length (L): ${d.lengthFt.toFixed(0)} ft`);
+    }
+    technicalRows.push(`Tailwater stage-discharge relationship: NOAA National Water Model synthetic rating curve, reach ${d.reachId}`);
+    technicalRows.push(`Danger condition: tailwater depth y<sub>t</sub>(Q) between conjugate depth y₂(Q) and flip depth y<sub>flip</sub>(Q)`);
+    if (d.qMinCms != null && d.qMaxCms != null && isFinite(d.qMinCms) && isFinite(d.qMaxCms)) {
+        technicalRows.push(
+            `Q<sub>min</sub> = ${d.qMinDisplay} cfs (${d.qMinCms.toFixed(1)} cms) &nbsp;·&nbsp; ` +
+            `Q<sub>max</sub> = ${d.qMaxDisplay} cfs (${d.qMaxCms.toFixed(1)} cms)`
+        );
+    }
+
+    document.getElementById('dangerRangeContainer').style.display = 'flex';
+    document.getElementById('dangerRangeHeader').innerHTML =
+        `<span style="color:red; font-weight:bold;">⚠️ WARNING: DANGER ZONE CALCULATED FOR THIS DAM ⚠️</span><br>` +
+        `<strong>${d.name} &mdash; Danger Zone Summary</strong><br>` +
+        `${hazardStatement}<br><br>` +
+        `<span style="color:#7f8c8d; font-size: 12px;">` +
+        `<u>How this range was calculated:</u><br>${technicalRows.join('<br>')}` +
+        `</span>`;
+}
+window.showDangerRangeSummary = showDangerRangeSummary;
 
 // 4. National Water Model Forecast (NOAA NWPS API, NHDPlus V2 COMID = Reach_ID)
 // Medium-range only: ~10d 3-hourly ensemble mean + member spread as uncertainty band.
@@ -1739,7 +1825,7 @@ async function _getForecastRange(comid) {
 
 function _loadSrcData(comid) {
     if (!_srcCache.has(comid)) {
-        _srcCache.set(comid, fetch(`data/src/${comid}.json`).then(r => r.ok ? r.json() : null).catch(() => null));
+        _srcCache.set(comid, fetch(`data/src/${comid}.json?v=${window.DATA_VERSION || 'dev'}`).then(r => r.ok ? r.json() : null).catch(() => null));
     }
     return _srcCache.get(comid);
 }
@@ -1852,8 +1938,8 @@ let fdcChart = null;
 function _loadFdcData(comid) {
     if (!_fdcCache.has(comid)) {
         _fdcCache.set(
-            comid, 
-            fetch(`data/fdc/${comid}.json`)
+            comid,
+            fetch(`data/fdc/${comid}.json?v=${window.DATA_VERSION || 'dev'}`)
                 .then(r => r.ok ? r.json() : null)
                 .catch(() => null)
         );
