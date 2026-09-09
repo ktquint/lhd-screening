@@ -1933,6 +1933,7 @@ window.showSyntheticRatingCurve = showSyntheticRatingCurve;
 // =========================================================================
 const _fdcCache = new Map();
 const _FDC_PERCENTILES = [0, 2, 5, 10, 20, 25, 30, 50, 75, 90, 95, 99, 100];
+const _FDC_LINE_TENSION = 0.3; // Shared with findXAtFlowOnCurve so the drawn curve and the computed intersections always match
 let fdcChart = null;
 
 function _loadFdcData(comid) {
@@ -1947,18 +1948,77 @@ function _loadFdcData(comid) {
     return _fdcCache.get(comid);
 }
 
-// Helper mathematical function for linear interpolation
-function findXAtFlow(points, targetY) {
+// The FDC line renders with tension (a curved cardinal spline through the data points), not straight
+// segments — so finding where a target flow crosses the *rendered* curve means replicating Chart.js's own
+// neighbor-based spline control-point formula (its internal `splineCurve` helper) and solving that cubic
+// Bezier for y = target, rather than doing straight-line interpolation between the raw data points.
+function _splineControlPoints(prev, curr, next, tension) {
+    const d01 = Math.hypot(curr.x - prev.x, curr.y - prev.y);
+    const d12 = Math.hypot(next.x - curr.x, next.y - curr.y);
+    let s01 = d01 / (d01 + d12);
+    let s12 = d12 / (d01 + d12);
+    s01 = isNaN(s01) ? 0 : s01;
+    s12 = isNaN(s12) ? 0 : s12;
+    const fa = tension * s01;
+    const fb = tension * s12;
+    return {
+        previous: { x: curr.x - fa * (next.x - prev.x), y: curr.y - fa * (next.y - prev.y) },
+        next:     { x: curr.x + fb * (next.x - prev.x), y: curr.y + fb * (next.y - prev.y) },
+    };
+}
+
+function _bezierAt(p0, p1, p2, p3, t) {
+    const mt = 1 - t;
+    const a = mt * mt * mt, b = 3 * mt * mt * t, c = 3 * mt * t * t, d = t * t * t;
+    return {
+        x: a * p0.x + b * p1.x + c * p2.x + d * p3.x,
+        y: a * p0.y + b * p1.y + c * p2.y + d * p3.y,
+    };
+}
+
+// Bisects for the Bezier parameter t in [0,1] where the curve's y equals targetY. Assumes y(t) is
+// monotonic across the segment, which holds for this mild tension (0.3) on largely-monotonic FDC data.
+function _solveBezierT(p0, p1, p2, p3, targetY) {
+    let lo = 0, hi = 1;
+    const signLo = Math.sign(_bezierAt(p0, p1, p2, p3, lo).y - targetY);
+    const signHi = Math.sign(_bezierAt(p0, p1, p2, p3, hi).y - targetY);
+    if (signLo === 0) return lo;
+    if (signHi === 0) return hi;
+    if (signLo === signHi) return null;
+    for (let i = 0; i < 40; i++) {
+        const mid = (lo + hi) / 2;
+        const signMid = Math.sign(_bezierAt(p0, p1, p2, p3, mid).y - targetY);
+        if (signMid === signLo) { lo = mid; } else { hi = mid; }
+    }
+    return (lo + hi) / 2;
+}
+
+// Finds the x (data-space) where the rendered, curved FDC line crosses y = targetY. Rebuilds the exact
+// Chart.js spline segment that brackets targetY in pixel space (via the chart's own scales, so this stays
+// correct across the log y-axis and any resize) and solves it directly, instead of assuming a straight line.
+function findXAtFlowOnCurve(chart, points, targetY, tension) {
+    const xScale = chart.scales.x;
+    const yScale = chart.scales.y;
+    const px = points.map(p => ({ x: xScale.getPixelForValue(p.x), y: yScale.getPixelForValue(p.y) }));
+    const targetPxY = yScale.getPixelForValue(targetY);
+    const n = px.length;
+
     for (let i = 0; i < points.length - 1; i++) {
         const p1 = points[i];
         const p2 = points[i + 1];
-        
-        if ((p1.y >= targetY && p2.y <= targetY) || (p1.y <= targetY && p2.y >= targetY)) {
-            const fraction = (targetY - p1.y) / (p2.y - p1.y);
-            return p1.x + fraction * (p2.x - p1.x);
-        }
+        const bracketed = (p1.y >= targetY && p2.y <= targetY) || (p1.y <= targetY && p2.y >= targetY);
+        if (!bracketed) continue;
+
+        const outgoing = _splineControlPoints(px[Math.max(0, i - 1)], px[i], px[Math.min(n - 1, i + 1)], tension).next;
+        const incoming = _splineControlPoints(px[i], px[i + 1], px[Math.min(n - 1, i + 2)], tension).previous;
+
+        const t = _solveBezierT(px[i], outgoing, incoming, px[i + 1], targetPxY);
+        if (t === null) continue;
+
+        const xPx = _bezierAt(px[i], outgoing, incoming, px[i + 1], t).x;
+        return xScale.getValueForPixel(xPx);
     }
-    return null; 
+    return null;
 }
 
 // =========================================================================
@@ -2011,98 +2071,12 @@ async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
         (q50_cfs ? ` &nbsp;·&nbsp; Q50 = ${q50_cfs} cfs` : '') +
         `</span>`;
 
-    const fdcDatasets = [];
-
     // Lowest valid non-zero flow rate on the chart to anchor logarithmic vertical lines
     const minYValue = points.length > 0 ? Math.min(...points.map(pt => pt.y)) : 1;
 
-    if (hasDangerRange) {
-        // Find exact intersection points on the FDC curve
-        const exactXMax = findXAtFlow(points, qMax);
-        const exactXMin = findXAtFlow(points, qMin);
-
-        // Fallbacks to chart edges if line doesn't cross FDC
-        const xIntersectMax = exactXMax !== null ? exactXMax : 0;
-        const xIntersectMin = exactXMin !== null ? exactXMin : 100;
-
-        // 1. Ceiling Horizontal Line (qMax)
-        fdcDatasets.push({
-            type: 'line',
-            label: 'Dangerous Flow Range Thresholds',
-            data: [{ x: 0, y: qMax }, { x: 100, y: qMax }],
-            order: 0,
-            borderColor: '#e74c3c',
-            borderWidth: 3,
-            borderDash: [8, 4],
-            pointRadius: 0,
-            fill: false, 
-        });
-
-        // 2. Floor Horizontal Line (qMin)
-        fdcDatasets.push({
-            type: 'line',
-            label: '_qMin',
-            data: [{ x: 0, y: qMin }, { x: 100, y: qMin }],
-            order: 0,
-            borderColor: '#e74c3c',
-            borderWidth: 3,
-            borderDash: [8, 4],
-            pointRadius: 0,
-            fill: false,
-            pointStyle: false,
-        });
-
-        // 3. Vertical Line at Maximum Flow Intersection (qMax)
-        fdcDatasets.push({
-            type: 'line',
-            label: '_vLineMax',
-            data: [{ x: xIntersectMax, y: minYValue }, { x: xIntersectMax, y: qMax }],
-            order: 0,
-            borderColor: exactXMax !== null ? '#e74c3c' : 'rgba(0,0,0,0)', 
-            borderWidth: exactXMax !== null ? 2 : 0,
-            borderDash: [4, 4], 
-            pointRadius: 0,
-            fill: false,
-            showLine: true 
-        });
-
-        // 4. Vertical Line at Minimum Flow Intersection (qMin)
-        fdcDatasets.push({
-            type: 'line',
-            label: '_vLineMin',
-            data: [{ x: xIntersectMin, y: minYValue }, { x: xIntersectMin, y: qMin }],
-            order: 0,
-            borderColor: exactXMin !== null ? '#e74c3c' : 'rgba(0,0,0,0)', 
-            borderWidth: exactXMin !== null ? 2 : 0,
-            borderDash: [4, 4],
-            pointRadius: 0,
-            fill: false,
-            showLine: true
-        });
-
-        // 5. BOUNDED RECTANGLE: Explicit box between qMax, qMin, and both vertical intersection lines
-        const dangerAreaPoints = [
-            { x: xIntersectMax, y: qMin }, // Bottom-Left: Intersection of qMin & Max Vertical Line
-            { x: xIntersectMax, y: qMax }, // Top-Left: Intersection of qMax & Max Vertical Line
-            { x: xIntersectMin, y: qMax }, // Top-Right: Intersection of qMax & Min Vertical Line
-            { x: xIntersectMin, y: qMin }  // Bottom-Right: Intersection of qMin & Min Vertical Line
-        ];
-
-        fdcDatasets.push({
-            type: 'line',
-            label: 'Dangerous Flow Range',
-            data: dangerAreaPoints,
-            order: 2, 
-            borderColor: 'rgba(0,0,0,0)', 
-            backgroundColor: 'rgba(231,76,60,0.25)', 
-            fill: 'origin', 
-            pointRadius: 0,
-            tension: 0, // Sharp 90-degree corners
-        });
-    }
-
-    // 6. NWM FDC Line
-    fdcDatasets.push({
+    // NWM FDC Line — built and charted first (below) so its actual rendered curve (with tension) exists
+    // in the chart's scales before we solve for where it crosses qMax/qMin.
+    const fdcLineDataset = {
         type: 'line',
         label: 'NWM FDC',
         data: points,
@@ -2113,14 +2087,14 @@ async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
         pointRadius: 0,
         pointHitRadius: 10,
         borderWidth: 2,
-        tension: 0.3,
+        tension: _FDC_LINE_TENSION,
         pointStyle: 'circle',
-    });
+    };
 
     const ctx = document.getElementById('fdcChart').getContext('2d');
     fdcChart = new Chart(ctx, {
         type: 'line',
-        data: { datasets: fdcDatasets },
+        data: { datasets: [fdcLineDataset] },
         options: {
             responsive: true,
             maintainAspectRatio: false,
@@ -2161,6 +2135,93 @@ async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
             },
         },
     });
+
+    if (hasDangerRange) {
+        // Now that the chart's scales exist, find where the *rendered* (curved) FDC line crosses qMax/qMin.
+        const exactXMax = findXAtFlowOnCurve(fdcChart, points, qMax, _FDC_LINE_TENSION);
+        const exactXMin = findXAtFlowOnCurve(fdcChart, points, qMin, _FDC_LINE_TENSION);
+
+        // Fallbacks to chart edges if line doesn't cross FDC
+        const xIntersectMax = exactXMax !== null ? exactXMax : 0;
+        const xIntersectMin = exactXMin !== null ? exactXMin : 100;
+
+        const dangerDatasets = [];
+
+        // 1. Ceiling Horizontal Line (qMax) — spans only the rectangle's boundary, between the FDC intersections
+        dangerDatasets.push({
+            type: 'line',
+            label: 'Dangerous Flow Range Thresholds',
+            data: [{ x: xIntersectMax, y: qMax }, { x: xIntersectMin, y: qMax }],
+            order: 0,
+            borderColor: 'rgba(192,57,43,0.5)',
+            borderWidth: 2,
+            pointRadius: 0,
+            fill: false,
+        });
+
+        // 2. Floor Horizontal Line (qMin) — spans only the rectangle's boundary, between the FDC intersections
+        dangerDatasets.push({
+            type: 'line',
+            label: '_qMin',
+            data: [{ x: xIntersectMax, y: qMin }, { x: xIntersectMin, y: qMin }],
+            order: 0,
+            borderColor: 'rgba(192,57,43,0.5)',
+            borderWidth: 2,
+            pointRadius: 0,
+            fill: false,
+            pointStyle: false,
+        });
+
+        // 3. Vertical Line at Maximum Flow Intersection (qMax)
+        dangerDatasets.push({
+            type: 'line',
+            label: '_vLineMax',
+            data: [{ x: xIntersectMax, y: minYValue }, { x: xIntersectMax, y: qMax }],
+            order: 0,
+            borderColor: exactXMax !== null ? 'rgba(192,57,43,0.5)' : 'rgba(0,0,0,0)',
+            borderWidth: exactXMax !== null ? 1.5 : 0,
+            pointRadius: 0,
+            fill: false,
+            showLine: true
+        });
+
+        // 4. Vertical Line at Minimum Flow Intersection (qMin)
+        dangerDatasets.push({
+            type: 'line',
+            label: '_vLineMin',
+            data: [{ x: xIntersectMin, y: minYValue }, { x: xIntersectMin, y: qMin }],
+            order: 0,
+            borderColor: exactXMin !== null ? 'rgba(192,57,43,0.5)' : 'rgba(0,0,0,0)',
+            borderWidth: exactXMin !== null ? 1.5 : 0,
+            pointRadius: 0,
+            fill: false,
+            showLine: true
+        });
+
+        // 5. BOUNDED RECTANGLE: Explicit box between qMax, qMin, and both vertical intersection lines
+        const dangerAreaPoints = [
+            { x: xIntersectMax, y: qMin }, // Bottom-Left: Intersection of qMin & Max Vertical Line
+            { x: xIntersectMax, y: qMax }, // Top-Left: Intersection of qMax & Max Vertical Line
+            { x: xIntersectMin, y: qMax }, // Top-Right: Intersection of qMax & Min Vertical Line
+            { x: xIntersectMin, y: qMin }  // Bottom-Right: Intersection of qMin & Min Vertical Line
+        ];
+
+        dangerDatasets.push({
+            type: 'line',
+            label: 'Dangerous Flow Range',
+            data: dangerAreaPoints,
+            order: 2,
+            borderColor: 'rgba(0,0,0,0)',
+            backgroundColor: 'rgba(231,76,60,0.25)',
+            fill: 'origin',
+            pointRadius: 0,
+            tension: 0, // Sharp 90-degree corners
+        });
+
+        // Insert ahead of the FDC line so legend/order match the original layout.
+        fdcChart.data.datasets.unshift(...dangerDatasets);
+        fdcChart.update('none');
+    }
 }
 
 window.showFlowDurationCurve = showFlowDurationCurve;
