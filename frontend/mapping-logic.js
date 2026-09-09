@@ -1758,10 +1758,14 @@ async function showRatingCurves(heightFt, lengthFt, comid, damName) {
                     pan: {
                         enabled: true,
                         mode: 'xy',
+                        // Let a single-finger touch drag scroll the page instead of panning the chart.
+                        onPanStart: ({ event }) => event.pointerType === 'touch' ? false : undefined,
                     },
                     zoom: {
                         wheel: {
                             enabled: true,
+                            // Require Ctrl so a normal scroll over the chart still scrolls the page.
+                            modifierKey: 'ctrl',
                         },
                         pinch: {
                             enabled: true
@@ -1915,8 +1919,14 @@ async function showSyntheticRatingCurve(comid, damName, heightFt = null, lengthF
                 },
                 zoom: {
                     limits: { x: { min: 'original', max: 'original' }, y: { min: 'original', max: 'original' } },
-                    pan: { enabled: true, mode: 'xy' },
-                    zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' },
+                    pan: {
+                        enabled: true,
+                        mode: 'xy',
+                        // Let a single-finger touch drag scroll the page instead of panning the chart.
+                        onPanStart: ({ event }) => event.pointerType === 'touch' ? false : undefined,
+                    },
+                    // Require Ctrl so a normal scroll over the chart still scrolls the page.
+                    zoom: { wheel: { enabled: true, modifierKey: 'ctrl' }, pinch: { enabled: true }, mode: 'xy' },
                 },
             },
             scales: {
@@ -2115,8 +2125,14 @@ async function showFlowDurationCurve(comid, damName, qMin = null, qMax = null) {
                 },
                 zoom: {
                     limits: { x: { min: 'original', max: 'original' }, y: { min: 'original', max: 'original' } },
-                    pan: { enabled: true, mode: 'xy' },
-                    zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' },
+                    pan: {
+                        enabled: true,
+                        mode: 'xy',
+                        // Let a single-finger touch drag scroll the page instead of panning the chart.
+                        onPanStart: ({ event }) => event.pointerType === 'touch' ? false : undefined,
+                    },
+                    // Require Ctrl so a normal scroll over the chart still scrolls the page.
+                    zoom: { wheel: { enabled: true, modifierKey: 'ctrl' }, pinch: { enabled: true }, mode: 'xy' },
                 },
             },
             scales: {
